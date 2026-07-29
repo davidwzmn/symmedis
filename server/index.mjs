@@ -79,7 +79,10 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // One-Pager: alles Übrige auf index.html
+  // Single-Page-Anwendung: alle übrigen Pfade an den Client-Router geben.
+  // Bewusst mit Status 200 – /demo, /portal und /intern sind echte Routen,
+  // ein 404 würde Deep-Links fälschlich als Fehler ausweisen. Unbekannte
+  // Adressen beantwortet der Router selbst mit seiner 404-Seite.
   const indexFile = path.join(DIST, 'index.html')
   if (!fs.existsSync(indexFile)) {
     res.statusCode = 500
@@ -87,7 +90,7 @@ const server = http.createServer(async (req, res) => {
     res.end('Kein Build gefunden. Bitte zuerst "npm run build" ausführen.')
     return
   }
-  sendFile(res, indexFile, safePath === '/' || safePath === '\\' ? 200 : 404)
+  sendFile(res, indexFile, 200)
 })
 
 server.listen(PORT, HOST, () => {

@@ -1,0 +1,186 @@
+/* ==========================================================================
+   SYMMEDIS Diagnosis OS – Design-Tokens
+   --------------------------------------------------------------------------
+   Einzige Quelle für Farbe, Typografie, Abstand, Radius, Schatten und Motion.
+   Komponenten verwenden ausschließlich diese Tokens, nie rohe Hex-Werte.
+
+   Farblogik: jede Semantik hat drei Rollen.
+     …            Flächen-/Markenfarbe (Chips, Chart-Marken, Indikatoren)
+     …-ink        abgedunkelte Variante für Text (erfüllt WCAG AA)
+     …-soft       sehr helle Tönung für Hintergründe
+
+   Grund: die Signalfarben aus der Vorgabe (#18A67D, #D98A21, #D94A4A, #788395)
+   erreichen als Text auf Weiß nur 2,8–4,2:1. Als Fläche sind sie richtig, als
+   Text nicht – deshalb die -ink-Stufe.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Flächen ---------------------------------------------------------- */
+  --c-canvas: #f8fafc;
+  --c-surface: #ffffff;
+  --c-surface-muted: #f3f5f7;
+  --c-surface-sunken: #eef1f5;
+  --c-surface-inverse: #172033;
+  --c-overlay: rgb(15 23 42 / 0.55);
+
+  /* --- Linien ----------------------------------------------------------- */
+  --c-line: #e4e8ee;
+  --c-line-strong: #d2d9e3;
+  --c-line-inverse: #2a3550;
+
+  /* --- Text ------------------------------------------------------------- */
+  --c-ink: #172033; /* 16,3:1 auf Weiß */
+  --c-ink-2: #55607a; /*  6,3:1 */
+  --c-ink-3: #616a7d; /*  4,8:1 auf Weiß, 4,8:1 auf --c-surface-sunken */
+  --c-ink-inverse: #ffffff;
+
+  /* --- Primär: Blau (Vertrauen, Analyse, Technologie) ------------------- */
+  --c-brand: #2f5bea;
+  --c-brand-hover: #2547c8;
+  --c-brand-active: #1d3aa6;
+  --c-brand-ink: #2447b8;
+  --c-brand-soft: #edf2fe;
+  --c-brand-softer: #f6f9ff;
+  --c-brand-border: #c6d5fb;
+
+  /* --- Sekundär: Teal (Gesundheit, Fortschritt, Bewegung) --------------- */
+  --c-accent: #14b8a6;
+  --c-accent-hover: #0ea396;
+  --c-accent-ink: #0f766e;
+  --c-accent-soft: #e6f7f5;
+  --c-accent-border: #a6e5dd;
+
+  /* --- Status ----------------------------------------------------------- */
+  --c-ok: #18a67d;
+  --c-ok-ink: #0f7a5c;
+  --c-ok-soft: #e7f6f1;
+  --c-ok-border: #a9dfcd;
+
+  --c-info: #2f6fed;
+  --c-info-ink: #2456be;
+  --c-info-soft: #edf3fe;
+  --c-info-border: #c3d7fb;
+
+  --c-warn: #d98a21;
+  --c-warn-ink: #96590a;
+  --c-warn-soft: #fdf4e5;
+  --c-warn-border: #f0d3a1;
+
+  --c-danger: #d94a4a;
+  --c-danger-ink: #a92f2f;
+  --c-danger-soft: #fceded;
+  --c-danger-border: #f2bcbc;
+
+  /* Koralle: ausschließlich für dringende Aktivierung, nie großflächig */
+  --c-urgent: #f0645a;
+  --c-urgent-ink: #b53c33;
+  --c-urgent-soft: #fdeeec;
+  --c-urgent-border: #f8c4bf;
+
+  --c-neutral: #788395;
+  --c-neutral-ink: #55607a;
+  --c-neutral-soft: #f1f3f6;
+  --c-neutral-border: #dde2ea;
+
+  /* --- Text auf gefüllten Flächen ---------------------------------------
+     Weiß ist auf den Signalfarben nicht durchgängig AA-tauglich (auf #14B8A6
+     nur 2,3:1). Deshalb je Fläche eine eigene, geprüfte Textfarbe. */
+  --c-on-brand: #ffffff; /* auf --c-brand   5,5:1 */
+  --c-on-accent: #101828; /* auf --c-accent  7,1:1 */
+  --c-on-solid: #ffffff; /* auf den …-ink-Flächen, ab 4,8:1 */
+
+  /* --- Datenvisualisierung ---------------------------------------------- */
+  --c-viz-1: #2f5bea; /* Hauptserie */
+  --c-viz-2: #14b8a6; /* Vergleichsserie (CVD-geprüft: ΔE 26,5) */
+  --c-viz-track: #eef1f5; /* Balken-Hintergrund */
+  --c-viz-grid: #e9edf3;
+  --c-viz-axis: #616a7d;
+
+  /* --- Schatten (dezent, kein Glow) ------------------------------------- */
+  --sh-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --sh-sm: 0 1px 3px rgb(16 24 40 / 0.06), 0 1px 2px rgb(16 24 40 / 0.04);
+  --sh-md: 0 4px 12px -2px rgb(16 24 40 / 0.08), 0 2px 6px -2px rgb(16 24 40 / 0.05);
+  --sh-lg: 0 12px 32px -8px rgb(16 24 40 / 0.14);
+  --sh-pop: 0 16px 40px -12px rgb(16 24 40 / 0.2);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --c-canvas: #0b1120;
+  --c-surface: #131a2a;
+  --c-surface-muted: #182236;
+  --c-surface-sunken: #0e1626;
+  --c-surface-inverse: #e8ecf4;
+  --c-overlay: rgb(3 7 18 / 0.7);
+
+  --c-line: #253046;
+  --c-line-strong: #33415c;
+
+  --c-ink: #e8ecf4;
+  --c-ink-2: #a8b3c9;
+  --c-ink-3: #94a0b8;
+  --c-ink-inverse: #0b1120;
+
+  --c-brand: #7c9bff;
+  --c-brand-hover: #93aeff;
+  --c-brand-active: #b0c4ff;
+  --c-brand-ink: #9db6ff;
+  --c-brand-soft: #1b2545;
+  --c-brand-softer: #161e36;
+  --c-brand-border: #2f3f6b;
+
+  --c-accent: #2dd4bf;
+  --c-accent-hover: #5ee0cf;
+  --c-accent-ink: #5eddcb;
+  --c-accent-soft: #102c2c;
+  --c-accent-border: #1d4a48;
+
+  --c-ok: #34c99b;
+  --c-ok-ink: #5cd7b1;
+  --c-ok-soft: #0f2a24;
+  --c-ok-border: #1c483c;
+
+  --c-info: #6d94f5;
+  --c-info-ink: #93b0f8;
+  --c-info-soft: #16223f;
+  --c-info-border: #2b3d66;
+
+  --c-warn: #e8a44a;
+  --c-warn-ink: #efbb78;
+  --c-warn-soft: #2b2113;
+  --c-warn-border: #4b3a1e;
+
+  --c-danger: #ec7272;
+  --c-danger-ink: #f19898;
+  --c-danger-soft: #2e1719;
+  --c-danger-border: #4e2a2c;
+
+  --c-urgent: #f58a80;
+  --c-urgent-ink: #f7a49c;
+  --c-urgent-soft: #331a18;
+  --c-urgent-border: #55302c;
+
+  --c-neutral: #8d97a9;
+  --c-neutral-ink: #a8b3c9;
+  --c-neutral-soft: #1a2334;
+  --c-neutral-border: #2c3850;
+
+  --c-on-brand: #0b1120; /* auf --c-brand   7,2:1 */
+  --c-on-accent: #0b1120; /* auf --c-accent 10,1:1 */
+  --c-on-solid: #0b1120; /* auf den …-ink-Flächen, ab 7,3:1 */
+
+  --c-viz-1: #7c9bff;
+  --c-viz-2: #2dd4bf;
+  --c-viz-track: #1c2740;
+  --c-viz-grid: #1e2a42;
+  --c-viz-axis: #94a0b8;
+
+  --sh-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --sh-sm: 0 1px 3px rgb(0 0 0 / 0.4);
+  --sh-md: 0 4px 12px -2px rgb(0 0 0 / 0.45);
+  --sh-lg: 0 12px 32px -8px rgb(0 0 0 / 0.55);
+  --sh-pop: 0 16px 40px -12px rgb(0 0 0 / 0.6);
+}

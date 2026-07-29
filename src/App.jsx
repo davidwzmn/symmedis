@@ -1,85 +1,43 @@
-import { useCallback, useState } from 'react'
-import { Footer } from './components/layout/Footer.jsx'
-import { Header } from './components/layout/Header.jsx'
-import { LegalModal } from './components/LegalModal.jsx'
-import { DemoModal } from './components/demo/DemoModal.jsx'
-import { PortalModal } from './components/portal/PortalModal.jsx'
-import { Angebot } from './components/sections/Angebot.jsx'
-import { Hero } from './components/sections/Hero.jsx'
-import { Problem } from './components/sections/Problem.jsx'
-import { Prozess } from './components/sections/Prozess.jsx'
-import { Termin } from './components/sections/Termin.jsx'
-import { UeberUns } from './components/sections/UeberUns.jsx'
-import { Zielgruppe } from './components/sections/Zielgruppe.jsx'
-import { useTheme } from './hooks/useTheme.js'
+import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { SessionProvider } from './state/SessionProvider.jsx'
+import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
+import { ToastProvider } from './components/ui/ToastProvider.jsx'
+import { MarketingPage } from './pages/marketing/MarketingPage.jsx'
+import { LoginPage } from './pages/LoginPage.jsx'
+import { DemoApp } from './pages/demo/DemoApp.jsx'
+import { CustomerApp } from './pages/customer/CustomerApp.jsx'
+import { StaffApp } from './pages/staff/StaffApp.jsx'
+import { NotFoundPage } from './pages/NotFoundPage.jsx'
+
+/** Beim Seitenwechsel nach oben – sonst startet die neue Seite mittendrin. */
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [pathname])
+  return null
+}
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme()
-
-  const [demoOpen, setDemoOpen] = useState(false)
-  const [portalOpen, setPortalOpen] = useState(false)
-  const [portalRole, setPortalRole] = useState('kunde')
-  const [session, setSession] = useState(null)
-  const [legalId, setLegalId] = useState(null)
-
-  // Es ist immer höchstens ein Dialog offen.
-  const openDemo = useCallback(() => {
-    setPortalOpen(false)
-    setLegalId(null)
-    setDemoOpen(true)
-  }, [])
-
-  const openPortal = useCallback((role = 'kunde') => {
-    setDemoOpen(false)
-    setLegalId(null)
-    setPortalRole(role)
-    // Wer ausdrücklich einen anderen Zugang wählt, landet im passenden Login –
-    // sonst öffnete "Mitarbeiterlogin" die noch aktive Kundensitzung.
-    setSession((current) => (current && current.role !== role ? null : current))
-    setPortalOpen(true)
-  }, [])
-
-  const openLegal = useCallback((id) => {
-    setDemoOpen(false)
-    setPortalOpen(false)
-    setLegalId(id)
-  }, [])
-
   return (
-    <>
-      <a
-        href="#hauptinhalt"
-        className="sr-only rounded-sm bg-marine-800 px-4 py-2 text-sm text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[110]"
-      >
-        Zum Hauptinhalt springen
-      </a>
-
-      <Header theme={theme} onToggleTheme={toggleTheme} onOpenPortal={openPortal} />
-
-      <main id="hauptinhalt">
-        <Hero onOpenDemo={openDemo} />
-        <Problem />
-        <Prozess onOpenDemo={openDemo} />
-        <Zielgruppe />
-        <Angebot onOpenDemo={openDemo} />
-        <UeberUns />
-        <Termin onOpenDemo={openDemo} />
-      </main>
-
-      <Footer onOpenLegal={openLegal} onOpenPortal={openPortal} />
-
-      <DemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
-
-      <PortalModal
-        open={portalOpen}
-        onClose={() => setPortalOpen(false)}
-        session={session}
-        initialRole={portalRole}
-        onLogin={setSession}
-        onLogout={() => setSession(null)}
-      />
-
-      <LegalModal openId={legalId} onClose={() => setLegalId(null)} />
-    </>
+    <BrowserRouter>
+      <ToastProvider>
+        <SessionProvider>
+          <WorkspaceProvider>
+            <ScrollToTop />
+            <Routes>
+              <Route path="/" element={<MarketingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/demo/*" element={<DemoApp />} />
+              <Route path="/portal/*" element={<CustomerApp />} />
+              <Route path="/intern/*" element={<StaffApp />} />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </WorkspaceProvider>
+        </SessionProvider>
+      </ToastProvider>
+    </BrowserRouter>
   )
 }

@@ -1,87 +1,124 @@
 @import 'tailwindcss';
+@import './styles/tokens.css';
 
-/* Dark Mode wird über die Klasse .dark am <html>-Element gesteuert. */
-@custom-variant dark (&:where(.dark, .dark *));
-
-@theme {
-  /* --- Typografie: seriöse Serifen-Headlines, ruhige Sans im Fließtext --- */
-  --font-serif:
-    'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, Cambria,
-    'Times New Roman', serif;
-  --font-sans:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif;
-
-  /* --- Primärfarbe: tiefes Petrol-Marine (ruhig, klinisch, vertrauenswürdig) --- */
-  --color-marine-50: #f2f7f8;
-  --color-marine-100: #e0edf0;
-  --color-marine-200: #c0dae1;
-  --color-marine-300: #94beca;
-  --color-marine-400: #5f98a9;
-  --color-marine-500: #3c7a8d;
-  --color-marine-600: #2e6274;
-  --color-marine-700: #285060;
-  --color-marine-800: #204350;
-  --color-marine-900: #1c3945;
-  --color-marine-950: #0f222a;
-
-  /* --- Akzentfarbe: Kupfer/Messing (präzise, warm, kein Neon) --- */
-  --color-brass-50: #fbf6ef;
-  --color-brass-100: #f4e8d6;
-  --color-brass-200: #e8cfac;
-  --color-brass-300: #daaf7b;
-  --color-brass-400: #ce9155;
-  --color-brass-500: #c6803f;
-  --color-brass-600: #9c5a29;
-  --color-brass-700: #8a4f2a;
-  --color-brass-800: #713f26;
-  --color-brass-900: #5e3522;
-
-  /* --- Neutrale, leicht warme Grautöne --- */
-  --color-shell-50: #fafaf9;
-  --color-shell-100: #f4f4f2;
-  --color-shell-200: #e7e7e4;
-  --color-shell-300: #d3d3ce;
-  --color-shell-400: #a8a8a2;
-  --color-shell-500: #6f6f69;
-  --color-shell-600: #5c5c57;
-  --color-shell-700: #464642;
-  --color-shell-800: #2e2e2b;
-  --color-shell-900: #1c1c1a;
-
-  /* --- Dunkler Modus --- */
-  --color-night-100: #dfe8ec;
-  --color-night-200: #b4c6ce;
-  --color-night-300: #8aa2ad;
-  --color-night-600: #274855;
-  --color-night-700: #1c3540;
-  --color-night-800: #14262e;
-  --color-night-900: #0e1b21;
-  --color-night-950: #0a1317;
-
-  /* --- Bewertungsfarben der Analyse --- */
-  --color-signal-critical: #b4462f;
-  --color-signal-warn: #c6803f;
-  --color-signal-ok: #3c7a8d;
-  --color-signal-strong: #2f7a63;
-
-  --radius-xs: 0.25rem;
-  --radius-sm: 0.375rem;
-
-  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-fade-in: fade-in 0.35s ease-out both;
-  --animate-bar: bar-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Inter als Variable Font, nur Latin-Subset (48 kB) und selbst gehostet –
+   keine Anfragen an fremde CDNs, kein Font-Flackern. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+/* Dark Mode über die Klasse .dark am <html>-Element. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --------------------------------------------------------------------------
+   Tokens → Tailwind-Utilities.
+   `inline` sorgt dafür, dass die Utilities var(--c-…) referenzieren statt den
+   Wert einzubacken – nur so wirkt der Theme-Wechsel zur Laufzeit.
+   -------------------------------------------------------------------------- */
+@theme inline {
+  --font-sans:
+    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-muted: var(--c-surface-muted);
+  --color-surface-sunken: var(--c-surface-sunken);
+  --color-surface-inverse: var(--c-surface-inverse);
+
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-ink-inverse: var(--c-ink-inverse);
+
+  --color-brand: var(--c-brand);
+  --color-brand-hover: var(--c-brand-hover);
+  --color-brand-active: var(--c-brand-active);
+  --color-brand-ink: var(--c-brand-ink);
+  --color-brand-soft: var(--c-brand-soft);
+  --color-brand-softer: var(--c-brand-softer);
+  --color-brand-border: var(--c-brand-border);
+
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-border: var(--c-accent-border);
+
+  --color-ok: var(--c-ok);
+  --color-ok-ink: var(--c-ok-ink);
+  --color-ok-soft: var(--c-ok-soft);
+  --color-ok-border: var(--c-ok-border);
+
+  --color-info: var(--c-info);
+  --color-info-ink: var(--c-info-ink);
+  --color-info-soft: var(--c-info-soft);
+  --color-info-border: var(--c-info-border);
+
+  --color-warn: var(--c-warn);
+  --color-warn-ink: var(--c-warn-ink);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-warn-border: var(--c-warn-border);
+
+  --color-danger: var(--c-danger);
+  --color-danger-ink: var(--c-danger-ink);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-border: var(--c-danger-border);
+
+  --color-urgent: var(--c-urgent);
+  --color-urgent-ink: var(--c-urgent-ink);
+  --color-urgent-soft: var(--c-urgent-soft);
+  --color-urgent-border: var(--c-urgent-border);
+
+  --color-neutral: var(--c-neutral);
+  --color-neutral-ink: var(--c-neutral-ink);
+  --color-neutral-soft: var(--c-neutral-soft);
+  --color-neutral-border: var(--c-neutral-border);
+
+  --color-on-brand: var(--c-on-brand);
+  --color-on-accent: var(--c-on-accent);
+  --color-on-solid: var(--c-on-solid);
+
+  --color-viz-1: var(--c-viz-1);
+  --color-viz-2: var(--c-viz-2);
+  --color-viz-track: var(--c-viz-track);
+  --color-viz-grid: var(--c-viz-grid);
+  --color-viz-axis: var(--c-viz-axis);
+
+  /* Radien: Karten 14 px laut Vorgabe (12–16 px) */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-card: 0.875rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --shadow-pop: var(--sh-pop);
+
+  /* Motion – zurückhaltend, kurz, ohne Überschwingen */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-fade-in: fade-in 0.24s var(--ease-out) both;
+  --animate-rise: rise 0.34s var(--ease-out) both;
+  --animate-slide-right: slide-right 0.24s var(--ease-out) both;
+  --animate-grow-x: grow-x 0.7s var(--ease-out) both;
+  --animate-shimmer: shimmer 1.5s linear infinite;
 }
 
 @keyframes fade-in {
@@ -93,7 +130,29 @@
   }
 }
 
-@keyframes bar-grow {
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes grow-x {
   from {
     transform: scaleX(0);
   }
@@ -102,29 +161,20 @@
   }
 }
 
-@keyframes pulse-soft {
-  0%,
-  100% {
-    opacity: 1;
+@keyframes shimmer {
+  from {
+    background-position: -180% 0;
   }
-  50% {
-    opacity: 0.45;
+  to {
+    background-position: 180% 0;
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Basis                                                               */
-/* ------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* Basis                                                                       */
+/* -------------------------------------------------------------------------- */
 
 @layer base {
-  :root {
-    color-scheme: light;
-  }
-
-  html.dark {
-    color-scheme: dark;
-  }
-
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
@@ -132,58 +182,52 @@
 
   body {
     margin: 0;
-    background-color: var(--color-white);
-    color: var(--color-shell-800);
+    background-color: var(--c-canvas);
+    color: var(--c-ink);
     font-family: var(--font-sans);
-    font-size: 1rem;
-    line-height: 1.65;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-feature-settings: 'cv05' 1, 'ss03' 1;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
     overflow-x: hidden;
-  }
-
-  html.dark body {
-    background-color: var(--color-night-950);
-    color: var(--color-night-200);
   }
 
   h1,
   h2,
   h3,
-  h4 {
-    font-family: var(--font-serif);
-    font-weight: 500;
-    letter-spacing: -0.015em;
-    color: var(--color-marine-950);
+  h4,
+  h5 {
+    color: var(--c-ink);
+    font-weight: 600;
+    letter-spacing: -0.018em;
+    line-height: 1.22;
     text-wrap: balance;
-  }
-
-  html.dark h1,
-  html.dark h2,
-  html.dark h3,
-  html.dark h4 {
-    color: var(--color-night-100);
   }
 
   p {
     text-wrap: pretty;
   }
 
-  /* Sichtbarer, ruhiger Fokusring – überall gleich */
+  /* Zahlen in Tabellen und Kennzahlen laufen nicht auseinander */
+  th,
+  td,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--color-brass-500);
+    outline: 2px solid var(--c-brand);
     outline-offset: 2px;
-    border-radius: 2px;
+    border-radius: 3px;
   }
 
   ::selection {
-    background-color: var(--color-marine-800);
+    background-color: var(--c-brand);
     color: #fff;
   }
 
-  /* Anker-Sprünge nicht unter der fixierten Navigation verstecken */
-  section[id] {
-    scroll-margin-top: 5.5rem;
+  [id] {
+    scroll-margin-top: 5rem;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -200,95 +244,81 @@
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Wiederkehrende Komponenten-Klassen                                  */
-/* ------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* Wiederverwendbare Muster                                                    */
+/* -------------------------------------------------------------------------- */
 
 @layer components {
-  .container-page {
+  .shell-container {
     width: 100%;
-    max-width: 76rem;
+    max-width: 80rem;
     margin-inline: auto;
-    padding-inline: 1.25rem;
+    padding-inline: 1rem;
   }
 
-  @media (min-width: 768px) {
-    .container-page {
+  @media (min-width: 640px) {
+    .shell-container {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .shell-container {
       padding-inline: 2rem;
     }
   }
 
+  /* Eyebrow: dezent, ohne übertriebenes Letter-Spacing */
   .eyebrow {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-brass-600);
+    letter-spacing: 0.04em;
+    color: var(--c-brand-ink);
   }
 
-  html.dark .eyebrow {
-    color: var(--color-brass-300);
+  .card {
+    background-color: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--sh-xs);
   }
 
-  .surface {
-    background-color: #fff;
-    border: 1px solid var(--color-shell-200);
-    border-radius: 0.5rem;
+  .divide-line > * + * {
+    border-top: 1px solid var(--c-line);
   }
 
-  html.dark .surface {
-    background-color: var(--color-night-900);
-    border-color: var(--color-night-700);
+  /* Feines Punktraster – nur im Marketing-Hero, sehr zurückhaltend */
+  .dot-grid {
+    background-image: radial-gradient(circle at 1px 1px, var(--c-line-strong) 1px, transparent 0);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 20%, transparent 100%);
   }
 
-  .hairline {
-    border-color: var(--color-shell-200);
-  }
-
-  html.dark .hairline {
-    border-color: var(--color-night-700);
-  }
-
-  .prose-muted {
-    color: var(--color-shell-600);
-  }
-
-  html.dark .prose-muted {
-    color: var(--color-night-300);
-  }
-
-  /* Feine Rasterstruktur im Hero – dezent, nicht dekorativ überladen */
-  .grid-veil {
-    background-image:
-      linear-gradient(to right, rgba(32, 67, 80, 0.055) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(32, 67, 80, 0.055) 1px, transparent 1px);
-    background-size: 72px 72px;
-    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 100%);
-  }
-
-  html.dark .grid-veil {
-    background-image:
-      linear-gradient(to right, rgba(148, 190, 202, 0.07) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(148, 190, 202, 0.07) 1px, transparent 1px);
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--c-surface-muted) 25%,
+      var(--c-surface-sunken) 37%,
+      var(--c-surface-muted) 50%
+    );
+    background-size: 280% 100%;
+    animation: var(--animate-shimmer);
+    border-radius: var(--radius-sm);
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Utilities                                                           */
-/* ------------------------------------------------------------------ */
-
-@utility no-scrollbar {
+@utility scroll-area {
   scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
   &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: var(--color-shell-300);
+    background-color: var(--c-line-strong);
     border-radius: 999px;
   }
-}
-
-@utility animate-pulse-soft {
-  animation: pulse-soft 1.4s ease-in-out infinite;
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
