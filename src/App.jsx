@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
@@ -19,9 +19,17 @@ function ScrollToTop() {
   return null
 }
 
+/**
+ * Auf einem Server mit SPA-Rewrite (npm run preview) laufen echte Pfade.
+ * Für rein statisches Hosting ohne Rewrite lässt sich per
+ * `VITE_ROUTER=hash npm run build` auf Hash-Routen umstellen – sonst
+ * beantwortet der Host jeden Unterpfad mit 404.
+ */
+const Router = import.meta.env.VITE_ROUTER === 'hash' ? HashRouter : BrowserRouter
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <ToastProvider>
         <SessionProvider>
           <WorkspaceProvider>
@@ -38,6 +46,6 @@ export default function App() {
           </WorkspaceProvider>
         </SessionProvider>
       </ToastProvider>
-    </BrowserRouter>
+    </Router>
   )
 }

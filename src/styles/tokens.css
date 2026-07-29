@@ -106,7 +106,10 @@
   --sh-pop: 0 16px 40px -12px rgb(16 24 40 / 0.2);
 }
 
-.dark {
+/* Zusätzlich zu .dark auch [data-theme="dark"]: eingebettete Umgebungen
+   (z. B. eine Artifact-Vorschau) setzen ihre Themenwahl über dieses Attribut. */
+.dark,
+:root[data-theme='dark'] {
   color-scheme: dark;
 
   --c-canvas: #0b1120;
