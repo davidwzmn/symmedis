@@ -1,0 +1,294 @@
+@import 'tailwindcss';
+
+/* Dark Mode wird über die Klasse .dark am <html>-Element gesteuert. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* --- Typografie: seriöse Serifen-Headlines, ruhige Sans im Fließtext --- */
+  --font-serif:
+    'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, Cambria,
+    'Times New Roman', serif;
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+
+  /* --- Primärfarbe: tiefes Petrol-Marine (ruhig, klinisch, vertrauenswürdig) --- */
+  --color-marine-50: #f2f7f8;
+  --color-marine-100: #e0edf0;
+  --color-marine-200: #c0dae1;
+  --color-marine-300: #94beca;
+  --color-marine-400: #5f98a9;
+  --color-marine-500: #3c7a8d;
+  --color-marine-600: #2e6274;
+  --color-marine-700: #285060;
+  --color-marine-800: #204350;
+  --color-marine-900: #1c3945;
+  --color-marine-950: #0f222a;
+
+  /* --- Akzentfarbe: Kupfer/Messing (präzise, warm, kein Neon) --- */
+  --color-brass-50: #fbf6ef;
+  --color-brass-100: #f4e8d6;
+  --color-brass-200: #e8cfac;
+  --color-brass-300: #daaf7b;
+  --color-brass-400: #ce9155;
+  --color-brass-500: #c6803f;
+  --color-brass-600: #9c5a29;
+  --color-brass-700: #8a4f2a;
+  --color-brass-800: #713f26;
+  --color-brass-900: #5e3522;
+
+  /* --- Neutrale, leicht warme Grautöne --- */
+  --color-shell-50: #fafaf9;
+  --color-shell-100: #f4f4f2;
+  --color-shell-200: #e7e7e4;
+  --color-shell-300: #d3d3ce;
+  --color-shell-400: #a8a8a2;
+  --color-shell-500: #6f6f69;
+  --color-shell-600: #5c5c57;
+  --color-shell-700: #464642;
+  --color-shell-800: #2e2e2b;
+  --color-shell-900: #1c1c1a;
+
+  /* --- Dunkler Modus --- */
+  --color-night-100: #dfe8ec;
+  --color-night-200: #b4c6ce;
+  --color-night-300: #8aa2ad;
+  --color-night-600: #274855;
+  --color-night-700: #1c3540;
+  --color-night-800: #14262e;
+  --color-night-900: #0e1b21;
+  --color-night-950: #0a1317;
+
+  /* --- Bewertungsfarben der Analyse --- */
+  --color-signal-critical: #b4462f;
+  --color-signal-warn: #c6803f;
+  --color-signal-ok: #3c7a8d;
+  --color-signal-strong: #2f7a63;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.35s ease-out both;
+  --animate-bar: bar-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Basis                                                               */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-white);
+    color: var(--color-shell-800);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  html.dark body {
+    background-color: var(--color-night-950);
+    color: var(--color-night-200);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    color: var(--color-marine-950);
+    text-wrap: balance;
+  }
+
+  html.dark h1,
+  html.dark h2,
+  html.dark h3,
+  html.dark h4 {
+    color: var(--color-night-100);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Sichtbarer, ruhiger Fokusring – überall gleich */
+  :focus-visible {
+    outline: 2px solid var(--color-brass-500);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-marine-800);
+    color: #fff;
+  }
+
+  /* Anker-Sprünge nicht unter der fixierten Navigation verstecken */
+  section[id] {
+    scroll-margin-top: 5.5rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Wiederkehrende Komponenten-Klassen                                  */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+  .container-page {
+    width: 100%;
+    max-width: 76rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 2rem;
+    }
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-brass-600);
+  }
+
+  html.dark .eyebrow {
+    color: var(--color-brass-300);
+  }
+
+  .surface {
+    background-color: #fff;
+    border: 1px solid var(--color-shell-200);
+    border-radius: 0.5rem;
+  }
+
+  html.dark .surface {
+    background-color: var(--color-night-900);
+    border-color: var(--color-night-700);
+  }
+
+  .hairline {
+    border-color: var(--color-shell-200);
+  }
+
+  html.dark .hairline {
+    border-color: var(--color-night-700);
+  }
+
+  .prose-muted {
+    color: var(--color-shell-600);
+  }
+
+  html.dark .prose-muted {
+    color: var(--color-night-300);
+  }
+
+  /* Feine Rasterstruktur im Hero – dezent, nicht dekorativ überladen */
+  .grid-veil {
+    background-image:
+      linear-gradient(to right, rgba(32, 67, 80, 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(32, 67, 80, 0.055) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 100%);
+  }
+
+  html.dark .grid-veil {
+    background-image:
+      linear-gradient(to right, rgba(148, 190, 202, 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 190, 202, 0.07) 1px, transparent 1px);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilities                                                           */
+/* ------------------------------------------------------------------ */
+
+@utility no-scrollbar {
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-shell-300);
+    border-radius: 999px;
+  }
+}
+
+@utility animate-pulse-soft {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
