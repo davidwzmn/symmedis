@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/cn.js'
 import { useTheme } from '../../hooks/useTheme.js'
+import { useSeo } from '../../hooks/useSeo.js'
+import { seoFuerPfad } from '../../content/seo.js'
 import { Button } from '../../components/ui/primitives.jsx'
 import { Modal } from '../../components/ui/overlays.jsx'
 import { Logo } from '../../components/brand/Logo.jsx'
 import { FOOTER, NAV, RECHTSTEXTE } from '../../content/marketing.js'
-import { IconClose, IconMenu, IconMoon, IconSun } from '../../components/ui/Icons.jsx'
+import { IconCalendar, IconClose, IconMenu, IconMoon, IconSun } from '../../components/ui/Icons.jsx'
 
 /**
  * Rahmen der öffentlichen Website: gemeinsame Kopf- und Fußzeile für alle
@@ -16,6 +18,8 @@ import { IconClose, IconMenu, IconMoon, IconSun } from '../../components/ui/Icon
  */
 export function MarketingLayout() {
   const [rechtstext, setRechtstext] = useState(null)
+  const { pathname } = useLocation()
+  useSeo(seoFuerPfad(pathname))
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
@@ -34,6 +38,8 @@ export function MarketingLayout() {
 
       <Fusszeile onRecht={setRechtstext} />
 
+      <MobileTerminCta />
+
       <Modal
         open={Boolean(rechtstext)}
         onClose={() => setRechtstext(null)}
@@ -51,6 +57,34 @@ export function MarketingLayout() {
         </div>
       </Modal>
     </div>
+  )
+}
+
+/* ------------------------------------------------ Mobiler Sticky-CTA */
+
+/**
+ * Dauerhaft sichtbarer Handlungsaufruf am unteren Rand – nur auf Mobil und
+ * Tablet (unter lg), nicht auf der Terminseite selbst. Berücksichtigt die
+ * iPhone-Safe-Area und liegt unter Modalen (z-80) und Toasts (z-100), damit
+ * keine Overlays verdeckt werden. Der In-Flow-Platzhalter verhindert, dass die
+ * Leiste den Fußzeilen-Abschluss überdeckt.
+ */
+function MobileTerminCta() {
+  const { pathname } = useLocation()
+  if (pathname === '/termin') return null
+  return (
+    <>
+      <div aria-hidden="true" className="h-[4.75rem] lg:hidden" />
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 pt-2.5 backdrop-blur lg:hidden"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.625rem)' }}
+      >
+        <Button as={Link} to="/termin" variant="cta" size="lg" fullWidth>
+          <IconCalendar className="size-4" />
+          Diagnosegespräch buchen
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -112,9 +146,15 @@ function Kopfzeile() {
               Anmelden
             </Button>
           </span>
-          <span className="hidden sm:inline-flex">
-            <Button as={Link} to="/demo" size="sm">
+          <span className="hidden lg:inline-flex">
+            <Button as={Link} to="/demo" variant="secondary" size="sm">
               Plattform ansehen
+            </Button>
+          </span>
+          <span className="hidden md:inline-flex">
+            <Button as={Link} to="/termin" variant="cta" size="sm">
+              <IconCalendar className="size-4" />
+              15-Minuten-Gespräch buchen
             </Button>
           </span>
 
@@ -153,6 +193,10 @@ function Kopfzeile() {
               ))}
             </ul>
             <div className="mt-3 grid gap-2 border-t border-line pt-3">
+              <Button as={Link} to="/termin" variant="cta" fullWidth>
+                <IconCalendar className="size-4" />
+                15-Minuten-Gespräch buchen
+              </Button>
               <Button as={Link} to="/demo" fullWidth>
                 Plattform ansehen
               </Button>
@@ -203,17 +247,18 @@ function Fusszeile({ onRecht }) {
           </FooterSpalte>
 
           <FooterSpalte titel="Rechtliches">
-            {Object.entries(RECHTSTEXTE).map(([id, wert]) => (
-              <li key={id}>
-                <button
-                  type="button"
-                  onClick={() => onRecht(id)}
-                  className="text-[0.8125rem] text-canvas/80 transition-colors hover:text-canvas"
-                >
-                  {wert.titel}
-                </button>
-              </li>
-            ))}
+            <FooterLink to="/impressum">Impressum</FooterLink>
+            <FooterLink to="/datenschutz">Datenschutz</FooterLink>
+            <FooterLink to="/agb">AGB</FooterLink>
+            <li>
+              <button
+                type="button"
+                onClick={() => onRecht('barrierefreiheit')}
+                className="text-[0.8125rem] text-canvas/80 transition-colors hover:text-canvas"
+              >
+                {RECHTSTEXTE.barrierefreiheit.titel}
+              </button>
+            </li>
           </FooterSpalte>
         </div>
 
