@@ -147,12 +147,12 @@ function Kopfzeile() {
             </Button>
           </span>
           <span className="hidden xl:inline-flex">
-            <Button as={Link} to="/demo" variant="secondary" size="sm">
+            <Button as={Link} to="/demo" variant="secondary" size="sm" className="whitespace-nowrap">
               Plattform ansehen
             </Button>
           </span>
           <span className="hidden md:inline-flex">
-            <Button as={Link} to="/termin" variant="cta" size="sm">
+            <Button as={Link} to="/termin" variant="cta" size="sm" className="whitespace-nowrap">
               <IconCalendar className="size-4" />
               <span className="xl:hidden">Gespräch buchen</span>
               <span className="hidden xl:inline">15-Minuten-Gespräch buchen</span>
