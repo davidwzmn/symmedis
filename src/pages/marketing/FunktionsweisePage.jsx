@@ -3,8 +3,8 @@ import { cn } from '../../lib/cn.js'
 import { FREIGABE } from '../../lib/tone.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
-import { SeitenKopf, Abschnitt, CtaBand } from './parts.jsx'
-import { FUNKTIONSWEISE } from '../../content/marketing.js'
+import { SeitenKopf, Abschnitt, CtaBand, MarketingBild } from './parts.jsx'
+import { FUNKTIONSWEISE, VISUALS } from '../../content/marketing.js'
 import { IconArrowRight, IconShield } from '../../components/ui/Icons.jsx'
 
 const FREIGABE_REIHE = ['vorgeschlagen', 'pruefung', 'bearbeitet', 'intern', 'kunde']
@@ -40,6 +40,8 @@ export function FunktionsweisePage() {
             </li>
           ))}
         </ol>
+
+        <MarketingBild visual={VISUALS.prozess} className="mt-8" />
       </Abschnitt>
 
       <Abschnitt

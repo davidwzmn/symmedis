@@ -3,9 +3,9 @@ import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
 import { HeroDashboard } from './HeroDashboard.jsx'
-import { Vertrauensleiste, CtaBand } from './parts.jsx'
+import { Vertrauensleiste, CtaBand, MarketingBild } from './parts.jsx'
 import { ZielgruppeSection, TeamSection } from './HomeSections.jsx'
-import { HERO } from '../../content/marketing.js'
+import { HERO, VISUALS } from '../../content/marketing.js'
 import {
   IconAlert,
   IconArrowRight,
@@ -181,6 +181,14 @@ export function HomePage() {
           </Card>
         </div>
       </section>
+
+      {VISUALS.netzwerk.bild ? (
+        <section className="bg-surface-inverse">
+          <div className="shell-container py-14 lg:py-18">
+            <MarketingBild visual={VISUALS.netzwerk} ratio="21 / 9" dunkel />
+          </div>
+        </section>
+      ) : null}
 
       <ZielgruppeSection />
 

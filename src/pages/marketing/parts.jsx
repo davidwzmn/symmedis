@@ -37,6 +37,40 @@ function DatenschutzHinweis({ children }) {
  * damit die Seiten als eine zusammenhängende Website lesbar bleiben.
  */
 
+/* ---------------------------------------------------------- Marketing-Bild */
+
+/**
+ * Redaktionelles Visual mit stabilem Seitenverhältnis (kein Layout Shift),
+ * Lazy-Loading und optionaler Bildunterschrift. Rendert nur, wenn `visual.bild`
+ * gesetzt ist – solange die freigegebene Datei fehlt, erscheint nichts.
+ */
+export function MarketingBild({ visual, ratio = '16 / 9', dunkel = false, className }) {
+  if (!visual?.bild) return null
+  return (
+    <figure className={cn('overflow-hidden rounded-2xl border', dunkel ? 'border-line-inverse' : 'border-line', className)}>
+      <div style={{ aspectRatio: ratio }} className="w-full">
+        <img
+          src={visual.bild}
+          alt={visual.alt}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
+      </div>
+      {visual.caption ? (
+        <figcaption
+          className={cn(
+            'px-4 py-2.5 text-xs leading-relaxed',
+            dunkel ? 'bg-surface-inverse text-canvas/70' : 'bg-surface-muted text-ink-3',
+          )}
+        >
+          {visual.caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  )
+}
+
 /* ------------------------------------------------------------- Seitenkopf */
 
 /** Kopfband einer Unterseite: Eyebrow, große Überschrift, Einleitung, CTA. */

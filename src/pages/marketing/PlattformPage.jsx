@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom'
 import { cn } from '../../lib/cn.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
-import { SeitenKopf, Abschnitt, CtaBand } from './parts.jsx'
-import { MITARBEITERPORTAL, KUNDENPORTAL, PLAN, PLATTFORM, SOCIAL } from '../../content/marketing.js'
+import { SeitenKopf, Abschnitt, CtaBand, MarketingBild } from './parts.jsx'
+import { MITARBEITERPORTAL, KUNDENPORTAL, PLAN, PLATTFORM, SOCIAL, VISUALS } from '../../content/marketing.js'
 import {
   IconAlert,
   IconArrowRight,
@@ -54,6 +54,8 @@ export function PlattformPage() {
             </Card>
           ))}
         </div>
+
+        <MarketingBild visual={VISUALS.plattform} className="mt-8" />
       </Abschnitt>
 
       {/* Portale */}

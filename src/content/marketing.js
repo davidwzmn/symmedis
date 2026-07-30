@@ -270,6 +270,38 @@ export const TEAM = {
   ],
 }
 
+/**
+ * Redaktionelle Bild-Slots. `bild` bleibt null, bis die freigegebene Datei in
+ * src/assets/marketing/ vorliegt und hier importiert zugewiesen wird – dann
+ * erscheint das Visual automatisch mit korrektem Alt-Text und Bildunterschrift
+ * (siehe MarketingBild in parts.jsx). Bis dahin wird nichts dargestellt.
+ */
+export const VISUALS = {
+  prozess: {
+    // Interner Bildname: symmedis-diagnosis-process.png
+    bild: null,
+    alt: 'Dreistufiger SYMMEDIS-Analyseprozess: Ursache erkennen, strategisch einordnen und priorisieren, Maßnahmen und 90-Tage-Plan ableiten',
+    caption: 'Von der Ursache zum 90-Tage-Plan',
+    phasen: [
+      'Ursache erkennen',
+      'Strategisch einordnen und priorisieren',
+      'Maßnahmen und 90-Tage-Plan ableiten',
+    ],
+  },
+  plattform: {
+    // Interner Bildname: symmedis-diagnosis-dashboard.png
+    bild: null,
+    alt: 'Symbolische Darstellung der SYMMEDIS Diagnosis-OS-Oberfläche',
+    caption: 'Diagnosis OS – symbolische, redaktionelle Darstellung, keine reale Plattformaufnahme',
+  },
+  netzwerk: {
+    // Interner Bildname: symmedis-healthtech-network.png
+    bild: null,
+    alt: 'SYMMEDIS Health-Tech-Netzwerk aus Kommunikations- und Analyseknoten',
+    caption: null,
+  },
+}
+
 export const INVESTITION = {
   label: 'INVESTITION & ABLAUF',
   headline: 'Ein transparenter Investitionsrahmen',
