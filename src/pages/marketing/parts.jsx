@@ -4,7 +4,32 @@ import { cn } from '../../lib/cn.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
 import { BRANCHEN, TERMIN, TRUST } from '../../content/marketing.js'
-import { IconArrowRight, IconCalendar, IconCheck } from '../../components/ui/Icons.jsx'
+import {
+  IconArrowRight,
+  IconArrowUpRight,
+  IconCalendar,
+  IconCheck,
+} from '../../components/ui/Icons.jsx'
+
+/**
+ * Optionale externe Terminbuchung. Ist VITE_BOOKING_URL gesetzt, erscheint ein
+ * bewusst anzuklickender externer Button; ohne die Variable bleibt das
+ * Demo-Formular aktiv – es wird keine echte Übertragung vorgetäuscht.
+ */
+const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || ''
+
+/** Kurzer Datenschutzhinweis statt erzwungener Checkbox. */
+function DatenschutzHinweis({ children }) {
+  return (
+    <p className="text-xs leading-relaxed text-ink-3">
+      {children}{' '}
+      <Link to="/datenschutz" className="text-brand-ink underline underline-offset-2 hover:text-brand">
+        Datenschutzerklärung
+      </Link>
+      .
+    </p>
+  )
+}
 
 /**
  * Wiederverwendbare Bausteine der öffentlichen Website.
@@ -175,6 +200,34 @@ export function TerminFormular() {
         </p>
       </Card>
 
+      {BOOKING_URL ? (
+        <Card className="flex flex-col p-5 sm:p-6">
+          <h2 className="text-[0.9375rem] font-semibold text-ink">Direkt einen Termin wählen</h2>
+          <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-2">
+            Sie wählen im nächsten Schritt selbst einen freien Zeitpunkt für ein 15-minütiges
+            Diagnosegespräch. Der Buchungsdienst öffnet sich in einem neuen Tab.
+          </p>
+          <Button
+            as="a"
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="cta"
+            size="lg"
+            className="mt-5 self-start"
+          >
+            <IconCalendar className="size-4" />
+            15-Minuten-Gespräch buchen
+            <IconArrowUpRight className="size-4" />
+          </Button>
+          <div className="mt-5 border-t border-line pt-4">
+            <DatenschutzHinweis>
+              Beim externen Buchungsdienst gelten dessen Datenschutzinformationen. Hinweise zu Ihren
+              Daten bei uns finden Sie in unserer
+            </DatenschutzHinweis>
+          </div>
+        </Card>
+      ) : (
       <Card className="p-5 sm:p-6">
         {gesendet ? (
           <div className="py-6 text-center">
@@ -239,9 +292,13 @@ export function TerminFormular() {
               Demo-Formular: Es werden keine Daten übertragen oder gespeichert. Bitte keine
               Patienten- oder Gesundheitsdaten eingeben.
             </p>
+            <DatenschutzHinweis>
+              Wie wir geschäftliche Anfragen verarbeiten, erklären wir in unserer
+            </DatenschutzHinweis>
           </form>
         )}
       </Card>
+      )}
     </div>
   )
 }
