@@ -4,10 +4,12 @@ import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
 import { HeroDashboard } from './HeroDashboard.jsx'
 import { Vertrauensleiste, CtaBand } from './parts.jsx'
+import { ZielgruppeSection, TeamSection } from './HomeSections.jsx'
 import { HERO } from '../../content/marketing.js'
 import {
   IconAlert,
   IconArrowRight,
+  IconCalendar,
   IconChart,
   IconCheck,
   IconInfo,
@@ -70,18 +72,17 @@ export function HomePage() {
         <div className="shell-container relative py-14 lg:py-20">
           <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14">
             <div>
-              <Chip toneName="brand" icon={IconShield}>
-                {HERO.badge}
-              </Chip>
+              <p className="eyebrow">{HERO.eyebrow}</p>
 
-              <h1 className="mt-5 text-[1.875rem] leading-[1.15] font-semibold tracking-tight text-ink sm:text-[2.375rem] lg:text-[2.75rem]">
+              <h1 className="mt-3 text-[1.875rem] leading-[1.15] font-semibold tracking-tight text-ink sm:text-[2.375rem] lg:text-[2.75rem]">
                 {HERO.headline}
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-2">{HERO.text}</p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <Button as={Link} to="/termin" size="lg">
+                <Button as={Link} to="/termin" variant="cta" size="lg">
+                  <IconCalendar className="size-4" />
                   {HERO.ctaPrimary}
                 </Button>
                 <Button as={Link} to="/demo" variant="secondary" size="lg">
@@ -89,6 +90,12 @@ export function HomePage() {
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>
+
+              <span className="mt-6 inline-flex">
+                <Chip toneName="brand" icon={IconShield}>
+                  {HERO.badge}
+                </Chip>
+              </span>
 
               <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2">
                 {['10–14 Tage bis zum Ergebnis', 'Menschlich geprüft', '90-Tage-Plan inklusive'].map(
@@ -174,6 +181,10 @@ export function HomePage() {
           </Card>
         </div>
       </section>
+
+      <ZielgruppeSection />
+
+      <TeamSection />
 
       <CtaBand />
     </>

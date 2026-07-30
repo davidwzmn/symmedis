@@ -15,11 +15,12 @@ export const NAV = [
 ]
 
 export const HERO = {
-  badge: 'SYMMEDIS Diagnosis OS · Strategische Ursachenanalyse',
-  headline: 'Ihr Umsatz stockt – obwohl Produkt und Marketing stimmen?',
-  text: 'Wir analysieren, was Ihr Wachstum tatsächlich bremst, und entwickeln daraus einen klaren 90-Tage-Plan. Keine Agenturfloskeln – eine strukturierte, menschlich geprüfte Ursachenanalyse.',
-  ctaPrimary: '15-Minuten-Diagnosegespräch buchen',
-  ctaSecondary: 'Plattform ansehen',
+  eyebrow: 'Strategische Ursachenanalyse für Gesundheitsunternehmen',
+  badge: 'SYMMEDIS Diagnosis OS',
+  headline: 'Ihr Umsatz stagniert – und niemand kann klar sagen, warum?',
+  text: 'SYMMEDIS identifiziert in 10–14 Tagen die drei größten Wachstumsbremsen Ihres Unternehmens und übersetzt sie in einen konkreten 90-Tage-Plan. Strukturiert durch unsere Software, bewertet und freigegeben durch Menschen.',
+  ctaPrimary: '15-Minuten-Gespräch buchen',
+  ctaSecondary: 'Beispiel-Ergebnis ansehen',
 }
 
 export const TRUST = [
@@ -220,6 +221,64 @@ export const ANGEBOT = {
     { label: 'Bewertung', wert: 'Menschlich geprüft' },
     { label: 'Format', wert: 'Remote & vor Ort' },
   ],
+}
+
+export const ZIELGRUPPE = {
+  label: 'FÜR WEN',
+  headline: 'Für Unternehmen, die keine weitere Maßnahme ohne klare Diagnose starten wollen',
+  text: 'Eine Ursachenanalyse lohnt sich, wenn ein marktfähiges Produkt vorhanden ist und trotzdem nicht die erwartete Wirkung erzielt. Wir sagen offen, wann sie passt – und wann nicht.',
+  geeignet: [
+    'Gesundheitsmarkt, MedTech und Diagnostik',
+    'Vitalstoffe, Premium-NEM und erklärungsbedürftige Produkte',
+    'Digital Health, Therapie- und Praxiskonzepte',
+    'Unternehmen mit Marketinginvestitionen und unklarer Wirkung',
+    'Geschäftsführung, Inhaber und Entscheider',
+  ],
+  wenigerPassend: [
+    'Es geht nur um einzelne Social-Media-Posts.',
+    'Gewünscht ist ausschließlich eine Website-Erstellung.',
+    'Es gibt noch kein marktfähiges Produkt.',
+    'Gewünscht ist eine vollständig automatische KI-Auswertung.',
+  ],
+}
+
+export const TEAM = {
+  label: 'TEAM & VERTRAUEN',
+  headline: 'Strategische Erfahrung trifft auf digitale Umsetzung',
+  einleitung:
+    'SYMMEDIS verbindet jahrzehntelange Kommunikations- und Gesundheitsmarkt-Erfahrung mit moderner Software, KI und digitaler Umsetzung.',
+  positionierung: 'Wir kommunizieren nicht nur. Wir entwickeln Märkte.',
+  personen: [
+    {
+      name: 'Alfred Michael Waizmann',
+      rolle: 'Strategische Kommunikation & Marktentwicklung',
+      text: '30 Jahre Kommunikation und 15 Jahre Gesundheitssektor. Alfred Michael Waizmann verantwortet die strategische Analyse, Positionierung und Marktentwicklung. Seine Erfahrung umfasst die Zusammenarbeit mit Ärzten, Professoren, Heilpraktikern, Therapeuten und Herstellern.',
+      linkedin: 'https://www.linkedin.com/in/alfred-michael-waizmann-b7698644/',
+      // Interner Bildname: alfred-michael-waizmann.png (Datei liegt noch nicht vor).
+      bild: null,
+      alt: 'Alfred Michael Waizmann, Experte für strategische Kommunikation und Marktentwicklung bei SYMMEDIS',
+    },
+    {
+      name: 'David Constantin Waizmann',
+      rolle: 'Digitale Strategie, Software & KI',
+      text: 'David Constantin Waizmann verantwortet die digitale Struktur und technologische Umsetzung von SYMMEDIS. Seine Schwerpunkte liegen in E-Commerce, Marketing, Webdesign, KI und der Entwicklung der SYMMEDIS-Software.',
+      linkedin: 'https://www.linkedin.com/in/david-waizmann-aab19b220/',
+      // Interner Bildname: david-constantin-waizmann.png (Datei liegt noch nicht vor).
+      bild: null,
+      alt: 'David Constantin Waizmann, verantwortlich für digitale Strategie, Software und KI bei SYMMEDIS',
+    },
+  ],
+}
+
+export const INVESTITION = {
+  label: 'INVESTITION & ABLAUF',
+  headline: 'Ein transparenter Investitionsrahmen',
+  rahmen: '7.500–10.000 € netto',
+  rahmenLabel: 'Typischer Investitionsrahmen einer Ursachenanalyse',
+  zusatz:
+    'Der konkrete Umfang richtet sich nach Unternehmensgröße, Datenlage und Anzahl der zu untersuchenden Märkte oder Produktbereiche.',
+  hinweis:
+    'Keine Rabatte, keine Timer, keine künstliche Verknappung. Den genauen Rahmen legen wir gemeinsam im Diagnosegespräch fest.',
 }
 
 export const UEBER_UNS = {

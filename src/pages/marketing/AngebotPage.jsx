@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '../../components/ui/primitives.jsx'
 import { Card, CardBody, CardHeader } from '../../components/ui/layout.jsx'
 import { SeitenKopf, Abschnitt, CtaBand } from './parts.jsx'
-import { ANGEBOT, UEBER_UNS } from '../../content/marketing.js'
+import { ANGEBOT, INVESTITION, UEBER_UNS } from '../../content/marketing.js'
 import { IconArrowRight, IconCheck } from '../../components/ui/Icons.jsx'
 
 export function AngebotPage() {
@@ -38,7 +38,26 @@ export function AngebotPage() {
         </Card>
       </Abschnitt>
 
-      <Abschnitt eyebrow={UEBER_UNS.label} headline={UEBER_UNS.headline} text={UEBER_UNS.text}>
+      <Abschnitt eyebrow={INVESTITION.label} headline={INVESTITION.headline}>
+        <Card className="overflow-hidden">
+          <div className="grid gap-0 sm:grid-cols-[1fr_1.3fr]">
+            <div className="flex flex-col justify-center bg-brand px-6 py-8 sm:px-8">
+              <p className="text-[0.8125rem] font-medium text-on-brand/80">
+                {INVESTITION.rahmenLabel}
+              </p>
+              <p className="mt-2 text-[1.75rem] font-semibold tracking-tight text-on-brand sm:text-[2rem]">
+                {INVESTITION.rahmen}
+              </p>
+            </div>
+            <CardBody className="flex flex-col justify-center gap-3 px-6 py-6 sm:px-8">
+              <p className="text-[0.9375rem] leading-relaxed text-ink-2">{INVESTITION.zusatz}</p>
+              <p className="text-[0.8125rem] leading-relaxed text-ink-3">{INVESTITION.hinweis}</p>
+            </CardBody>
+          </div>
+        </Card>
+      </Abschnitt>
+
+      <Abschnitt eyebrow={UEBER_UNS.label} headline={UEBER_UNS.headline} text={UEBER_UNS.text} hell>
         <div className="grid gap-4 md:grid-cols-3">
           {UEBER_UNS.prinzipien.map((prinzip) => (
             <Card key={prinzip.titel} className="p-5">
