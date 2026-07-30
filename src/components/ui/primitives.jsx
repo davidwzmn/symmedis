@@ -7,6 +7,9 @@ import { initialen } from '../../lib/format.js'
 const BUTTON_VARIANTS = {
   primary:
     'bg-brand text-on-brand border border-brand hover:bg-brand-hover hover:border-brand-hover active:bg-brand-active',
+  // Primärer Handlungsaufruf im Corporate Design: Lime-Fläche, Navy-Text.
+  cta:
+    'bg-cta text-on-cta border border-cta-border hover:bg-cta-hover hover:border-cta-hover active:bg-cta-active font-semibold',
   secondary:
     'bg-surface text-ink border border-line-strong hover:border-brand hover:text-brand-ink',
   ghost: 'bg-transparent text-ink-2 border border-transparent hover:bg-surface-muted hover:text-ink',

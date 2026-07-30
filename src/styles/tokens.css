@@ -36,14 +36,28 @@
   --c-ink-3: #616a7d; /*  4,8:1 auf Weiß, 4,8:1 auf --c-surface-sunken */
   --c-ink-inverse: #ffffff;
 
-  /* --- Primär: Blau (Vertrauen, Analyse, Technologie) ------------------- */
-  --c-brand: #2f5bea;
-  --c-brand-hover: #2547c8;
-  --c-brand-active: #1d3aa6;
-  --c-brand-ink: #2447b8;
-  --c-brand-soft: #edf2fe;
-  --c-brand-softer: #f6f9ff;
-  --c-brand-border: #c6d5fb;
+  /* --- Primär: Navy (Vertrauen, Analyse, Strategie) --------------------
+     Corporate Design SYMMEDIS: tiefes Navy (#173A5E) als Markenfarbe.
+     Die Datenvisualisierung (--c-viz-*) bleibt bewusst auf ihrem eigenen
+     Blau, damit Diagramm-Kontraste und CVD-Prüfung unverändert bleiben. */
+  --c-brand: #173a5e;
+  --c-brand-hover: #1e4c78; /* auf dunkler Fläche etwas heller */
+  --c-brand-active: #102c48;
+  --c-brand-ink: #1a4067; /* Text auf Weiß: 8,1:1 */
+  --c-brand-soft: #e9eff6;
+  --c-brand-softer: #f3f7fb;
+  --c-brand-border: #c2d2e3;
+
+  /* --- CTA-Akzent: Lime (Aktivierung, primäre Handlungsaufrufe) ---------
+     Lime nur als Fläche mit dunklem Navy-Text, nie als Fließtext oder als
+     Vordergrund auf Weiß (dort unlesbar). --c-cta-ink ist ein dunkles Oliv
+     für die seltenen Fälle von Lime-Familie als Text auf hellem Grund. */
+  --c-cta: #b8e85a;
+  --c-cta-hover: #a9dd44;
+  --c-cta-active: #99cd33;
+  --c-cta-border: #a9dd44;
+  --c-cta-ink: #4d6b12; /* Oliv, 4,6:1 auf Weiß */
+  --c-on-cta: #12324f; /* Navy-Text auf Lime: 9,8:1 */
 
   /* --- Sekundär: Teal (Gesundheit, Fortschritt, Bewegung) --------------- */
   --c-accent: #14b8a6;
@@ -134,6 +148,14 @@
   --c-brand-soft: #1b2545;
   --c-brand-softer: #161e36;
   --c-brand-border: #2f3f6b;
+
+  /* CTA-Lime bleibt im Dunkelmodus kräftig – hoher Kontrast auf Navy. */
+  --c-cta: #b8e85a;
+  --c-cta-hover: #c6ee78;
+  --c-cta-active: #a9dd44;
+  --c-cta-border: #a9dd44;
+  --c-cta-ink: #b8e85a; /* Lime als Akzenttext auf dunklem Grund */
+  --c-on-cta: #0b1120; /* Navy-Schwarz auf Lime */
 
   --c-accent: #2dd4bf;
   --c-accent-hover: #5ee0cf;

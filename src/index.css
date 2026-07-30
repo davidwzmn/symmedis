@@ -49,6 +49,13 @@
   --color-brand-softer: var(--c-brand-softer);
   --color-brand-border: var(--c-brand-border);
 
+  --color-cta: var(--c-cta);
+  --color-cta-hover: var(--c-cta-hover);
+  --color-cta-active: var(--c-cta-active);
+  --color-cta-border: var(--c-cta-border);
+  --color-cta-ink: var(--c-cta-ink);
+  --color-on-cta: var(--c-on-cta);
+
   --color-accent: var(--c-accent);
   --color-accent-hover: var(--c-accent-hover);
   --color-accent-ink: var(--c-accent-ink);
