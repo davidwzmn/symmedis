@@ -146,7 +146,7 @@ function Kopfzeile() {
               Anmelden
             </Button>
           </span>
-          <span className="hidden lg:inline-flex">
+          <span className="hidden xl:inline-flex">
             <Button as={Link} to="/demo" variant="secondary" size="sm">
               Plattform ansehen
             </Button>
@@ -154,7 +154,8 @@ function Kopfzeile() {
           <span className="hidden md:inline-flex">
             <Button as={Link} to="/termin" variant="cta" size="sm">
               <IconCalendar className="size-4" />
-              15-Minuten-Gespräch buchen
+              <span className="xl:hidden">Gespräch buchen</span>
+              <span className="hidden xl:inline">15-Minuten-Gespräch buchen</span>
             </Button>
           </span>
 
