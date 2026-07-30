@@ -6,12 +6,12 @@
  */
 
 export const NAV = [
-  { id: 'problem', label: 'Problem' },
-  { id: 'analysebereiche', label: 'Analysebereiche' },
-  { id: 'funktionsweise', label: 'Funktionsweise' },
-  { id: 'plattform', label: 'Plattform' },
-  { id: 'angebot', label: 'Angebot' },
-  { id: 'faq', label: 'FAQ' },
+  { to: '/problem', label: 'Problem' },
+  { to: '/analysebereiche', label: 'Analysebereiche' },
+  { to: '/funktionsweise', label: 'Funktionsweise' },
+  { to: '/plattform', label: 'Plattform' },
+  { to: '/angebot', label: 'Angebot' },
+  { to: '/faq', label: 'FAQ' },
 ]
 
 export const HERO = {

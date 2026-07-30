@@ -3,7 +3,15 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
-import { MarketingPage } from './pages/marketing/MarketingPage.jsx'
+import { MarketingLayout } from './pages/marketing/MarketingLayout.jsx'
+import { HomePage } from './pages/marketing/HomePage.jsx'
+import { ProblemPage } from './pages/marketing/ProblemPage.jsx'
+import { AnalysebereichePage } from './pages/marketing/AnalysebereichePage.jsx'
+import { FunktionsweisePage } from './pages/marketing/FunktionsweisePage.jsx'
+import { PlattformPage } from './pages/marketing/PlattformPage.jsx'
+import { AngebotPage } from './pages/marketing/AngebotPage.jsx'
+import { FaqPage } from './pages/marketing/FaqPage.jsx'
+import { TerminPage } from './pages/marketing/TerminPage.jsx'
 import { LoginPage } from './pages/LoginPage.jsx'
 import { DemoApp } from './pages/demo/DemoApp.jsx'
 import { CustomerApp } from './pages/customer/CustomerApp.jsx'
@@ -35,7 +43,16 @@ export default function App() {
           <WorkspaceProvider>
             <ScrollToTop />
             <Routes>
-              <Route path="/" element={<MarketingPage />} />
+              <Route element={<MarketingLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/problem" element={<ProblemPage />} />
+                <Route path="/analysebereiche" element={<AnalysebereichePage />} />
+                <Route path="/funktionsweise" element={<FunktionsweisePage />} />
+                <Route path="/plattform" element={<PlattformPage />} />
+                <Route path="/angebot" element={<AngebotPage />} />
+                <Route path="/faq" element={<FaqPage />} />
+                <Route path="/termin" element={<TerminPage />} />
+              </Route>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/demo/*" element={<DemoApp />} />
               <Route path="/portal/*" element={<CustomerApp />} />
