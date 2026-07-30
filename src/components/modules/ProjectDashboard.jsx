@@ -93,6 +93,12 @@ export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung })
   const aktion = naechsteAktion(kunde)
   const stufe = scoreStufe(kunde.gesamtScore)
 
+  // Größte Wachstumsbremse = niedrigster Reifegrad (bevorzugt bereits
+  // freigegebene Dimensionen), rein aus dem bestehenden Beispieldatensatz.
+  const bremse =
+    [...kunde.analyse].filter((a) => a.sichtbarKunde).sort((a, b) => a.score - b.score)[0] ??
+    [...kunde.analyse].sort((a, b) => a.score - b.score)[0]
+
   const freigegeben = kunde.analyse.filter((a) => a.sichtbarKunde).length
   const inPruefung = kunde.analyse.length - freigegeben
   const offeneAufgaben = kunde.aufgaben.filter((a) => a.status !== 'erledigt').length
@@ -123,6 +129,42 @@ export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung })
           </Button>
         }
       />
+
+      {/* Mobile Kurzzusammenfassung – nur auf kleinen Viewports, das Wichtigste
+          zuerst. Das vollständige Dashboard darunter bleibt unverändert. */}
+      <Card className="lg:hidden">
+        <CardBody className="space-y-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[0.8125rem] font-medium text-ink-2">Reifegrad</span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-lg font-semibold tabular text-ink">{kunde.gesamtScore}</span>
+              <span className="text-xs text-ink-3">/ 100</span>
+              <Chip size="sm" toneName={stufe.tone} className="ml-1">
+                {stufe.label}
+              </Chip>
+            </span>
+          </div>
+          {bremse ? (
+            <div className="border-t border-line pt-3">
+              <span className="text-[0.8125rem] font-medium text-ink-2">Größte Wachstumsbremse</span>
+              <p className="mt-1 text-[0.8125rem] font-semibold text-ink">
+                {KATEGORIE_MAP[bremse.kategorieId]?.label}
+              </p>
+              <p className="mt-0.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-ink-2">
+                {bremse.beobachtung}
+              </p>
+            </div>
+          ) : null}
+          <div className="border-t border-line pt-3">
+            <span className="text-[0.8125rem] font-medium text-ink-2">Nächster Schritt</span>
+            <p className="mt-1 text-[0.8125rem] font-semibold text-ink">{aktion.titel}</p>
+          </div>
+          <Button as={Link} to={`${basis}/analyse`} size="sm" fullWidth className="mt-1">
+            Vollständige Analyse öffnen
+            <IconArrowRight className="size-4" />
+          </Button>
+        </CardBody>
+      </Card>
 
       {/* Nächster Schritt – die wichtigste Information der Seite */}
       <Banner
