@@ -164,6 +164,86 @@ jede Marke ist direkt beschriftet.
 
 ---
 
+## Corporate Design (Navy / Lime)
+
+Das Markenbild ist Navy als Primärfarbe (`#173A5E`) mit Lime als Akzent für
+Handlungsaufrufe (`#B8E85A`). Beide sind additiv über das bestehende
+Token-System eingebunden:
+
+- `--c-brand*` führt das Navy in hell; im Dunkelmodus bleibt der bewährte helle
+  Blauton als Akzent auf tiefem Navy erhalten.
+- `--c-cta*` / `--c-on-cta` ist der neue Lime-CTA – **nur als Fläche mit dunklem
+  Navy-Text**, nie als Fließtext. Dazu die Button-Variante `variant="cta"`.
+- Die **semantischen Statusfarben** (ok/warn/danger/urgent) und die
+  Diagramm-Töne (`--c-viz-*`) bleiben bewusst unverändert, damit Plattform-
+  Kontraste und CVD-Prüfung stabil bleiben.
+
+## Öffentliche Website: Bereiche & Bilder
+
+Ergänzte, weiterhin additive Bereiche: prominenter Buchungs-CTA in Kopfzeile und
+mobiler Sticky-Leiste, neuer Hero, Zielgruppen- und Team-Abschnitt
+(Einzelporträts mit LinkedIn-Link, `target="_blank"` + `rel="noopener
+noreferrer"`), Investitionsrahmen auf der Angebotsseite sowie eine mobile
+Kurzzusammenfassung im Dashboard.
+
+Freigegebene Bilddateien gehören nach `src/assets/marketing/` – siehe die dortige
+`README.md`. Fehlt eine Datei, greift eine gestaltete Fallback-Darstellung; die
+Seite bleibt fehlerfrei. Das gemeinsame Porträt
+`ChatGPT Image 30. Juli 2026, 18_50_41 (3).png` wird ausdrücklich **nicht**
+verwendet.
+
+## Rechtsseiten
+
+Impressum, Datenschutzerklärung und AGB liegen als direkt erreichbare Routen
+(`/impressum`, `/datenschutz`, `/agb`, im statischen Hosting `/#/impressum` usw.)
+mit verbindlichem Wortlaut in `src/content/legal.js`. Die bestehenden
+Rechtstext-Modale bleiben erhalten (Footer „Barrierefreiheit“).
+
+> **AGB-Hinweis:** Die AGB gelten ausschließlich im B2B-Bereich. Die reine
+> Verfügbarkeit der AGB-Seite bewirkt **keine** Einbeziehung in einen Vertrag.
+> Vor einem verbindlichen Auftrag sind ein deutlicher AGB-Hinweis und eine
+> zumutbare Möglichkeit der Kenntnisnahme erforderlich. Für den redaktionell
+> Verantwortlichen wird die aktuelle Formulierung „§ 18 Abs. 2 MStV“ verwendet.
+
+Es ist **kein Cookie-Banner** eingebaut, solange keine einwilligungspflichtigen
+Technologien zum Einsatz kommen. Die Theme-Speicherung wird als technisch
+erforderliche Funktion behandelt. Werden künftig externe Booking-Iframes,
+Analytics, Social-Plugins oder Tracking aktiviert, sind vorher Datenschutz- und
+Consent-Logik zu ergänzen.
+
+## Terminbuchung & SEO (Umgebungsvariablen)
+
+Build-Zeit-Variablen (Vite, Präfix `VITE_`):
+
+| Variable             | Standard | Wirkung                                                                 |
+| -------------------- | -------- | ----------------------------------------------------------------------- |
+| `VITE_BOOKING_URL`   | –        | Ist sie gesetzt, zeigt die Terminseite einen externen Buchungsbutton (neuer Tab, `rel="noopener noreferrer"`). Ohne sie bleibt das Demo-Formular mit Demo-Hinweis aktiv – es wird **keine** Übertragung vorgetäuscht. |
+| `VITE_SITE_URL`      | –        | Basis-URL für kanonische Links und `og:url`.                            |
+| `VITE_PUBLIC_LAUNCH` | –        | Nur bei exakt `"true"` wird `index, follow` gesetzt; sonst bleibt es bei `noindex, nofollow`. |
+
+Am Terminformular gibt es **keinen erzwungenen Datenschutz- oder AGB-Checkbox-
+Zwang**, sondern einen klaren Hinweis mit Link zur Datenschutzerklärung. Es
+werden keine Patienten- oder Gesundheitsdaten abgefragt.
+
+## Statisches Hosting & GitHub Pages
+
+Für Hosting ohne Server-Rewrite gibt es den Hash-Router-Build und eine
+eigenständige Single-File-Ausspielung:
+
+```bash
+VITE_ROUTER=hash npm run build -- --outDir dist-hash
+node scripts/build-standalone.mjs            # → symmedis-plattform.html (alles inline)
+```
+
+`scripts/build-standalone.mjs` inlined CSS, JS und die Schrift als data-URI in
+eine einzige HTML-Datei ohne externe Requests. Der `gh-pages`-Branch enthält
+diese Datei als `index.html` plus `.nojekyll`; öffentliche URL:
+`https://davidwzmn.github.io/symmedis/#/`. Der `gh-pages`-Branch wird erst nach
+vollständigen Tests aktualisiert, ausschließlich per regulärem Push (kein
+Force-Push).
+
+---
+
 ## Barrierefreiheit
 
 - Kontraste in hellem und dunklem Modus programmatisch geprüft, mindestens
