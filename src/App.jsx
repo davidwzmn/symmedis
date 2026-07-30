@@ -12,6 +12,8 @@ import { PlattformPage } from './pages/marketing/PlattformPage.jsx'
 import { AngebotPage } from './pages/marketing/AngebotPage.jsx'
 import { FaqPage } from './pages/marketing/FaqPage.jsx'
 import { TerminPage } from './pages/marketing/TerminPage.jsx'
+import { LegalPage } from './pages/marketing/LegalPage.jsx'
+import { IMPRESSUM, DATENSCHUTZ, AGB } from './content/legal.js'
 import { LoginPage } from './pages/LoginPage.jsx'
 import { DemoApp } from './pages/demo/DemoApp.jsx'
 import { CustomerApp } from './pages/customer/CustomerApp.jsx'
@@ -52,6 +54,9 @@ export default function App() {
                 <Route path="/angebot" element={<AngebotPage />} />
                 <Route path="/faq" element={<FaqPage />} />
                 <Route path="/termin" element={<TerminPage />} />
+                <Route path="/impressum" element={<LegalPage dokument={IMPRESSUM} />} />
+                <Route path="/datenschutz" element={<LegalPage dokument={DATENSCHUTZ} />} />
+                <Route path="/agb" element={<LegalPage dokument={AGB} />} />
               </Route>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/demo/*" element={<DemoApp />} />
