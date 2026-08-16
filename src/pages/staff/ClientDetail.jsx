@@ -11,6 +11,7 @@ import { Tabs, KeyValueList, ProgressBar } from '../../components/ui/data.jsx'
 import { Breadcrumb } from '../../components/shell/Topbar.jsx'
 import { AnalysisModule, BremsenCards } from '../../components/modules/AnalysisModule.jsx'
 import { AnalysisRunPanel } from '../../components/modules/AnalysisRunPanel.jsx'
+import { AccessInviteCard } from '../../components/modules/AccessInviteCard.jsx'
 import { SocialModule } from '../../components/modules/SocialModule.jsx'
 import { CompetitionModule } from '../../components/modules/CompetitionModule.jsx'
 import { PlanModule } from '../../components/modules/PlanModule.jsx'
@@ -181,6 +182,8 @@ function Ueberblick({ kunde }) {
               ]} />
             </CardBody>
           </Card>
+
+          <AccessInviteCard kunde={kunde} />
 
           <Card className="border-warn-border">
             <CardHeader title="Interne Notizen" subtitle="Nicht im Kundenportal sichtbar" icon={IconLock} />
