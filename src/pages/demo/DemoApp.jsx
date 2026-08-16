@@ -5,6 +5,7 @@ import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { PageHeader, Banner } from '../../components/ui/layout.jsx'
 import { ProjectDashboard } from '../../components/modules/ProjectDashboard.jsx'
 import { AnalysisModule } from '../../components/modules/AnalysisModule.jsx'
+import { DiagnosisGraph } from '../../components/modules/DiagnosisGraph.jsx'
 import { SocialModule } from '../../components/modules/SocialModule.jsx'
 import { PlanModule } from '../../components/modules/PlanModule.jsx'
 import { TasksModule } from '../../components/modules/TasksModule.jsx'
@@ -101,6 +102,7 @@ export function DemoApp() {
                 titel="Ursachenanalyse"
                 text="Zehn Dimensionen, je mit Score, Beobachtung, Ursache, Auswirkung, Empfehlung und Beleg. In der Demo schreibgeschützt."
               >
+                <DiagnosisGraph kunde={kunde} />
                 <AnalysisModule kunde={kunde} rolle="demo" />
               </Bereich>
             }
