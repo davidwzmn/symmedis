@@ -1,4 +1,4 @@
-import { restInsert, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
+import { restInsert, restRpc, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
 import { PHASEN } from '../data/workspace.js'
 import { PLATTFORMEN } from '../data/catalog.js'
 
@@ -186,6 +186,14 @@ export async function fetchWorkspace(accessToken) {
 export const persistTaskStatus = (accessToken, id, status) => restUpdate('tasks', accessToken, `id=eq.${id}`, { status, updated_at: new Date().toISOString() })
 export const persistAnalysisPatch = (accessToken, projectId, categoryId, patch) => restUpdate('analysis_items', accessToken, `project_id=eq.${projectId}&category_id=eq.${encodeURIComponent(categoryId)}`, patch)
 export const persistBlockerStatus = (accessToken, id, status) => restUpdate('growth_blockers', accessToken, `id=eq.${id}`, { status })
+
+export function searchProjectEvidence(accessToken, projectId, query, limit = 8) {
+  return restRpc('search_project_evidence', accessToken, {
+    p_project_id: projectId,
+    p_query: query,
+    p_limit: limit,
+  })
+}
 
 export function persistMessage(accessToken, projectId, userId, message) {
   return restInsert('messages', accessToken, {
