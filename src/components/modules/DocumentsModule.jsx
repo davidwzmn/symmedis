@@ -55,14 +55,14 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
         const endung = datei.name.split('.').pop()?.toLowerCase() ?? ''
         return addDokument(kunde.id, {
           name: datei.name,
-          typ: ENDUNG_TYP[endung] ?? endung || 'datei',
+          typ: (ENDUNG_TYP[endung] ?? endung) || 'datei',
           groesse: datei.size,
           von: quelle,
         }, datei)
       }))
       toast.show({
         title: `${files.length} Datei${files.length > 1 ? 'en' : ''} ${echteDaten ? 'hochgeladen' : 'aufgenommen'}`,
-        description: echteDaten ? 'Die Unterlagen wurden verschlüsselt im privaten Projektbereich gespeichert.' : 'Demo: Es entstand nur ein lokaler Eintrag.',
+        description: echteDaten ? 'Die Unterlagen wurden im privaten Projektbereich gespeichert.' : 'Demo: Es entstand nur ein lokaler Eintrag.',
         variant: 'success',
       })
     } catch (error) {
