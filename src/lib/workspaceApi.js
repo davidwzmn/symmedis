@@ -1,5 +1,6 @@
 import { restInsert, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
 import { PHASEN } from '../data/workspace.js'
+import { PLATTFORMEN } from '../data/catalog.js'
 
 const byProject = (rows, projectId) => rows.filter((row) => row.project_id === projectId)
 
@@ -33,15 +34,21 @@ function mapClient(client, project, data) {
     kpi: row.kpi,
   }))
 
-  const socialProfiles = byProject(data.socialProfiles, project.id).map((row) => ({
-    id: row.platform_id,
-    verbunden: row.connected,
-    score: row.score,
-    frequenz: Number(row.frequency),
-    engagement: Number(row.engagement),
-    follower: row.followers,
-    verlauf: row.history || [],
-  }))
+  const rowsByPlatform = Object.fromEntries(
+    byProject(data.socialProfiles, project.id).map((row) => [row.platform_id, row]),
+  )
+  const socialProfiles = PLATTFORMEN.map((platform) => {
+    const row = rowsByPlatform[platform.id]
+    return {
+      ...platform,
+      verbunden: row?.connected || false,
+      score: row?.score || 0,
+      frequenz: Number(row?.frequency || 0),
+      engagement: Number(row?.engagement || 0),
+      follower: row?.followers || 0,
+      verlauf: row?.history || [],
+    }
+  })
   const socialInsight = data.socialInsights.find((row) => row.project_id === project.id)
   const competitor = data.competitors.find((row) => row.project_id === project.id)
 
@@ -162,9 +169,16 @@ export async function fetchWorkspace(accessToken) {
   ])
 
   const data = { analysis, blockers, tasks, documents, appointments, reports, activities, messages, notes, socialProfiles, socialInsights, competitors }
-  return projects.map((project) => {
-    const client = clients.find((entry) => entry.id === project.client_id)
-    return client ? mapClient(client, project, data) : null
+  const projectsByClient = new Map()
+  for (const project of projects) {
+    const current = projectsByClient.get(project.client_id)
+    const currentDate = current?.result_date || current?.start_date || ''
+    const nextDate = project.result_date || project.start_date || ''
+    if (!current || nextDate >= currentDate) projectsByClient.set(project.client_id, project)
+  }
+  return clients.map((client) => {
+    const project = projectsByClient.get(client.id)
+    return project ? mapClient(client, project, data) : null
   }).filter(Boolean)
 }
 
@@ -186,6 +200,16 @@ export function persistMessage(accessToken, projectId, userId, message) {
 
 export function persistInternalNote(accessToken, projectId, userId, text, author) {
   return restInsert('internal_notes', accessToken, { project_id: projectId, author, body: text, created_by: userId })
+}
+
+export function persistActivity(accessToken, projectId, entry) {
+  return restInsert('activities', accessToken, {
+    project_id: projectId,
+    title: entry.titel,
+    actor: entry.actor || '',
+    tone: entry.tone || 'neutral',
+    happened_at: entry.zeit || new Date().toISOString(),
+  })
 }
 
 export async function persistDocument(accessToken, clientId, projectId, file, meta = {}) {
