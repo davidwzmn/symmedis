@@ -19,6 +19,9 @@ function mapClient(client, project, data) {
     sichtbarKunde: row.customer_visible,
     internNotiz: row.internal_note,
     kommentar: row.comment,
+    confidence: row.confidence || 0,
+    evidenceSources: row.evidence_sources || [],
+    analysisRunId: row.analysis_run_id || null,
   }))
 
   const aufgaben = byProject(data.tasks, project.id).map((row) => ({
@@ -34,9 +37,7 @@ function mapClient(client, project, data) {
     kpi: row.kpi,
   }))
 
-  const rowsByPlatform = Object.fromEntries(
-    byProject(data.socialProfiles, project.id).map((row) => [row.platform_id, row]),
-  )
+  const rowsByPlatform = Object.fromEntries(byProject(data.socialProfiles, project.id).map((row) => [row.platform_id, row]))
   const socialProfiles = PLATTFORMEN.map((platform) => {
     const row = rowsByPlatform[platform.id]
     return {
