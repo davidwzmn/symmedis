@@ -10,6 +10,7 @@ import { Card, CardBody, CardHeader, PageHeader, MetricCard } from '../../compon
 import { Tabs, KeyValueList, ProgressBar } from '../../components/ui/data.jsx'
 import { Breadcrumb } from '../../components/shell/Topbar.jsx'
 import { AnalysisModule, BremsenCards } from '../../components/modules/AnalysisModule.jsx'
+import { AnalysisRunPanel } from '../../components/modules/AnalysisRunPanel.jsx'
 import { SocialModule } from '../../components/modules/SocialModule.jsx'
 import { CompetitionModule } from '../../components/modules/CompetitionModule.jsx'
 import { PlanModule } from '../../components/modules/PlanModule.jsx'
@@ -54,7 +55,6 @@ const TABS = [
   { id: 'verlauf', label: 'Verlauf', icon: IconHistory },
 ]
 
-/** Kundenakte im Mitarbeiterportal: alle Module eines Projekts in Registern. */
 export function ClientDetail() {
   const { kundeId } = useParams()
   const { getKunde, freigebenAlle, addAktivitaet } = useWorkspace()
@@ -64,10 +64,9 @@ export function ClientDetail() {
   const kunde = getKunde(kundeId)
   if (!kunde) return <Navigate to="/intern/kunden" replace />
 
-  const status = PROJEKT_STATUS[kunde.status]
-  const offeneFreigaben = kunde.analyse.filter(
-    (a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern',
-  ).length
+  const status = PROJEKT_STATUS[kunde.status] || PROJEKT_STATUS.onboarding
+  const betreuer = TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'
+  const offeneFreigaben = kunde.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length
 
   const alleFreigeben = () => {
     const anzahl = freigebenAlle(kunde.id)
@@ -75,57 +74,35 @@ export function ClientDetail() {
       toast.show({ title: 'Nichts freizugeben', description: 'Kein Punkt ist geprüft und offen.' })
       return
     }
-    addAktivitaet(kunde.id, {
-      titel: `${anzahl} Analysepunkte für den Kunden freigegeben`,
-      actor: 'SYMMEDIS',
-      tone: 'ok',
-    })
-    toast.show({
-      title: `${anzahl} Punkte freigegeben`,
-      description: 'Sie sind ab sofort im Kundenportal sichtbar.',
-      variant: 'success',
-    })
+    addAktivitaet(kunde.id, { titel: `${anzahl} Analysepunkte für den Kunden freigegeben`, actor: 'SYMMEDIS', tone: 'ok' })
+    toast.show({ title: `${anzahl} Punkte freigegeben`, description: 'Sie sind ab sofort im Kundenportal sichtbar.', variant: 'success' })
   }
 
   return (
     <div className="space-y-6">
-      <Breadcrumb
-        items={[
-          { label: 'Kunden', to: '/intern/kunden' },
-          { label: kunde.unternehmen },
-        ]}
-      />
+      <Breadcrumb items={[{ label: 'Kunden', to: '/intern/kunden' }, { label: kunde.unternehmen }]} />
 
       <PageHeader
         title={kunde.unternehmen}
-        subtitle={`${kunde.branche} · ${kunde.ort} · ${formatNumber(kunde.mitarbeitende)} Mitarbeitende · Betreuung ${TEAM_MAP[kunde.betreuerId].name}`}
+        subtitle={`${kunde.branche || 'Branche offen'} · ${kunde.ort || 'Ort offen'} · ${formatNumber(kunde.mitarbeitende || 0)} Mitarbeitende · Betreuung ${betreuer}`}
         meta={
           <>
-            <Chip toneName={status.tone} dot>
-              {status.label}
-            </Chip>
-            <Chip toneName={scoreStufe(kunde.gesamtScore).tone}>
-              Reifegrad {kunde.gesamtScore}
-            </Chip>
+            <Chip toneName={status.tone} dot>{status.label}</Chip>
+            <Chip toneName={scoreStufe(kunde.gesamtScore).tone}>Reifegrad {kunde.gesamtScore}</Chip>
             {offeneFreigaben > 0 ? (
-              <Chip toneName="warn" icon={IconShield}>
-                {offeneFreigaben} Freigaben offen
-              </Chip>
+              <Chip toneName="warn" icon={IconShield}>{offeneFreigaben} Freigaben offen</Chip>
+            ) : kunde.analyse.length > 0 ? (
+              <Chip toneName="ok" icon={IconShield}>Keine geprüften Freigaben offen</Chip>
             ) : (
-              <Chip toneName="ok" icon={IconShield}>
-                Alles freigegeben
-              </Chip>
+              <Chip toneName="neutral" icon={IconShield}>Analyse noch nicht gestartet</Chip>
             )}
           </>
         }
         actions={
           <>
-            <Button as={Link} to="/intern/freigaben" variant="secondary" size="sm">
-              Freigabezentrum
-            </Button>
+            <Button as={Link} to="/intern/freigaben" variant="secondary" size="sm">Freigabezentrum</Button>
             <Button size="sm" onClick={alleFreigeben} disabled={offeneFreigaben === 0}>
-              <IconShield className="size-4" />
-              Geprüfte Punkte freigeben
+              <IconShield className="size-4" />Geprüfte Punkte freigeben
             </Button>
           </>
         }
@@ -134,7 +111,7 @@ export function ClientDetail() {
       <Tabs items={TABS} value={tab} onChange={setTab} label="Bereich der Kundenakte" />
 
       {tab === 'ueberblick' ? <Ueberblick kunde={kunde} /> : null}
-      {tab === 'analyse' ? <AnalysisModule kunde={kunde} rolle="intern" /> : null}
+      {tab === 'analyse' ? <div className="space-y-5"><AnalysisRunPanel kunde={kunde} /><AnalysisModule kunde={kunde} rolle="intern" /></div> : null}
       {tab === 'social' ? <SocialModule kunde={kunde} rolle="intern" /> : null}
       {tab === 'wettbewerb' ? <CompetitionModule kunde={kunde} /> : null}
       {tab === 'plan' ? <PlanModule kunde={kunde} rolle="intern" /> : null}
@@ -144,9 +121,7 @@ export function ClientDetail() {
       {tab === 'termine' ? <AppointmentsModule kunde={kunde} /> : null}
       {tab === 'nachrichten' ? <ChatModule kunde={kunde} rolle="intern" /> : null}
       {tab === 'notizen' ? <InternalNotes kunde={kunde} /> : null}
-      {tab === 'verlauf' ? (
-        <ActivityFeed kunde={kunde} titel="Prüfpfad" alsPruefpfad />
-      ) : null}
+      {tab === 'verlauf' ? <ActivityFeed kunde={kunde} titel="Prüfpfad" alsPruefpfad /> : null}
     </div>
   )
 }
@@ -154,48 +129,19 @@ export function ClientDetail() {
 function Ueberblick({ kunde }) {
   const freigegeben = kunde.analyse.filter((a) => a.sichtbarKunde).length
   const offeneAufgaben = kunde.aufgaben.filter((a) => a.status !== 'erledigt').length
+  const freigabeProzent = kunde.analyse.length ? (freigegeben / kunde.analyse.length) * 100 : 0
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Gesamtreifegrad" value={kunde.gesamtScore} unit="/ 100" icon={IconTarget} toneName={scoreStufe(kunde.gesamtScore).tone} hint={kunde.analyse.length ? scoreStufe(kunde.gesamtScore).label : 'Noch nicht analysiert'} />
         <MetricCard
-          label="Gesamtreifegrad"
-          value={kunde.gesamtScore}
-          unit="/ 100"
-          icon={IconTarget}
-          toneName={scoreStufe(kunde.gesamtScore).tone}
-          hint={scoreStufe(kunde.gesamtScore).label}
+          label="Für Kunden freigegeben" value={`${freigegeben}/${kunde.analyse.length}`} icon={IconShield}
+          toneName={kunde.analyse.length > 0 && freigegeben === kunde.analyse.length ? 'ok' : 'warn'} hint="Analysedimensionen"
+          footer={<ProgressBar value={freigabeProzent} size="sm" hideLabel label="Freigabefortschritt" />}
         />
-        <MetricCard
-          label="Für Kunden freigegeben"
-          value={`${freigegeben}/${kunde.analyse.length}`}
-          icon={IconShield}
-          toneName={freigegeben === kunde.analyse.length ? 'ok' : 'warn'}
-          hint="Analysedimensionen"
-          footer={
-            <ProgressBar
-              value={(freigegeben / kunde.analyse.length) * 100}
-              size="sm"
-              hideLabel
-              label="Freigabefortschritt"
-            />
-          }
-        />
-        <MetricCard
-          label="Offene Aufgaben"
-          value={offeneAufgaben}
-          icon={IconCheckSquare}
-          toneName={offeneAufgaben > 5 ? 'warn' : 'neutral'}
-          hint={`${kunde.aufgaben.length} insgesamt`}
-        />
-        <MetricCard
-          label="Social-Reife"
-          value={kunde.social.gesamt}
-          unit="/ 100"
-          icon={IconShare}
-          toneName={scoreStufe(kunde.social.gesamt).tone}
-          hint={`${kunde.social.plattformen.filter((p) => p.verbunden).length} Kanäle ausgewertet`}
-        />
+        <MetricCard label="Offene Aufgaben" value={offeneAufgaben} icon={IconCheckSquare} toneName={offeneAufgaben > 5 ? 'warn' : 'neutral'} hint={`${kunde.aufgaben.length} insgesamt`} />
+        <MetricCard label="Social-Reife" value={kunde.social.gesamt} unit="/ 100" icon={IconShare} toneName={scoreStufe(kunde.social.gesamt).tone} hint={`${kunde.social.plattformen.filter((p) => p.verbunden).length} Kanäle ausgewertet`} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -206,19 +152,13 @@ function Ueberblick({ kunde }) {
           </section>
 
           <Card>
-            <CardHeader
-              title="Freigabestand je Dimension"
-              subtitle="Automatisch vorgeschlagen → in Prüfung → bearbeitet → intern → Kunde"
-              icon={IconShield}
-            />
+            <CardHeader title="Freigabestand je Dimension" subtitle="Automatisch vorgeschlagen → in Prüfung → bearbeitet → intern → Kunde" icon={IconShield} />
             <CardBody className="space-y-2.5">
               {Object.entries(FREIGABE).map(([key, wert]) => {
                 const anzahl = kunde.analyse.filter((a) => a.freigabe === key).length
                 return (
                   <div key={key} className="flex items-center justify-between gap-3">
-                    <Chip size="sm" toneName={wert.tone}>
-                      {wert.label}
-                    </Chip>
+                    <Chip size="sm" toneName={wert.tone}>{wert.label}</Chip>
                     <span className="tabular text-[0.8125rem] font-semibold text-ink">{anzahl}</span>
                   </div>
                 )
@@ -231,25 +171,19 @@ function Ueberblick({ kunde }) {
           <Card>
             <CardHeader title="Stammdaten" icon={IconMail} />
             <CardBody>
-              <KeyValueList
-                items={[
-                  { label: 'Ansprechpartner', value: kunde.ansprechpartner.name },
-                  { label: 'Funktion', value: kunde.ansprechpartner.rolle },
-                  { label: 'E-Mail', value: kunde.ansprechpartner.email },
-                  { label: 'Telefon', value: kunde.ansprechpartner.telefon },
-                  { label: 'Analysestart', value: formatDate(kunde.start) },
-                  { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) },
-                ]}
-              />
+              <KeyValueList items={[
+                { label: 'Ansprechpartner', value: kunde.ansprechpartner?.name || '–' },
+                { label: 'Funktion', value: kunde.ansprechpartner?.rolle || '–' },
+                { label: 'E-Mail', value: kunde.ansprechpartner?.email || '–' },
+                { label: 'Telefon', value: kunde.ansprechpartner?.telefon || '–' },
+                { label: 'Analysestart', value: kunde.start ? formatDate(kunde.start) : '–' },
+                { label: 'Ergebnistermin', value: kunde.ergebnis ? formatDate(kunde.ergebnis) : '–' },
+              ]} />
             </CardBody>
           </Card>
 
           <Card className="border-warn-border">
-            <CardHeader
-              title="Interne Notizen"
-              subtitle="Nicht im Kundenportal sichtbar"
-              icon={IconLock}
-            />
+            <CardHeader title="Interne Notizen" subtitle="Nicht im Kundenportal sichtbar" icon={IconLock} />
             <CardBody className="space-y-3">
               {kunde.notizenIntern.slice(0, 2).map((notiz) => (
                 <div key={notiz.id} className="rounded-lg border border-line bg-surface-muted p-3">
@@ -257,10 +191,8 @@ function Ueberblick({ kunde }) {
                   <p className="mt-1.5 text-xs text-ink-3">{notiz.autor}</p>
                 </div>
               ))}
-              <p className="flex items-start gap-2 text-xs text-ink-3">
-                <IconAlert className="mt-0.5 size-3.5 shrink-0" />
-                Vollständige Liste im Register „Interne Notizen“.
-              </p>
+              {kunde.notizenIntern.length === 0 ? <p className="text-xs text-ink-3">Noch keine internen Notizen.</p> : null}
+              <p className="flex items-start gap-2 text-xs text-ink-3"><IconAlert className="mt-0.5 size-3.5 shrink-0" />Vollständige Liste im Register „Interne Notizen“.</p>
             </CardBody>
           </Card>
 
