@@ -47,8 +47,7 @@ function storeAuthSession(session) {
 
 export async function signInWithPassword(email, password) {
   const payload = await supabaseRequest('/auth/v1/token?grant_type=password', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
+    method: 'POST', body: JSON.stringify({ email, password }),
   })
   storeAuthSession(payload)
   return payload
@@ -56,25 +55,20 @@ export async function signInWithPassword(email, password) {
 
 export async function refreshAuthSession(refreshToken) {
   const payload = await supabaseRequest('/auth/v1/token?grant_type=refresh_token', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }),
   })
   storeAuthSession(payload)
   return payload
 }
 
 export async function signOut(accessToken) {
-  if (supabaseEnabled && accessToken) {
-    await supabaseRequest('/auth/v1/logout', { method: 'POST', accessToken }).catch(() => null)
-  }
+  if (supabaseEnabled && accessToken) await supabaseRequest('/auth/v1/logout', { method: 'POST', accessToken }).catch(() => null)
   storeAuthSession(null)
 }
 
 export async function fetchMyProfile(accessToken) {
   const rows = await supabaseRequest('/rest/v1/profiles?select=id,email,full_name,role,organization_id,client_id&limit=1', {
-    method: 'GET',
-    accessToken,
-    headers: { Prefer: 'return=representation' },
+    method: 'GET', accessToken, headers: { Prefer: 'return=representation' },
   })
   return rows?.[0] ?? null
 }
@@ -85,49 +79,33 @@ export async function restSelect(table, accessToken, query = '') {
 
 export async function restInsert(table, accessToken, row) {
   return supabaseRequest(`/rest/v1/${table}`, {
-    method: 'POST',
-    accessToken,
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(row),
+    method: 'POST', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(row),
   })
 }
 
 export async function restUpdate(table, accessToken, filter, patch) {
   return supabaseRequest(`/rest/v1/${table}?${filter}`, {
-    method: 'PATCH',
-    accessToken,
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(patch),
+    method: 'PATCH', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch),
   })
 }
 
 export async function restRpc(functionName, accessToken, args) {
-  return supabaseRequest(`/rest/v1/rpc/${functionName}`, {
-    method: 'POST',
-    accessToken,
-    body: JSON.stringify(args),
-  })
+  return supabaseRequest(`/rest/v1/rpc/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(args) })
+}
+
+export async function invokeEdgeFunction(functionName, accessToken, body) {
+  return supabaseRequest(`/functions/v1/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(body) })
 }
 
 export async function uploadProjectFile(accessToken, path, file) {
   return supabaseRequest(`/storage/v1/object/project-files/${path}`, {
-    method: 'POST',
-    accessToken,
-    json: false,
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-      'x-upsert': 'true',
-    },
-    body: file,
+    method: 'POST', accessToken, json: false,
+    headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, body: file,
   })
 }
 
 export async function downloadProjectFile(accessToken, path) {
-  return supabaseRequest(`/storage/v1/object/authenticated/project-files/${path}`, {
-    method: 'GET',
-    accessToken,
-    json: false,
-  })
+  return supabaseRequest(`/storage/v1/object/authenticated/project-files/${path}`, { method: 'GET', accessToken, json: false })
 }
 
 export function clearStoredAuthSession() {
