@@ -3,6 +3,7 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
 import { useWorkspace } from './hooks/useWorkspace.js'
+import { useSession } from './hooks/useSession.js'
 import { consumeAuthRedirectSession } from './lib/supabase.js'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
 import { MarketingLayout } from './pages/marketing/MarketingLayout.jsx'
@@ -29,8 +30,11 @@ function ScrollToTop() {
 }
 
 function WorkspaceGate({ children }) {
-  const { workspaceBereit, workspaceFehler, neuLaden } = useWorkspace()
-  if (!workspaceBereit) {
+  const { session, echteAuthentifizierung } = useSession()
+  const { workspaceBereit, workspaceFehler, workspaceFuerUser, neuLaden } = useWorkspace()
+  const aktuellerWorkspaceGeladen = !echteAuthentifizierung || !session?.userId || workspaceFuerUser === session.userId
+
+  if (!workspaceBereit || !aktuellerWorkspaceGeladen) {
     return (
       <main className="shell-container flex min-h-[60vh] items-center justify-center py-16" aria-live="polite">
         <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
@@ -41,6 +45,7 @@ function WorkspaceGate({ children }) {
       </main>
     )
   }
+
   if (workspaceFehler) {
     return (
       <main className="shell-container flex min-h-[60vh] items-center justify-center py-16">
@@ -52,6 +57,7 @@ function WorkspaceGate({ children }) {
       </main>
     )
   }
+
   return children
 }
 
