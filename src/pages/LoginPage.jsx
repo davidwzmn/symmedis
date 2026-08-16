@@ -44,15 +44,9 @@ const ROLLEN = {
   },
 }
 
-/**
- * Demo-Anmeldung.
- *
- * Bewusst ohne echte Authentifizierung: jede Eingabe wird akzeptiert. Das ist
- * an mehreren Stellen ausgewiesen, damit niemand echte Zugangsdaten eingibt.
- */
 export function LoginPage() {
   const [params] = useSearchParams()
-  const { session, anmelden } = useSession()
+  const { session, anmelden, authBereit, echteAuthentifizierung } = useSession()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -61,19 +55,33 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [passwort, setPasswort] = useState('')
   const [fehler, setFehler] = useState(null)
+  const [laedt, setLaedt] = useState(false)
 
-  if (session) {
+  if (authBereit && session) {
     return <Navigate to={ROLLEN[session.rolle].ziel} replace />
   }
 
-  const absenden = (event) => {
+  const absenden = async (event) => {
     event.preventDefault()
     if (!email.trim()) {
-      setFehler('Bitte geben Sie eine Adresse ein – in der Demo genügt eine beliebige.')
+      setFehler('Bitte geben Sie eine E-Mail-Adresse ein.')
       return
     }
-    anmelden({ rolle, email: email.trim() })
-    navigate(ROLLEN[rolle].ziel, { replace: true })
+    if (!passwort) {
+      setFehler('Bitte geben Sie Ihr Kennwort ein.')
+      return
+    }
+
+    setLaedt(true)
+    setFehler(null)
+    try {
+      const next = await anmelden({ rolle, email: email.trim(), passwort })
+      navigate(ROLLEN[next.rolle].ziel, { replace: true })
+    } catch (error) {
+      setFehler(error instanceof Error ? error.message : 'Anmeldung fehlgeschlagen.')
+    } finally {
+      setLaedt(false)
+    }
   }
 
   const aktiv = ROLLEN[rolle]
@@ -104,10 +112,9 @@ export function LoginPage() {
 
       <main id="hauptinhalt" className="shell-container py-10 lg:py-16">
         <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-12">
-          {/* Erklärung */}
           <div>
-            <Chip toneName="warn" icon={IconShield}>
-              Demo-Zugang ohne echte Anmeldung
+            <Chip toneName={echteAuthentifizierung ? 'ok' : 'warn'} icon={IconShield}>
+              {echteAuthentifizierung ? 'Geschützter SYMMEDIS-Zugang' : 'Demo-Zugang ohne echte Anmeldung'}
             </Chip>
             <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Zwei Zugänge, zwei Sichten auf dasselbe Projekt
@@ -127,15 +134,15 @@ export function LoginPage() {
               ))}
             </ul>
 
-            <Banner toneName="neutral" icon={IconShield} className="mt-6">
-              Es findet keine Prüfung von Zugangsdaten statt. Bitte geben Sie keine echten
-              Kennwörter ein.
+            <Banner toneName={echteAuthentifizierung ? 'info' : 'neutral'} icon={IconShield} className="mt-6">
+              {echteAuthentifizierung
+                ? 'Die Anmeldung wird serverseitig über Supabase Auth geprüft. Zugriffsrechte werden über das Benutzerprofil und Row Level Security gesteuert.'
+                : 'Diese öffentliche Beta läuft weiterhin im Demo-Modus. Bitte geben Sie hier keine echten Kennwörter ein.'}
             </Banner>
           </div>
 
-          {/* Formular */}
           <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
-            <fieldset>
+            <fieldset disabled={laedt}>
               <legend className="text-[0.8125rem] font-medium text-ink">Zugang wählen</legend>
               <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
                 {Object.entries(ROLLEN).map(([key, wert]) => {
@@ -186,24 +193,29 @@ export function LoginPage() {
                   setFehler(null)
                 }}
                 placeholder={aktiv.beispiel}
-                hint="In der Demo genügt eine beliebige Adresse."
+                hint={echteAuthentifizierung ? 'Ihre hinterlegte SYMMEDIS-Adresse.' : 'In der Demo genügt eine beliebige Adresse.'}
                 error={fehler}
                 autoComplete="username"
+                disabled={laedt}
               />
               <Input
                 label="Kennwort"
                 type="password"
                 required
                 value={passwort}
-                onChange={(event) => setPasswort(event.target.value)}
-                placeholder="beliebig"
-                hint="Wird nicht geprüft und nicht gespeichert."
+                onChange={(event) => {
+                  setPasswort(event.target.value)
+                  setFehler(null)
+                }}
+                placeholder={echteAuthentifizierung ? 'Ihr Kennwort' : 'beliebig'}
+                hint={echteAuthentifizierung ? 'Wird ausschließlich an den Auth-Dienst übertragen.' : 'Wird im Demo-Modus nicht geprüft und nicht gespeichert.'}
                 autoComplete="current-password"
+                disabled={laedt}
               />
 
-              <Button type="submit" size="lg" fullWidth>
-                {aktiv.titel} öffnen
-                <IconArrowRight className="size-4" />
+              <Button type="submit" size="lg" fullWidth disabled={laedt || !authBereit}>
+                {laedt ? 'Anmeldung wird geprüft …' : `${aktiv.titel} öffnen`}
+                {!laedt && <IconArrowRight className="size-4" />}
               </Button>
             </form>
 
