@@ -21,13 +21,17 @@ const demoSession = ({ rolle, email }) => ({
 })
 
 function mapProfile(profile, authUser) {
-  const rolle = profile?.role === 'kunde' ? 'kunde' : 'intern'
+  if (!profile) {
+    throw new Error('Für diesen Zugang ist noch kein SYMMEDIS-Profil freigeschaltet.')
+  }
+
+  const rolle = profile.role === 'kunde' ? 'kunde' : 'intern'
   return {
     rolle,
-    email: profile?.email || authUser?.email || '',
-    name: profile?.full_name || authUser?.email?.split('@')[0] || 'SYMMEDIS Nutzer',
-    kundeId: profile?.client_id || null,
-    organisationId: profile?.organization_id || null,
+    email: profile.email || authUser?.email || '',
+    name: profile.full_name || authUser?.email?.split('@')[0] || 'SYMMEDIS Nutzer',
+    kundeId: profile.client_id || null,
+    organisationId: profile.organization_id,
     seit: new Date().toISOString(),
     demo: false,
   }
@@ -53,9 +57,10 @@ export function SessionProvider({ children }) {
       try {
         const erneuert = await refreshAuthSession(gespeichert.refresh_token)
         const profile = await fetchMyProfile(erneuert.access_token)
+        const next = mapProfile(profile, erneuert.user)
         if (aktiv) {
           setAuthSession(erneuert)
-          setSession(mapProfile(profile, erneuert.user))
+          setSession(next)
         }
       } catch {
         clearStoredAuthSession()
@@ -82,21 +87,28 @@ export function SessionProvider({ children }) {
     }
 
     const nextAuth = await signInWithPassword(email, passwort)
-    const profile = await fetchMyProfile(nextAuth.access_token)
-    const next = mapProfile(profile, nextAuth.user)
 
-    if (next.rolle !== rolle && profile?.role !== 'admin') {
+    try {
+      const profile = await fetchMyProfile(nextAuth.access_token)
+      const next = mapProfile(profile, nextAuth.user)
+
+      if (next.rolle !== rolle && profile.role !== 'admin') {
+        throw new Error(
+          rolle === 'kunde'
+            ? 'Dieser Zugang gehört nicht zum Kundenportal.'
+            : 'Dieser Zugang gehört nicht zum Mitarbeiterportal.',
+        )
+      }
+
+      setAuthSession(nextAuth)
+      setSession(next)
+      return next
+    } catch (error) {
       await signOut(nextAuth.access_token)
-      throw new Error(
-        rolle === 'kunde'
-          ? 'Dieser Zugang gehört nicht zum Kundenportal.'
-          : 'Dieser Zugang gehört nicht zum Mitarbeiterportal.',
-      )
+      setAuthSession(null)
+      setSession(null)
+      throw error
     }
-
-    setAuthSession(nextAuth)
-    setSession(next)
-    return next
   }, [])
 
   const abmelden = useCallback(async () => {
