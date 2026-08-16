@@ -3,6 +3,7 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
 import { useWorkspace } from './hooks/useWorkspace.js'
+import { consumeAuthRedirectSession } from './lib/supabase.js'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
 import { MarketingLayout } from './pages/marketing/MarketingLayout.jsx'
 import { HomePage } from './pages/marketing/HomePage.jsx'
@@ -23,15 +24,12 @@ import { NotFoundPage } from './pages/NotFoundPage.jsx'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' })
-  }, [pathname])
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }) }, [pathname])
   return null
 }
 
 function WorkspaceGate({ children }) {
   const { workspaceBereit, workspaceFehler, neuLaden } = useWorkspace()
-
   if (!workspaceBereit) {
     return (
       <main className="shell-container flex min-h-[60vh] items-center justify-center py-16" aria-live="polite">
@@ -43,27 +41,24 @@ function WorkspaceGate({ children }) {
       </main>
     )
   }
-
   if (workspaceFehler) {
     return (
       <main className="shell-container flex min-h-[60vh] items-center justify-center py-16">
         <div className="w-full max-w-lg rounded-2xl border border-danger-border bg-danger-soft p-8 text-center">
           <h1 className="text-base font-semibold text-danger-ink">Workspace konnte nicht geladen werden</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-2">{workspaceFehler}</p>
-          <button type="button" onClick={neuLaden} className="mt-5 rounded-lg bg-surface-inverse px-4 py-2 text-sm font-semibold text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            Erneut laden
-          </button>
+          <button type="button" onClick={neuLaden} className="mt-5 rounded-lg bg-surface-inverse px-4 py-2 text-sm font-semibold text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">Erneut laden</button>
         </div>
       </main>
     )
   }
-
   return children
 }
 
 const Router = import.meta.env.VITE_ROUTER === 'hash' ? HashRouter : BrowserRouter
 
 export default function App() {
+  consumeAuthRedirectSession()
   return (
     <Router>
       <ToastProvider>
