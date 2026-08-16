@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { DOKUMENT_TYPEN } from '../../data/catalog.js'
 import { formatBytes, formatDate } from '../../lib/format.js'
 import { downloadProjectFile } from '../../lib/supabase.js'
+import { searchProjectEvidence } from '../../lib/workspaceApi.js'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
@@ -30,6 +31,9 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
   const [filter, setFilter] = useState('alle')
   const [suche, setSuche] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [evidenceQuery, setEvidenceQuery] = useState('')
+  const [evidenceResults, setEvidenceResults] = useState([])
+  const [evidenceLoading, setEvidenceLoading] = useState(false)
   const inputRef = useRef(null)
 
   const hochladen = rolle !== 'demo'
@@ -46,7 +50,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
     })
   }, [kunde.dokumente, filter, suche])
 
-  const aufnehmen = async (dateien) => {
+  const hochladenDateien = async (dateien) => {
     const files = Array.from(dateien)
     if (!files.length) return
     setUploading(true)
@@ -92,6 +96,20 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
     }
   }
 
+  const evidenceSuchen = async () => {
+    const query = evidenceQuery.trim()
+    if (query.length < 2 || !echteDaten || !accessToken || !kunde.projectId) return
+    setEvidenceLoading(true)
+    try {
+      const rows = await searchProjectEvidence(accessToken, kunde.projectId, query, 8)
+      setEvidenceResults(rows || [])
+    } catch (error) {
+      toast.show({ title: 'Evidenzsuche fehlgeschlagen', description: error instanceof Error ? error.message : 'Suche konnte nicht ausgeführt werden.', variant: 'danger' })
+    } finally {
+      setEvidenceLoading(false)
+    }
+  }
+
   const spalten = [
     {
       key: 'name', label: 'Dokument', render: (d) => (
@@ -119,18 +137,58 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
           : 'Dateien werden in dieser Demo nicht übertragen und nicht gespeichert. Beim Hochladen entsteht ausschließlich ein Eintrag im Arbeitsspeicher dieser Sitzung.'}
       </Banner>
 
+      {rolle === 'intern' && echteDaten ? (
+        <Card>
+          <CardHeader title="Frag SYMMEDIS" subtitle="Projektweite Evidenzsuche über Analyse-Findings und indexiertes Kundenwissen" icon={IconShield} />
+          <CardBody className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <SearchInput
+                value={evidenceQuery}
+                onChange={(event) => setEvidenceQuery(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') evidenceSuchen() }}
+                placeholder="z. B. Warum ist die Conversion schwach?"
+                label="Projektwissen durchsuchen"
+                className="flex-1"
+              />
+              <Button onClick={evidenceSuchen} disabled={evidenceLoading || evidenceQuery.trim().length < 2}>
+                {evidenceLoading ? 'Suche …' : 'Evidenz suchen'}
+              </Button>
+            </div>
+
+            {evidenceResults.length ? (
+              <div className="space-y-2">
+                {evidenceResults.map((result) => (
+                  <div key={`${result.source_type}-${result.source_id}`} className="rounded-lg border border-line bg-surface-muted p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip size="sm" toneName={result.source_type === 'finding' ? 'accent' : 'info'}>{result.source_type === 'finding' ? 'Finding' : 'Knowledge'}</Chip>
+                      <span className="text-xs font-semibold text-ink-2">{result.source_label}</span>
+                      <span className="ml-auto text-xs tabular text-ink-3">Match {Math.round(Number(result.similarity || 0) * 100)}%</span>
+                    </div>
+                    <p className="mt-2 line-clamp-4 text-[0.8125rem] leading-relaxed text-ink-2">{result.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : evidenceQuery.trim().length >= 2 && !evidenceLoading ? (
+              <p className="text-xs text-ink-3">Noch keine Treffer. Findings werden sofort durchsucht; Dokument-Inhalte erscheinen nach Indexierung als zusätzliche Knowledge-Quellen.</p>
+            ) : (
+              <p className="text-xs text-ink-3">Die Suche respektiert dieselbe Projekt-/Tenant-RLS wie der restliche Workspace und kann keine fremden Kundendaten lesen.</p>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
+
       {hochladen ? (
         <Card>
           <CardBody>
             <div
               onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) aufnehmen(e.dataTransfer.files) }}
+              onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) hochladenDateien(e.dataTransfer.files) }}
               className="flex flex-col items-center rounded-lg border border-dashed border-line-strong px-6 py-8 text-center"
             >
               <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><IconUpload className="size-5" /></span>
               <p className="mt-3 text-sm font-semibold text-ink">Unterlagen hinzufügen</p>
               <p className="mt-1 max-w-md text-[0.8125rem] leading-relaxed text-ink-2">PDF, Word, Excel, PowerPoint, CSV, Text oder Bilder. Maximal 50 MB pro Datei.</p>
-              <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.png,.jpg,.jpeg" className="sr-only" onChange={(e) => { if (e.target.files?.length) aufnehmen(e.target.files); e.target.value = '' }} />
+              <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.png,.jpg,.jpeg" className="sr-only" onChange={(e) => { if (e.target.files?.length) hochladenDateien(e.target.files); e.target.value = '' }} />
               <Button className="mt-4" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>{uploading ? 'Upload läuft …' : 'Dateien auswählen'}</Button>
             </div>
           </CardBody>
