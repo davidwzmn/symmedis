@@ -5,23 +5,24 @@ const STORAGE_KEY = 'symmedis.supabase.session'
 
 export const supabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_KEY)
 
-function headers(accessToken) {
+function headers(accessToken, json = true) {
   return {
     apikey: SUPABASE_KEY,
     Authorization: `Bearer ${accessToken || SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
+    ...(json ? { 'Content-Type': 'application/json' } : {}),
   }
 }
 
-async function request(path, options = {}) {
+export async function supabaseRequest(path, options = {}) {
   if (!supabaseEnabled) throw new Error('Supabase ist nicht konfiguriert.')
 
   const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...options,
-    headers: { ...headers(options.accessToken), ...options.headers },
+    headers: { ...headers(options.accessToken, options.json !== false), ...options.headers },
   })
 
-  const payload = await response.json().catch(() => null)
+  const contentType = response.headers.get('content-type') || ''
+  const payload = contentType.includes('application/json') ? await response.json().catch(() => null) : await response.blob().catch(() => null)
   if (!response.ok) {
     const message = payload?.msg || payload?.message || payload?.error_description || payload?.error || 'Anfrage fehlgeschlagen.'
     throw new Error(message)
@@ -45,7 +46,7 @@ function storeAuthSession(session) {
 }
 
 export async function signInWithPassword(email, password) {
-  const payload = await request('/auth/v1/token?grant_type=password', {
+  const payload = await supabaseRequest('/auth/v1/token?grant_type=password', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
@@ -54,7 +55,7 @@ export async function signInWithPassword(email, password) {
 }
 
 export async function refreshAuthSession(refreshToken) {
-  const payload = await request('/auth/v1/token?grant_type=refresh_token', {
+  const payload = await supabaseRequest('/auth/v1/token?grant_type=refresh_token', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: refreshToken }),
   })
@@ -64,18 +65,53 @@ export async function refreshAuthSession(refreshToken) {
 
 export async function signOut(accessToken) {
   if (supabaseEnabled && accessToken) {
-    await request('/auth/v1/logout', { method: 'POST', accessToken }).catch(() => null)
+    await supabaseRequest('/auth/v1/logout', { method: 'POST', accessToken }).catch(() => null)
   }
   storeAuthSession(null)
 }
 
 export async function fetchMyProfile(accessToken) {
-  const rows = await request('/rest/v1/profiles?select=id,email,full_name,role,organization_id,client_id&limit=1', {
+  const rows = await supabaseRequest('/rest/v1/profiles?select=id,email,full_name,role,organization_id,client_id&limit=1', {
     method: 'GET',
     accessToken,
     headers: { Prefer: 'return=representation' },
   })
   return rows?.[0] ?? null
+}
+
+export async function restSelect(table, accessToken, query = '') {
+  return supabaseRequest(`/rest/v1/${table}?${query}`, { method: 'GET', accessToken })
+}
+
+export async function restInsert(table, accessToken, row) {
+  return supabaseRequest(`/rest/v1/${table}`, {
+    method: 'POST',
+    accessToken,
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(row),
+  })
+}
+
+export async function restUpdate(table, accessToken, filter, patch) {
+  return supabaseRequest(`/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    accessToken,
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function uploadProjectFile(accessToken, path, file) {
+  return supabaseRequest(`/storage/v1/object/project-files/${path}`, {
+    method: 'POST',
+    accessToken,
+    json: false,
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      'x-upsert': 'true',
+    },
+    body: file,
+  })
 }
 
 export function clearStoredAuthSession() {
