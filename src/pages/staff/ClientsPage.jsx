@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
 import { onboardClientProject } from '../../lib/clientOnboardingApi.js'
+import { fetchTeamDirectory } from '../../lib/workspaceApi.js'
 import { PROJEKT_STATUS, TEAM, TEAM_MAP } from '../../data/workspace.js'
 import { formatDate, tageBis } from '../../lib/format.js'
 import { scoreStufe } from '../../lib/tone.js'
@@ -15,7 +16,7 @@ import { IconBuilding } from '../../components/ui/Icons.jsx'
 
 const LEER = {
   name: '', shortName: '', industry: '', location: '', employeeCount: '',
-  contactName: '', contactEmail: '', contactRole: '', accountManagerKey: 'mr',
+  contactName: '', contactEmail: '', contactRole: '', accountManagerKey: '',
   projectName: 'Ursachenanalyse', startDate: '', resultDate: '',
 }
 
@@ -28,10 +29,40 @@ export function ClientsPage() {
   const [suche, setSuche] = useState('')
   const [status, setStatus] = useState('alle')
   const [betreuer, setBetreuer] = useState('alle')
+  const [team, setTeam] = useState([])
+  const [teamLaedt, setTeamLaedt] = useState(false)
   const [formularOffen, setFormularOffen] = useState(false)
   const [formular, setFormular] = useState(LEER)
   const [speichert, setSpeichert] = useState(false)
   const [formularFehler, setFormularFehler] = useState(null)
+
+  useEffect(() => {
+    if (!echteDaten || !accessToken) {
+      setTeam([])
+      return undefined
+    }
+    let active = true
+    setTeamLaedt(true)
+    fetchTeamDirectory(accessToken)
+      .then((rows) => { if (active) setTeam(rows) })
+      .catch(() => { if (active) setTeam([]) })
+      .finally(() => { if (active) setTeamLaedt(false) })
+    return () => { active = false }
+  }, [accessToken, echteDaten])
+
+  const teamOptionen = useMemo(() => echteDaten ? team : TEAM, [echteDaten, team])
+  const teamMap = useMemo(() => {
+    const live = Object.fromEntries(team.map((mitglied) => [mitglied.id, mitglied]))
+    return { ...TEAM_MAP, ...live }
+  }, [team])
+  const betreuerOptionen = useMemo(() => {
+    const map = new Map(teamOptionen.map((mitglied) => [mitglied.id, { id: mitglied.id, name: mitglied.name }]))
+    kunden.forEach((kunde) => {
+      if (!kunde.betreuerId || map.has(kunde.betreuerId)) return
+      map.set(kunde.betreuerId, { id: kunde.betreuerId, name: teamMap[kunde.betreuerId]?.name || 'Ehemalige Zuordnung' })
+    })
+    return [...map.values()]
+  }, [kunden, teamMap, teamOptionen])
 
   const zeilen = useMemo(() => {
     const q = suche.trim().toLowerCase()
@@ -49,6 +80,11 @@ export function ClientsPage() {
   }, [kunden, suche, status, betreuer])
 
   const setzen = (key) => (event) => setFormular((alt) => ({ ...alt, [key]: event.target.value }))
+  const formularOeffnen = () => {
+    setFormular((alt) => ({ ...alt, accountManagerKey: alt.accountManagerKey || teamOptionen[0]?.id || '' }))
+    setFormularFehler(null)
+    setFormularOffen(true)
+  }
 
   const anlegen = async (event) => {
     event.preventDefault()
@@ -56,12 +92,16 @@ export function ClientsPage() {
       setFormularFehler('Bitte geben Sie einen Unternehmensnamen ein.')
       return
     }
+    if (!formular.accountManagerKey) {
+      setFormularFehler('Bitte weisen Sie eine Betreuung aus dem SYMMEDIS-Team zu.')
+      return
+    }
     setSpeichert(true)
     setFormularFehler(null)
     try {
       await onboardClientProject(accessToken, formular)
       await neuLaden()
-      setFormular(LEER)
+      setFormular({ ...LEER, accountManagerKey: teamOptionen[0]?.id || '' })
       setFormularOffen(false)
       toast.show({ title: 'Kunde angelegt', description: `${formular.name} wurde als eigener Tenant mit Projekt erstellt.`, variant: 'success' })
     } catch (error) {
@@ -113,7 +153,7 @@ export function ClientsPage() {
     },
     {
       key: 'betreuer', label: 'Betreuung', hideBelow: 'xl', render: (kunde) => (
-        <span className="text-ink-2">{TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'}</span>
+        <span className="text-ink-2">{teamMap[kunde.betreuerId]?.name || 'Nicht zugewiesen'}</span>
       ),
     },
     {
@@ -137,8 +177,12 @@ export function ClientsPage() {
       <PageHeader
         title="Kunden"
         subtitle={`${zeilen.length} von ${kunden.length} Projekten · Mandantenzugriff nur für das SYMMEDIS-Team`}
-        actions={echteDaten ? <Button size="sm" onClick={() => setFormularOffen((wert) => !wert)}>Neuen Kunden anlegen</Button> : null}
+        actions={echteDaten ? <Button size="sm" onClick={formularOeffnen} disabled={teamLaedt || teamOptionen.length === 0}>{teamLaedt ? 'Team wird geladen …' : 'Neuen Kunden anlegen'}</Button> : null}
       />
+
+      {echteDaten && !teamLaedt && teamOptionen.length === 0 ? (
+        <Card><CardBody><p className="text-[0.8125rem] leading-relaxed text-warn-ink">Es ist noch kein interner Teamzugang verfügbar. Legen Sie zuerst einen Mitarbeiter- oder Admin-Zugang an, bevor neue Kunden zugewiesen werden.</p></CardBody></Card>
+      ) : null}
 
       {formularOffen ? (
         <Card>
@@ -146,7 +190,7 @@ export function ClientsPage() {
             <form onSubmit={anlegen} className="space-y-5">
               <div>
                 <h2 className="text-base font-semibold text-ink">Neuer Kunden-Tenant</h2>
-                <p className="mt-1 text-[0.8125rem] text-ink-2">Organisation, Kundenstamm und erstes Analyseprojekt werden atomar angelegt.</p>
+                <p className="mt-1 text-[0.8125rem] text-ink-2">Organisation, Kundenstamm und erstes Analyseprojekt werden atomar angelegt. Die Betreuung stammt aus dem realen SYMMEDIS-Teamverzeichnis.</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Input label="Unternehmen" required value={formular.name} onChange={setzen('name')} />
@@ -155,7 +199,8 @@ export function ClientsPage() {
                 <Input label="Ort" value={formular.location} onChange={setzen('location')} />
                 <Input label="Mitarbeitende" type="number" min="0" value={formular.employeeCount} onChange={setzen('employeeCount')} />
                 <Select label="Betreuung" value={formular.accountManagerKey} onChange={setzen('accountManagerKey')} required>
-                  {TEAM.map((mitglied) => <option key={mitglied.id} value={mitglied.id}>{mitglied.name}</option>)}
+                  <option value="" disabled>Teammitglied wählen</option>
+                  {teamOptionen.map((mitglied) => <option key={mitglied.id} value={mitglied.id}>{mitglied.name}{mitglied.roleLabel ? ` · ${mitglied.roleLabel}` : ''}</option>)}
                 </Select>
                 <Input label="Ansprechpartner" value={formular.contactName} onChange={setzen('contactName')} />
                 <Input label="E-Mail Ansprechpartner" type="email" value={formular.contactEmail} onChange={setzen('contactEmail')} />
@@ -183,7 +228,7 @@ export function ClientsPage() {
           </Select>
           <Select label="Betreuung" value={betreuer} onChange={(event) => setBetreuer(event.target.value)} className="sm:w-52" required>
             <option value="alle">Alle im Team</option>
-            {TEAM.map((mitglied) => <option key={mitglied.id} value={mitglied.id}>{mitglied.name}</option>)}
+            {betreuerOptionen.map((mitglied) => <option key={mitglied.id} value={mitglied.id}>{mitglied.name}</option>)}
           </Select>
         </CardBody>
         <div className="border-t border-line">
@@ -198,7 +243,7 @@ export function ClientsPage() {
                   <Avatar name={kunde.kurz} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[0.8125rem] font-medium text-ink">{kunde.unternehmen}</p>
-                    <p className="mt-0.5 truncate text-xs text-ink-3">{kunde.branche || 'Branche offen'} · {TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'}</p>
+                    <p className="mt-0.5 truncate text-xs text-ink-3">{kunde.branche || 'Branche offen'} · {teamMap[kunde.betreuerId]?.name || 'Nicht zugewiesen'}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <Chip size="sm" toneName={info.tone} dot>{info.label}</Chip>
                       <Chip size="sm" toneName={scoreStufe(kunde.gesamtScore).tone}>Reifegrad {kunde.gesamtScore}</Chip>
