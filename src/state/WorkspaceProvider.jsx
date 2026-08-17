@@ -37,9 +37,11 @@ export function WorkspaceProvider({ children }) {
   const [gelesen, setGelesen] = useState(() => new Set())
   const [workspaceBereit, setWorkspaceBereit] = useState(!echteAuthentifizierung)
   const [workspaceFehler, setWorkspaceFehler] = useState(null)
+  const [workspaceAktionsfehler, setWorkspaceAktionsfehler] = useState(null)
   const [workspaceFuerUser, setWorkspaceFuerUser] = useState(echteAuthentifizierung ? null : 'demo')
 
   const ladeWorkspace = useCallback(async () => {
+    setWorkspaceAktionsfehler(null)
     if (!echteAuthentifizierung) {
       setKunden(createWorkspace())
       setWorkspaceBereit(true)
@@ -74,8 +76,9 @@ export function WorkspaceProvider({ children }) {
   useEffect(() => { ladeWorkspace() }, [ladeWorkspace])
 
   const meldePersistenzfehler = useCallback((error) => {
-    setWorkspaceFehler(error instanceof Error ? error.message : 'Änderung konnte nicht gespeichert werden.')
+    setWorkspaceAktionsfehler(error instanceof Error ? error.message : 'Änderung konnte nicht gespeichert werden.')
   }, [])
+  const aktionsfehlerLeeren = useCallback(() => setWorkspaceAktionsfehler(null), [])
   const getKunde = useCallback((id) => kunden.find((k) => k.id === id) ?? null, [kunden])
   const patchKunde = useCallback((kundeId, updater) => {
     setKunden((liste) => liste.map((k) => (k.id === kundeId ? updater(k) : k)))
@@ -290,11 +293,13 @@ export function WorkspaceProvider({ children }) {
     kunden, getKunde, kennzahlen, benachrichtigungen, markiereGelesen, alleGelesen,
     setAufgabeStatus, setAnalyseFeld, setFreigabe, freigebenAlle, addNachricht, addNotiz,
     addDokument, addAktivitaet, setBremseStatus,
-    workspaceBereit, workspaceFehler, workspaceFuerUser, neuLaden: ladeWorkspace, echteDaten: echteAuthentifizierung,
+    workspaceBereit, workspaceFehler, workspaceAktionsfehler, aktionsfehlerLeeren,
+    workspaceFuerUser, neuLaden: ladeWorkspace, echteDaten: echteAuthentifizierung,
   }), [
     kunden, getKunde, kennzahlen, benachrichtigungen, markiereGelesen, alleGelesen,
     setAufgabeStatus, setAnalyseFeld, setFreigabe, freigebenAlle, addNachricht, addNotiz,
-    addDokument, addAktivitaet, setBremseStatus, workspaceBereit, workspaceFehler, workspaceFuerUser, ladeWorkspace, echteAuthentifizierung,
+    addDokument, addAktivitaet, setBremseStatus, workspaceBereit, workspaceFehler,
+    workspaceAktionsfehler, aktionsfehlerLeeren, workspaceFuerUser, ladeWorkspace, echteAuthentifizierung,
   ])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
