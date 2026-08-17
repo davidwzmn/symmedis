@@ -23,6 +23,7 @@ const demoSession = ({ rolle, email }) => ({
   organisationId: rolle === 'kunde' ? 'nordvita-demo' : 'symmedis-demo',
   seit: new Date().toISOString(),
   demo: true,
+  istAdmin: false,
 })
 
 function mapProfile(profile, authUser) {
@@ -40,6 +41,7 @@ function mapProfile(profile, authUser) {
     organisationId: profile.organization_id,
     seit: new Date().toISOString(),
     demo: false,
+    istAdmin: profile.role === 'admin',
   }
 }
 
@@ -154,7 +156,7 @@ export function SessionProvider({ children }) {
     try {
       const next = await applyAuthSession(nextAuth)
 
-      if (next.rolle !== rolle && nextAuth.user && next.rolle !== 'intern') {
+      if (next.rolle !== rolle && !next.istAdmin) {
         throw new Error(
           rolle === 'kunde'
             ? 'Dieser Zugang gehört nicht zum Kundenportal.'
