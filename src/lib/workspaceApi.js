@@ -1,4 +1,4 @@
-import { invokeEdgeFunction, restInsert, restRpc, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
+import { deleteProjectFile, invokeEdgeFunction, restInsert, restRpc, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
 import { PHASEN } from '../data/workspace.js'
 import { PLATTFORMEN } from '../data/catalog.js'
 
@@ -129,22 +129,37 @@ export function persistMessage(accessToken, projectId, userId, message) { return
 export function persistInternalNote(accessToken, projectId, userId, text, author) { return restInsert('internal_notes', accessToken, { project_id: projectId, author, body: text, created_by: userId }) }
 export function persistActivity(accessToken, projectId, entry) { return restInsert('activities', accessToken, { project_id: projectId, title: entry.titel, actor: entry.actor || '', tone: entry.tone || 'neutral', happened_at: entry.zeit || new Date().toISOString() }) }
 
+function uniqueObjectName(fileName) {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'upload'
+  const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+  return `${nonce}-${safeName}`
+}
+
 export async function persistDocument(accessToken, clientId, projectId, file, meta = {}) {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-')
-  const path = `${clientId}/${projectId}/${Date.now()}-${safeName}`
-  await uploadProjectFile(accessToken, path, file)
-  const rows = await restInsert('documents', accessToken, {
-    project_id: projectId,
-    name: file.name,
-    file_type: file.name.split('.').pop()?.toLowerCase() || '',
-    size_bytes: file.size,
-    source: meta.von || 'kunde',
-    customer_visible: Boolean(meta.sichtbarKunde),
-    version: 1,
-    status: 'neu',
-    storage_path: path,
-  })
-  const document = rows?.[0]
-  if (document?.id) invokeEdgeFunction('index-document', accessToken, { documentId: document.id }).catch(() => null)
-  return document
+  const path = `${clientId}/${projectId}/${uniqueObjectName(file.name)}`
+  let uploaded = false
+  try {
+    await uploadProjectFile(accessToken, path, file)
+    uploaded = true
+    const rows = await restInsert('documents', accessToken, {
+      project_id: projectId,
+      name: file.name,
+      file_type: file.name.split('.').pop()?.toLowerCase() || '',
+      size_bytes: file.size,
+      source: meta.von || 'kunde',
+      customer_visible: Boolean(meta.sichtbarKunde),
+      version: 1,
+      status: 'neu',
+      storage_path: path,
+    })
+    const document = rows?.[0]
+    if (!document?.id) throw new Error('Dokument konnte nicht registriert werden.')
+    invokeEdgeFunction('index-document', accessToken, { documentId: document.id }).catch(() => null)
+    return document
+  } catch (error) {
+    if (uploaded) await deleteProjectFile(accessToken, path).catch(() => null)
+    throw error
+  }
 }
