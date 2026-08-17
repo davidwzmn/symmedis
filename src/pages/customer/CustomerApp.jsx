@@ -29,6 +29,7 @@ import {
   IconLayers,
   IconRoute,
   IconShare,
+  IconShield,
 } from '../../components/ui/Icons.jsx'
 
 const NAV = [
@@ -52,7 +53,7 @@ export function CustomerApp() {
   if (!session || session.rolle !== 'kunde') return <Navigate to="/login?rolle=kunde" replace />
 
   const kunde = getKunde(session.kundeId)
-  if (!kunde) return <Navigate to="/login?rolle=kunde" replace />
+  if (!kunde) return <UnassignedCustomerAccess />
 
   return (
     <AppShell
@@ -87,6 +88,24 @@ export function CustomerApp() {
         </Routes>
       </div>
     </AppShell>
+  )
+}
+
+function UnassignedCustomerAccess() {
+  return (
+    <main className="shell-container flex min-h-dvh items-center justify-center py-12">
+      <Card className="w-full max-w-xl">
+        <CardBody className="px-6 py-8 text-center sm:px-8 sm:py-10">
+          <span className="mx-auto inline-flex size-12 items-center justify-center rounded-xl border border-line bg-surface-muted text-ink-2"><IconShield className="size-5" /></span>
+          <h1 className="mt-4 text-lg font-semibold text-ink">Ihr Projektzugang wird eingerichtet</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">Ihre Anmeldung ist gültig. Aktuell ist Ihrem Konto jedoch noch kein freigegebener SYMMEDIS-Projektbereich zugeordnet.</p>
+          <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-ink-3">Bitte verwenden Sie weiterhin denselben Zugang. Sobald das Projekt zugeordnet wurde, erscheint der geschützte Bereich automatisch.</p>
+          <div className="mt-6 rounded-lg border border-line bg-surface-muted px-4 py-3 text-left text-xs leading-relaxed text-ink-2">
+            <strong className="font-semibold text-ink">Datenschutz-Hinweis:</strong> Es werden keine fremden Kundendaten oder nicht zugeordneten Projekte angezeigt.
+          </div>
+        </CardBody>
+      </Card>
+    </main>
   )
 }
 
