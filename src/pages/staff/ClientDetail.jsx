@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
+import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
 import { PROJEKT_STATUS, TEAM_MAP } from '../../data/workspace.js'
+import { fetchTeamDirectory } from '../../lib/workspaceApi.js'
 import { formatDate, formatNumber } from '../../lib/format.js'
 import { FREIGABE, scoreStufe } from '../../lib/tone.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
@@ -47,14 +49,26 @@ const TABS = [
 export function ClientDetail() {
   const { kundeId } = useParams()
   const { getKunde, freigebenAlle, addAktivitaet } = useWorkspace()
+  const { accessToken, echteAuthentifizierung } = useSession()
   const toast = useToast()
   const [tab, setTab] = useState('ueberblick')
+  const [team, setTeam] = useState([])
+
+  useEffect(() => {
+    if (!echteAuthentifizierung || !accessToken) return undefined
+    let active = true
+    fetchTeamDirectory(accessToken)
+      .then((rows) => { if (active) setTeam(rows) })
+      .catch(() => { if (active) setTeam([]) })
+    return () => { active = false }
+  }, [accessToken, echteAuthentifizierung])
 
   const kunde = getKunde(kundeId)
   if (!kunde) return <Navigate to="/intern/kunden" replace />
 
   const status = PROJEKT_STATUS[kunde.status] || PROJEKT_STATUS.onboarding
-  const betreuer = TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'
+  const liveBetreuer = team.find((member) => member.id === kunde.betreuerId)?.name
+  const betreuer = liveBetreuer || TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'
   const offeneFreigaben = kunde.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length
 
   const alleFreigeben = () => {
