@@ -19,9 +19,27 @@ import {
   IconUpload,
 } from '../ui/Icons.jsx'
 
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+const ERLAUBTE_ENDUNGEN = new Set(['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg'])
 const ENDUNG_TYP = {
-  pdf: 'pdf', doc: 'docx', docx: 'docx', xls: 'xlsx', xlsx: 'xlsx', csv: 'xlsx',
-  ppt: 'pptx', pptx: 'pptx', png: 'bild', jpg: 'bild', jpeg: 'bild', txt: 'txt',
+  pdf: 'pdf', docx: 'docx', xlsx: 'xlsx', csv: 'xlsx',
+  pptx: 'pptx', png: 'bild', jpg: 'bild', jpeg: 'bild', txt: 'txt',
+}
+const INDEX_STATUS = {
+  indexed: { label: 'Durchsuchbar', tone: 'ok', hint: 'Der Inhalt ist in der projektweiten Evidenzsuche verfügbar.' },
+  indexing: { label: 'Wird indexiert', tone: 'info', hint: 'Der Inhalt wird gerade für die Evidenzsuche aufbereitet.' },
+  pending: { label: 'Prüfung offen', tone: 'warn', hint: 'Für die Indexierung ist noch ein interner Prüfschritt erforderlich.' },
+  unsupported: { label: 'Nur Ablage', tone: 'neutral', hint: 'Die Datei ist sicher gespeichert, wird aber nicht automatisch inhaltlich indexiert.' },
+  failed: { label: 'Indexierung prüfen', tone: 'urgent', hint: 'Die Datei ist gespeichert, die inhaltliche Indexierung war jedoch nicht erfolgreich.' },
+}
+
+function dateiEndung(datei) {
+  return datei.name.split('.').pop()?.toLowerCase() ?? ''
+}
+
+function indexStatus(dokument) {
+  if (!dokument.indexStatus) return null
+  return INDEX_STATUS[dokument.indexStatus] || { label: dokument.indexStatus, tone: 'neutral', hint: dokument.indexError || '' }
 }
 
 export function DocumentsModule({ kunde, rolle = 'kunde' }) {
@@ -31,6 +49,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
   const [filter, setFilter] = useState('alle')
   const [suche, setSuche] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState('')
   const [visibilitySaving, setVisibilitySaving] = useState(null)
   const [evidenceQuery, setEvidenceQuery] = useState('')
   const [evidenceResults, setEvidenceResults] = useState([])
@@ -55,32 +74,60 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
 
   const hochladenDateien = async (dateien) => {
     const files = Array.from(dateien)
-    if (!files.length) return
+    if (!files.length || uploading) return
+
+    const ungueltig = files.filter((datei) => !ERLAUBTE_ENDUNGEN.has(dateiEndung(datei)) || datei.size > MAX_UPLOAD_BYTES || datei.size === 0)
+    const gueltig = files.filter((datei) => !ungueltig.includes(datei))
+
+    if (ungueltig.length) {
+      toast.show({
+        title: `${ungueltig.length} Datei${ungueltig.length > 1 ? 'en' : ''} nicht übernommen`,
+        description: 'Erlaubt sind PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG und JPG mit maximal 50 MB pro Datei. Leere Dateien werden nicht hochgeladen.',
+        variant: gueltig.length ? 'warning' : 'danger',
+      })
+    }
+    if (!gueltig.length) return
+
     setUploading(true)
+    setUploadStatus(`${gueltig.length} Datei${gueltig.length > 1 ? 'en werden' : ' wird'} hochgeladen …`)
     try {
-      await Promise.all(files.map((datei) => {
-        const endung = datei.name.split('.').pop()?.toLowerCase() ?? ''
+      const ergebnisse = await Promise.allSettled(gueltig.map((datei) => {
+        const endung = dateiEndung(datei)
         return addDokument(kunde.id, {
           name: datei.name,
-          typ: (ENDUNG_TYP[endung] ?? endung) || 'datei',
+          typ: ENDUNG_TYP[endung] || endung || 'datei',
           groesse: datei.size,
           von: quelle,
           sichtbarKunde: rolle !== 'intern',
         }, datei)
       }))
-      toast.show({
-        title: `${files.length} Datei${files.length > 1 ? 'en' : ''} ${echteDaten ? 'hochgeladen' : 'aufgenommen'}`,
-        description: echteDaten
-          ? rolle === 'intern'
-            ? 'Interne Uploads bleiben standardmäßig intern, bis sie bewusst für Kunden freigegeben werden.'
-            : 'Die Unterlagen wurden im privaten Projektbereich gespeichert.'
-          : 'Demo: Es entstand nur ein lokaler Eintrag.',
-        variant: 'success',
-      })
-    } catch (error) {
-      toast.show({ title: 'Upload fehlgeschlagen', description: error instanceof Error ? error.message : 'Datei konnte nicht gespeichert werden.', variant: 'danger' })
+
+      const erfolgreich = ergebnisse.filter((result) => result.status === 'fulfilled').length
+      const fehlgeschlagen = gueltig.length - erfolgreich
+      if (erfolgreich && echteDaten) await neuLaden().catch(() => null)
+
+      if (erfolgreich) {
+        toast.show({
+          title: `${erfolgreich} Datei${erfolgreich > 1 ? 'en' : ''} ${echteDaten ? 'hochgeladen' : 'aufgenommen'}`,
+          description: fehlgeschlagen
+            ? `${fehlgeschlagen} Datei${fehlgeschlagen > 1 ? 'en konnten' : ' konnte'} nicht gespeichert werden. Erfolgreiche Uploads bleiben erhalten.`
+            : echteDaten
+              ? rolle === 'intern'
+                ? 'Neue interne Uploads bleiben zunächst intern. Unterstützte Office-, CSV- und Textdateien werden ohne bezahlte KI für die Evidenzsuche indexiert.'
+                : 'Die Unterlagen wurden im privaten Projektbereich gespeichert. Unterstützte Formate werden im Hintergrund für die Suche aufbereitet.'
+              : 'Demo: Es entstand nur ein lokaler Eintrag.',
+          variant: fehlgeschlagen ? 'warning' : 'success',
+        })
+      }
+
+      if (!erfolgreich) {
+        const ersterFehler = ergebnisse.find((result) => result.status === 'rejected')
+        const grund = ersterFehler?.reason instanceof Error ? ersterFehler.reason.message : 'Dateien konnten nicht gespeichert werden.'
+        toast.show({ title: 'Upload fehlgeschlagen', description: grund, variant: 'danger' })
+      }
     } finally {
       setUploading(false)
+      setUploadStatus('')
     }
   }
 
@@ -151,6 +198,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
     },
     { key: 'von', label: 'Quelle', hideBelow: 'lg', render: (d) => <Chip size="sm" toneName={d.von === 'kunde' ? 'brand' : 'accent'}>{d.von === 'kunde' ? kunde.kurz : 'SYMMEDIS'}</Chip> },
     { key: 'sichtbarkeit', label: 'Sichtbarkeit', render: (d) => <Chip size="sm" toneName={d.sichtbarKunde ? 'ok' : 'neutral'}>{d.sichtbarKunde ? 'Kunde' : 'Intern'}</Chip> },
+    { key: 'index', label: 'Suche', hideBelow: 'lg', render: (d) => { const state = indexStatus(d); return state ? <Chip size="sm" toneName={state.tone} title={d.indexError || state.hint}>{state.label}</Chip> : <span className="text-xs text-ink-3">–</span> } },
     { key: 'version', label: 'Version', hideBelow: 'xl', render: (d) => <span className="inline-flex items-center gap-1.5 text-ink-2"><IconHistory className="size-3.5 text-ink-3" />v{d.version}</span> },
     { key: 'status', label: 'Status', hideBelow: 'lg', render: (d) => <Chip size="sm" toneName={d.status === 'geprueft' ? 'ok' : 'info'}>{d.status === 'geprueft' ? 'Gesichtet' : 'Neu'}</Chip> },
     { key: 'datum', label: 'Hochgeladen', hideBelow: 'md', align: 'right', render: (d) => <span className="text-ink-2">{formatDate(d.hochgeladen)}</span> },
@@ -203,13 +251,15 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
       {hochladen ? (
         <Card>
           <CardBody>
-            <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) hochladenDateien(e.dataTransfer.files) }} className="flex flex-col items-center rounded-lg border border-dashed border-line-strong px-6 py-8 text-center">
+            <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (event.dataTransfer.files.length) hochladenDateien(event.dataTransfer.files) }} className="flex flex-col items-center rounded-lg border border-dashed border-line-strong px-6 py-8 text-center">
               <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><IconUpload className="size-5" /></span>
               <p className="mt-3 text-sm font-semibold text-ink">Unterlagen hinzufügen</p>
-              <p className="mt-1 max-w-md text-[0.8125rem] leading-relaxed text-ink-2">PDF, Word, Excel, PowerPoint, CSV, Text oder Bilder. Maximal 50 MB pro Datei.</p>
+              <p className="mt-1 max-w-lg text-[0.8125rem] leading-relaxed text-ink-2">PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG oder JPG · maximal 50 MB pro Datei.</p>
+              {echteDaten ? <p className="mt-2 max-w-lg text-xs leading-relaxed text-ink-3">DOCX, XLSX, PPTX, CSV und TXT werden ohne bezahlte KI für die Evidenzsuche aufbereitet. Bilder bleiben sichere Ablage; PDFs warten auf den kontrollierten internen Extraktionsschritt.</p> : null}
               {rolle === 'intern' && echteDaten ? <p className="mt-2 text-xs font-medium text-ink-3">Neue SYMMEDIS-Uploads sind zunächst intern.</p> : null}
-              <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.png,.jpg,.jpeg" className="sr-only" onChange={(e) => { if (e.target.files?.length) hochladenDateien(e.target.files); e.target.value = '' }} />
+              <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.png,.jpg,.jpeg" className="sr-only" onChange={(event) => { if (event.target.files?.length) hochladenDateien(event.target.files); event.target.value = '' }} />
               <Button className="mt-4" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>{uploading ? 'Upload läuft …' : 'Dateien auswählen'}</Button>
+              <p className="mt-2 min-h-4 text-xs text-ink-3" role="status" aria-live="polite">{uploadStatus}</p>
             </div>
           </CardBody>
         </Card>
@@ -224,23 +274,36 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
             ] : [
               { value: 'alle', label: 'Alle' }, { value: 'kunde', label: kunde.kurz }, { value: 'symmedis', label: 'SYMMEDIS' }, { value: 'neu', label: 'Neu' },
             ]} />
-            <SearchInput value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Dokument suchen …" label="Dokumente durchsuchen" className="sm:w-56" />
+            <SearchInput value={suche} onChange={(event) => setSuche(event.target.value)} placeholder="Dokument suchen …" label="Dokumente durchsuchen" className="sm:w-56" />
           </div>
         </CardBody>
         <div className="border-t border-line">
           <DataTable
             caption="Dokumente des Projekts" columns={spalten} rows={gefiltert} getKey={(d) => d.id}
             empty={<EmptyState icon={IconFolder} title="Keine Dokumente in dieser Auswahl" description="Setzen Sie den Filter zurück oder laden Sie Unterlagen hoch." />}
-            renderCard={(d) => (
-              <div className="flex items-start gap-3">
-                <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-muted text-ink-2"><IconDocument className="size-4" /></span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[0.8125rem] font-medium text-ink">{d.name}</p>
-                  <p className="mt-0.5 text-xs text-ink-3">{DOKUMENT_TYPEN[d.typ]?.label ?? d.typ} · {formatBytes(d.groesse)} · v{d.version}</p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5"><Chip size="sm" toneName={d.von === 'kunde' ? 'brand' : 'accent'}>{d.von === 'kunde' ? kunde.kurz : 'SYMMEDIS'}</Chip><Chip size="sm" toneName={d.sichtbarKunde ? 'ok' : 'neutral'}>{d.sichtbarKunde ? 'Kundensichtbar' : 'Intern'}</Chip><Chip size="sm" toneName={d.status === 'geprueft' ? 'ok' : 'info'}>{d.status === 'geprueft' ? 'Gesichtet' : 'Neu'}</Chip></div>
+            renderCard={(d) => {
+              const state = indexStatus(d)
+              return (
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-muted text-ink-2"><IconDocument className="size-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[0.8125rem] font-medium text-ink">{d.name}</p>
+                    <p className="mt-0.5 text-xs text-ink-3">{DOKUMENT_TYPEN[d.typ]?.label ?? d.typ} · {formatBytes(d.groesse)} · v{d.version}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <Chip size="sm" toneName={d.von === 'kunde' ? 'brand' : 'accent'}>{d.von === 'kunde' ? kunde.kurz : 'SYMMEDIS'}</Chip>
+                      <Chip size="sm" toneName={d.sichtbarKunde ? 'ok' : 'neutral'}>{d.sichtbarKunde ? 'Kundensichtbar' : 'Intern'}</Chip>
+                      <Chip size="sm" toneName={d.status === 'geprueft' ? 'ok' : 'info'}>{d.status === 'geprueft' ? 'Gesichtet' : 'Neu'}</Chip>
+                      {state ? <Chip size="sm" toneName={state.tone} title={d.indexError || state.hint}>{state.label}</Chip> : null}
+                    </div>
+                    {state && (d.indexError || state.hint) ? <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink-3">{d.indexError || state.hint}</p> : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {rolle === 'intern' && echteDaten ? <Button variant="secondary" size="xs" disabled={visibilitySaving === d.id} onClick={() => sichtbarkeitSetzen(d)}><IconShield className="size-3.5" />{d.sichtbarKunde ? 'Intern setzen' : 'Für Kunde'}</Button> : null}
+                      <Button variant="secondary" size="xs" onClick={() => laden(d)}><IconDownload className="size-3.5" />Laden</Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            }}
           />
         </div>
       </Card>
