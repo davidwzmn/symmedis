@@ -37,7 +37,7 @@ const ROLLEN = {
 
 export function LoginPage() {
   const [params] = useSearchParams()
-  const { session, anmelden, authBereit, echteAuthentifizierung } = useSession()
+  const { session, anmelden, authBereit } = useSession()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
