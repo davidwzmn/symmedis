@@ -7,19 +7,23 @@ import { useSession } from '../../hooks/useSession.js'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { useToast } from '../../hooks/useToast.js'
 import { Button, Chip } from '../ui/primitives.jsx'
-import { Card, CardBody, CardHeader, Banner, MetricCard } from '../ui/layout.jsx'
+import { Card, CardBody, CardHeader, Banner, EmptyState, MetricCard } from '../ui/layout.jsx'
 import { DataTable, KeyValueList } from '../ui/data.jsx'
 import { IconCheck, IconDocument, IconDownload, IconHistory, IconLock, IconShield, IconTarget } from '../ui/Icons.jsx'
 
 const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]))
 
+function kategorieLabel(id) {
+  return KATEGORIE_MAP[id]?.label || id || 'Unbekannte Dimension'
+}
+
 function analyseCsv(kunde, nurFreigegeben) {
   const kopf = ['Dimension', 'Score', 'Stufe', 'Priorität', 'Beobachtung', 'Empfehlung', 'Beleg']
   const zeilen = kunde.analyse.filter((a) => !nurFreigegeben || a.sichtbarKunde).map((a) => [
-    KATEGORIE_MAP[a.kategorieId].label, a.score, scoreStufe(a.score).label, a.prioritaet, a.beobachtung, a.empfehlung, a.beleg,
+    kategorieLabel(a.kategorieId), a.score, scoreStufe(a.score).label, a.prioritaet, a.beobachtung, a.empfehlung, a.beleg,
   ])
-  return [kopf, ...zeilen].map((zeile) => zeile.map((feld) => `"${String(feld).replaceAll('"', '""')}"`).join(';')).join('\n')
+  return [kopf, ...zeilen].map((zeile) => zeile.map((feld) => `"${String(feld ?? '').replaceAll('"', '""')}"`).join(';')).join('\n')
 }
 
 function executiveHtml(kunde) {
@@ -32,7 +36,7 @@ function executiveHtml(kunde) {
   const measurements = (kunde.messungen || []).filter((m) => m.sichtbarKunde)
   const blockers = kunde.bremsen.slice(0, 3)
   const tasks = kunde.aufgaben.filter((task) => task.status !== 'erledigt').slice(0, 8)
-  const rows = findings.map((item) => `<tr><td>${escapeHtml(KATEGORIE_MAP[item.kategorieId]?.label || item.kategorieId)}</td><td>${item.score}/100</td><td>${escapeHtml(item.beobachtung)}</td><td>${escapeHtml(item.empfehlung)}</td></tr>`).join('')
+  const rows = findings.map((item) => `<tr><td>${escapeHtml(kategorieLabel(item.kategorieId))}</td><td>${item.score}/100</td><td>${escapeHtml(item.beobachtung)}</td><td>${escapeHtml(item.empfehlung)}</td></tr>`).join('')
   const blockerHtml = blockers.map((item) => `<li><strong>${escapeHtml(item.titel)}</strong><br><span>${escapeHtml(item.ursache)}</span></li>`).join('')
   const taskHtml = tasks.map((item) => `<li>${escapeHtml(item.titel)} <span>(${escapeHtml(item.faellig || 'ohne Termin')})</span></li>`).join('')
   const measurementHtml = measurements.map((item) => `<tr><td>${escapeHtml(item.label)}</td><td>${escapeHtml(item.baseline ?? '–')} ${escapeHtml(item.unit)}</td><td>${escapeHtml(item.current ?? '–')} ${escapeHtml(item.unit)}</td><td>${escapeHtml(item.target ?? '–')} ${escapeHtml(item.unit)}</td></tr>`).join('')
@@ -43,7 +47,7 @@ function executiveHtml(kunde) {
     <div class="brand">SYMMEDIS</div><h1>Executive Diagnosis Report</h1><div class="meta"><strong>${escapeHtml(kunde.unternehmen)}</strong> · ${escapeHtml(kunde.branche || 'Branche offen')} · Stand ${escapeHtml(new Date().toLocaleDateString('de-DE'))}</div>
     <div class="metrics"><div class="metric">Gesamtreifegrad<strong>${kunde.gesamtScore}/100</strong></div><div class="metric">Verifizierter Impact min.<strong>${euro.format(impact.min)}</strong></div><div class="metric">Verifizierter Impact max.<strong>${euro.format(impact.max)}</strong></div></div>
     <p class="notice"><strong>Methodik:</strong> Monetäre Impact-Werte erscheinen nur, wenn sie vom SYMMEDIS-Team gegen reale Kundendaten verifiziert wurden. Nicht freigegebene Findings und interne Notizen sind ausgeschlossen.</p>
-    <h2>Die drei größten Wachstumsbremsen</h2><ol>${blockerHtml}</ol>
+    <h2>Die drei größten Wachstumsbremsen</h2><ol>${blockerHtml || '<li>Noch keine Wachstumsbremsen priorisiert.</li>'}</ol>
     <h2>Freigegebene Diagnose</h2><table><thead><tr><th>Dimension</th><th>Score</th><th>Beobachtung</th><th>Empfehlung</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Noch keine Findings freigegeben.</td></tr>'}</tbody></table>
     <h2>30/60/90-Tage-Umsetzung</h2><ul>${taskHtml || '<li>Noch keine Maßnahmen geplant.</li>'}</ul>
     ${measurements.length ? `<h2>Vorher/Nachher-Messung</h2><table><thead><tr><th>KPI</th><th>Baseline</th><th>Aktuell</th><th>Ziel</th></tr></thead><tbody>${measurementHtml}</tbody></table>` : ''}
@@ -58,10 +62,15 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   const [releaseCandidate, setReleaseCandidate] = useState(null)
   const [releasing, setReleasing] = useState(null)
   const nurFreigegeben = rolle === 'kunde'
+  const exportFindings = kunde.analyse.filter((a) => !nurFreigegeben || a.sichtbarKunde)
   const verified = kunde.analyse.filter((a) => a.sichtbarKunde && a.impactVerified)
   const impact = verified.reduce((sum, item) => ({ min: sum.min + (item.revenueImpactMin || 0) + (item.costImpactMin || 0), max: sum.max + (item.revenueImpactMax || 0) + (item.costImpactMax || 0) }), { min: 0, max: 0 })
 
   const exportieren = () => {
+    if (!exportFindings.length) {
+      toast.show({ title: 'Noch keine Exportdaten', description: nurFreigegeben ? 'Für diesen Kundenzugang sind noch keine Analysepunkte freigegeben.' : 'Für dieses Projekt sind noch keine Analysepunkte vorhanden.', variant: 'info' })
+      return
+    }
     const inhalt = analyseCsv(kunde, nurFreigegeben)
     const blob = new Blob([`\uFEFF${inhalt}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -75,7 +84,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   const executiveDrucken = () => {
     const popup = window.open('', '_blank')
     if (!popup) {
-      toast.show({ title: 'Pop-up blockiert', description: 'Bitte Pop-ups für SYMMEDIS erlauben und erneut exportieren.' })
+      toast.show({ title: 'Pop-up blockiert', description: 'Bitte Pop-ups für SYMMEDIS erlauben und erneut exportieren.', variant: 'warning' })
       return
     }
     try { popup.opener = null } catch { /* Browser kann opener schreibgeschützt behandeln. */ }
@@ -89,6 +98,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   }
 
   const finalisieren = async (bericht) => {
+    if (releasing) return
     if (!echteDaten || !accessToken) {
       toast.show({ title: 'Finalisierung nicht verfügbar', description: 'Finale Freigaben sind nur im geschützten Live-Workspace möglich.' })
       return
@@ -122,7 +132,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   const versionen = (kunde.berichtVersionen || []).filter((v) => !nurFreigegeben || v.stand === 'final')
   const spalten = [
     { key: 'titel', label: 'Bericht', render: (b) => <span className="flex min-w-0 items-center gap-2.5"><span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-muted text-ink-2"><IconDocument className="size-4" /></span><span className="min-w-0"><span className="block truncate font-medium text-ink">{b.titel}</span><span className="block text-xs text-ink-3">{b.typ} · {b.seiten} Seiten</span></span></span> },
-    { key: 'autor', label: 'Erstellt von', hideBelow: 'lg', render: (b) => <span className="text-ink-2">{b.autor}</span> },
+    { key: 'autor', label: 'Erstellt von', hideBelow: 'lg', render: (b) => <span className="text-ink-2">{b.autor || 'SYMMEDIS'}</span> },
     { key: 'stand', label: 'Stand', render: (b) => <Chip size="sm" toneName={b.stand === 'final' ? 'ok' : 'warn'}>{b.stand === 'final' ? 'Freigegeben' : 'Entwurf'}</Chip> },
     { key: 'datum', label: 'Datum', hideBelow: 'md', align: 'right', render: (b) => <span className="text-ink-2">{formatDate(b.datum)}</span> },
   ]
@@ -140,7 +150,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
       {rolle === 'kunde' && kunde.berichte.some((b) => b.stand !== 'final') ? <Banner toneName="info" icon={IconLock} title="Berichte in Arbeit">Interne Entwürfe sind für Kundenzugänge technisch nicht lesbar und erscheinen erst nach finaler Freigabe.</Banner> : null}
 
       {rolle === 'intern' ? (
-        <Card className="border-brand-border">
+        <Card className="border-brand-border" aria-busy={Boolean(releasing)}>
           <CardHeader title="Freigabe & Versionierung" subtitle="Finale Reports werden kundensichtbar und unveränderlich versioniert" icon={IconShield} />
           <CardBody className="space-y-3">
             {entwuerfe.length ? entwuerfe.map((bericht) => {
@@ -156,15 +166,15 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
                       <p className="mt-1 text-xs leading-relaxed text-ink-3">{bericht.typ} · {bericht.autor || 'SYMMEDIS'} · {formatDate(bericht.datum)}</p>
                     </div>
                     {!pruefen ? (
-                      <Button size="sm" variant="secondary" onClick={() => setReleaseCandidate(bericht.id)}>Freigabe prüfen</Button>
+                      <Button size="sm" variant="secondary" disabled={Boolean(releasing)} onClick={() => setReleaseCandidate(bericht.id)}>Freigabe prüfen</Button>
                     ) : null}
                   </div>
                   {pruefen ? (
                     <div className="mt-3 border-t border-line pt-3">
                       <p className="text-[0.8125rem] leading-relaxed text-ink-2">Mit der finalen Freigabe wird der Bericht für Kundenzugänge sichtbar. Gleichzeitig entsteht ein unveränderlicher, auditierter Snapshot.</p>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                        <Button size="sm" variant="ghost" disabled={releasing === bericht.id} onClick={() => setReleaseCandidate(null)}>Abbrechen</Button>
-                        <Button size="sm" disabled={releasing === bericht.id} onClick={() => finalisieren(bericht)}><IconCheck className="size-4" />{releasing === bericht.id ? 'Wird freigegeben …' : 'Jetzt final freigeben'}</Button>
+                        <Button size="sm" variant="ghost" disabled={Boolean(releasing)} onClick={() => setReleaseCandidate(null)}>Abbrechen</Button>
+                        <Button size="sm" disabled={Boolean(releasing)} onClick={() => finalisieren(bericht)}><IconCheck className="size-4" />{releasing === bericht.id ? 'Wird freigegeben …' : 'Jetzt final freigeben'}</Button>
                       </div>
                     </div>
                   ) : null}
@@ -194,11 +204,18 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
         <Card>
           <CardHeader title="Berichte" subtitle={`${verfuegbar.length} aktuelle Dokumente`} />
-          <DataTable caption="Berichte des Projekts" columns={spalten} rows={verfuegbar} getKey={(b) => b.id} renderCard={(b) => <div><p className="text-[0.8125rem] font-medium text-ink">{b.titel}</p><p className="mt-0.5 text-xs text-ink-3">{b.typ} · {b.seiten} Seiten · {formatDate(b.datum)}</p><div className="mt-1.5"><Chip size="sm" toneName={b.stand === 'final' ? 'ok' : 'warn'}>{b.stand === 'final' ? 'Freigegeben' : 'Entwurf'}</Chip></div></div>} />
+          <DataTable
+            caption="Berichte des Projekts"
+            columns={spalten}
+            rows={verfuegbar}
+            getKey={(b) => b.id}
+            empty={<EmptyState icon={IconDocument} title={nurFreigegeben ? 'Noch kein Bericht freigegeben' : 'Noch keine Berichte vorhanden'} description={nurFreigegeben ? 'Sobald das SYMMEDIS-Team einen Management-Report final freigibt, erscheint er hier automatisch.' : 'Erstellen und prüfen Sie den ersten Report, bevor er final für den Kunden freigegeben wird.'} />}
+            renderCard={(b) => <div><p className="text-[0.8125rem] font-medium text-ink">{b.titel}</p><p className="mt-0.5 text-xs text-ink-3">{b.typ} · {b.seiten} Seiten · {formatDate(b.datum)}</p><div className="mt-1.5"><Chip size="sm" toneName={b.stand === 'final' ? 'ok' : 'warn'}>{b.stand === 'final' ? 'Freigegeben' : 'Entwurf'}</Chip></div></div>}
+          />
         </Card>
         <div className="min-w-0 space-y-5">
-          <Card><CardHeader title="Datenexport" subtitle="Aus dem aktuellen Projektstand" /><CardBody className="space-y-3"><p className="text-[0.8125rem] leading-relaxed text-ink-2">CSV mit {nurFreigegeben ? 'freigegebenen ' : ''}Analysedimensionen, Score, Priorität, Beobachtung, Empfehlung und Beleg.</p><Button fullWidth variant="secondary" onClick={exportieren}><IconDownload className="size-4" />Analyse als CSV</Button><p className="flex items-start gap-2 text-xs leading-relaxed text-ink-3"><IconShield className="mt-0.5 size-3.5 shrink-0" />Interne Notizen sind nie Bestandteil eines Exports.</p></CardBody></Card>
-          <Card><CardHeader title="Projektdaten" /><CardBody><KeyValueList items={[{ label: 'Unternehmen', value: kunde.unternehmen }, { label: 'Branche', value: kunde.branche }, { label: 'Analysestart', value: formatDate(kunde.start) }, { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) }, { label: 'Gesamtreifegrad', value: `${kunde.gesamtScore} / 100` }]} /></CardBody></Card>
+          <Card><CardHeader title="Datenexport" subtitle="Aus dem aktuellen Projektstand" /><CardBody className="space-y-3"><p className="text-[0.8125rem] leading-relaxed text-ink-2">CSV mit {nurFreigegeben ? 'freigegebenen ' : ''}Analysedimensionen, Score, Priorität, Beobachtung, Empfehlung und Beleg.</p><Button fullWidth variant="secondary" onClick={exportieren} disabled={!exportFindings.length}><IconDownload className="size-4" />Analyse als CSV</Button>{!exportFindings.length ? <p className="text-xs leading-relaxed text-ink-3">Der Export wird verfügbar, sobald {nurFreigegeben ? 'mindestens ein Analysepunkt freigegeben ist' : 'Analysedaten vorliegen'}.</p> : null}<p className="flex items-start gap-2 text-xs leading-relaxed text-ink-3"><IconShield className="mt-0.5 size-3.5 shrink-0" />Interne Notizen sind nie Bestandteil eines Exports.</p></CardBody></Card>
+          <Card><CardHeader title="Projektdaten" /><CardBody><KeyValueList items={[{ label: 'Unternehmen', value: kunde.unternehmen }, { label: 'Branche', value: kunde.branche || 'Noch nicht hinterlegt' }, { label: 'Analysestart', value: formatDate(kunde.start) }, { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) }, { label: 'Gesamtreifegrad', value: `${kunde.gesamtScore} / 100` }]} /></CardBody></Card>
         </div>
       </div>
 
