@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SessionContext } from './SessionContext.js'
 import {
   clearStoredAuthSession,
+  consumeAuthRedirectSession,
   fetchMyProfile,
   readStoredAuthSession,
   refreshAuthSession,
@@ -79,13 +80,11 @@ export function SessionProvider({ children }) {
     let aktiv = true
 
     async function restore() {
-      const gespeichert = readStoredAuthSession()
-      if (!gespeichert?.refresh_token) {
-        if (aktiv) setAuthBereit(true)
-        return
-      }
-
       try {
+        consumeAuthRedirectSession()
+        const gespeichert = readStoredAuthSession()
+        if (!gespeichert?.refresh_token) return
+
         const erneuert = await refreshAuthSession(gespeichert.refresh_token)
         if (aktiv) await applyAuthSession(erneuert)
       } catch {
