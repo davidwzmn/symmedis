@@ -64,7 +64,7 @@ function mapClient(client, project, data) {
     metadata: project.metadata || {}, gesamtScore, analyse,
     bremsen: byProject(data.blockers, project.id).sort((a, b) => a.rank - b.rank).map((row) => ({ id: row.id, rang: row.rank, titel: row.title, kategorieId: row.category_id, prioritaet: row.priority, beschreibung: row.description, ursache: row.cause, score: row.score, naechsteAktion: row.next_action, status: row.status })),
     aufgaben, plan,
-    dokumente: byProject(data.documents, project.id).map((row) => ({ id: row.id, name: row.name, typ: row.file_type, groesse: Number(row.size_bytes), von: row.source, version: row.version, hochgeladen: row.uploaded_on, status: row.status, storagePath: row.storage_path, indexStatus: row.index_status || null, indexError: row.index_error || '' })),
+    dokumente: byProject(data.documents, project.id).map((row) => ({ id: row.id, name: row.name, typ: row.file_type, groesse: Number(row.size_bytes), von: row.source, version: row.version, hochgeladen: row.uploaded_on, status: row.status, storagePath: row.storage_path, indexStatus: row.index_status || null, indexError: row.index_error || '', sichtbarKunde: Boolean(row.customer_visible) })),
     termine: byProject(data.appointments, project.id).map((row) => ({ id: row.id, titel: row.title, datum: row.starts_at, dauer: row.duration_minutes, typ: row.appointment_type, teilnehmer: row.participants || [] })),
     berichte: byProject(data.reports, project.id).map((row) => ({ id: row.id, titel: row.title, typ: row.report_type, seiten: row.pages, stand: row.state, datum: row.report_date, autor: row.author, storagePath: row.storage_path, analysisRunId: row.generated_from_analysis_run_id || null, executiveSummary: row.executive_summary || '', content: row.content || {} })),
     messungen: byProject(data.measurements, project.id).map((row) => ({ id: row.id, key: row.metric_key, label: row.label, unit: row.unit, baseline: row.baseline_value == null ? null : Number(row.baseline_value), current: row.current_value == null ? null : Number(row.current_value), target: row.target_value == null ? null : Number(row.target_value), baselineAt: row.baseline_at, currentAt: row.current_at, targetAt: row.target_at, source: row.source || '', sichtbarKunde: Boolean(row.customer_visible) })),
@@ -111,6 +111,7 @@ export async function fetchTeamDirectory(accessToken) {
 export const persistTaskStatus = (accessToken, id, status) => restUpdate('tasks', accessToken, `id=eq.${id}`, { status, updated_at: new Date().toISOString() })
 export const persistAnalysisPatch = (accessToken, projectId, categoryId, patch) => restUpdate('analysis_items', accessToken, `project_id=eq.${projectId}&category_id=eq.${encodeURIComponent(categoryId)}`, patch)
 export const persistBlockerStatus = (accessToken, id, status) => restUpdate('growth_blockers', accessToken, `id=eq.${id}`, { status })
+export const persistDocumentVisibility = (accessToken, id, customerVisible) => restUpdate('documents', accessToken, `id=eq.${id}`, { customer_visible: Boolean(customerVisible) })
 export const generate90DayPlan = (accessToken, projectId) => restRpc('generate_90_day_plan', accessToken, { p_project_id: projectId })
 export function searchProjectEvidence(accessToken, projectId, query, limit = 8) { return restRpc('search_project_evidence', accessToken, { p_project_id: projectId, p_query: query, p_limit: limit }) }
 
@@ -129,7 +130,17 @@ export async function persistDocument(accessToken, clientId, projectId, file, me
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-')
   const path = `${clientId}/${projectId}/${Date.now()}-${safeName}`
   await uploadProjectFile(accessToken, path, file)
-  const rows = await restInsert('documents', accessToken, { project_id: projectId, name: file.name, file_type: file.name.split('.').pop()?.toLowerCase() || '', size_bytes: file.size, source: meta.von || 'kunde', version: 1, status: 'neu', storage_path: path })
+  const rows = await restInsert('documents', accessToken, {
+    project_id: projectId,
+    name: file.name,
+    file_type: file.name.split('.').pop()?.toLowerCase() || '',
+    size_bytes: file.size,
+    source: meta.von || 'kunde',
+    customer_visible: Boolean(meta.sichtbarKunde),
+    version: 1,
+    status: 'neu',
+    storage_path: path,
+  })
   const document = rows?.[0]
   if (document?.id) invokeEdgeFunction('index-document', accessToken, { documentId: document.id }).catch(() => null)
   return document
