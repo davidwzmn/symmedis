@@ -1,5 +1,8 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const DEFAULT_SUPABASE_URL = 'https://jmxxinrvszwggcxvlwfs.supabase.co'
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_2G8T8KeA7cfKZwK4r6R__Q_Ccso3s6U'
+
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '')
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
 
 const STORAGE_KEY = 'symmedis.supabase.session'
 
