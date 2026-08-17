@@ -27,6 +27,8 @@ jobs:
         run: npm run lint
       - name: Release trust guard
         run: npm run release:guard
+      - name: Runtime dependency audit
+        run: npm run security:audit
       - name: Build application
         run: npm run build
       - name: Build static hash version
