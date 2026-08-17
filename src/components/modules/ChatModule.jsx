@@ -8,6 +8,8 @@ import { Avatar, Button, Chip, Spinner, TypingDots } from '../ui/primitives.jsx'
 import { Card, Banner } from '../ui/layout.jsx'
 import { IconAlert, IconSend, IconShield, IconSparkles, IconUsers } from '../ui/Icons.jsx'
 
+const DEMO_API_OPTIONS = Object.freeze({ allowDemoFallback: true })
+
 export function ChatModule({ kunde, rolle = 'kunde', kompakt = false }) {
   const { addNachricht, echteDaten } = useWorkspace()
   const toast = useToast()
@@ -56,7 +58,7 @@ export function ChatModule({ kunde, rolle = 'kunde', kompakt = false }) {
 
       const controller = new AbortController()
       abbruchRef.current = controller
-      const antwort = await requestChatReply([...verlauf, { role: 'user', content: text }], controller.signal)
+      const antwort = await requestChatReply([...verlauf, { role: 'user', content: text }], controller.signal, DEMO_API_OPTIONS)
       await addNachricht(kunde.id, { from: 'symmedis', via: 'ki', author: 'SYMMEDIS Demo-Assistent', text: antwort.reply })
       setHinweis(antwort.notice ?? 'Demo-Antwort: keine verbindliche Beratung.')
     } catch (error) {
@@ -76,7 +78,7 @@ export function ChatModule({ kunde, rolle = 'kunde', kompakt = false }) {
     setVorschlagLaeuft(true)
     setFehler(null)
     try {
-      const antwort = await requestChatReply(verlauf, controller.signal)
+      const antwort = await requestChatReply(verlauf, controller.signal, DEMO_API_OPTIONS)
       setEntwurf(antwort.reply)
       setHinweis(antwort.notice ?? 'Demo-Vorschlag: vor dem Senden prüfen.')
       toast.show({ title: 'Demo-Vorschlag übernommen', description: 'Gesendet wird erst nach Ihrer Freigabe.' })
