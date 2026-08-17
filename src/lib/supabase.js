@@ -5,7 +5,7 @@ const DEFAULT_APP_URL = 'https://davidwzmn.github.io/symmedis/'
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '')
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
 const APP_URL = (import.meta.env.VITE_SITE_URL || DEFAULT_APP_URL).replace(/\/$/, '')
-const AUTH_REDIRECT_URL = `${APP_URL}/#/login`
+const AUTH_REDIRECT_URL = APP_URL
 
 const STORAGE_KEY = 'symmedis.supabase.session'
 
@@ -58,8 +58,9 @@ function storeAuthSession(session) {
 export function consumeAuthRedirectSession() {
   if (!supabaseEnabled || typeof window === 'undefined') return false
   const raw = window.location.hash.replace(/^#/, '')
-  if (!raw.includes('access_token=') || !raw.includes('refresh_token=')) return false
-  const params = new URLSearchParams(raw)
+  const authFragment = raw.split(/[?#]/).reverse().find((part) => part.includes('access_token=') && part.includes('refresh_token=')) || ''
+  if (!authFragment) return false
+  const params = new URLSearchParams(authFragment)
   const accessToken = params.get('access_token')
   const refreshToken = params.get('refresh_token')
   if (!accessToken || !refreshToken) return false
