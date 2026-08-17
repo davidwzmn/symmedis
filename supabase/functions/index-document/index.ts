@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { unzipSync } from "fflate";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -10,6 +11,7 @@ const ANTHROPIC_BASE_URL = (Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.a
 const APP_URL = Deno.env.get("SYMMEDIS_APP_URL") || "https://davidwzmn.github.io/symmedis/";
 const MAX_TEXT_CHARS = 180_000;
 const MAX_PDF_BYTES = 18 * 1024 * 1024;
+const MAX_OFFICE_BYTES = 25 * 1024 * 1024;
 
 function originOf(value: string) { try { return new URL(value).origin; } catch { return ""; } }
 function cors(req: Request) {
@@ -45,6 +47,16 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 function cleanText(value: string) { return value.replace(/\u0000/g, "").replace(/\r\n/g, "\n").replace(/[\t ]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_TEXT_CHARS); }
+function decodeXmlText(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)));
+}
 function chunks(text: string) {
   const size = 1400, overlap = 180, out: string[] = [];
   let start = 0;
@@ -60,6 +72,71 @@ function chunks(text: string) {
     start = Math.max(end - overlap, start + 1);
   }
   return out;
+}
+function xmlFromZip(files: Record<string, Uint8Array>, name: string) {
+  const file = files[name];
+  return file ? new TextDecoder().decode(file) : "";
+}
+function xmlText(xml: string) {
+  if (!xml) return "";
+  return decodeXmlText(
+    xml
+      .replace(/<w:tab\/?\s*>/g, "\t")
+      .replace(/<w:br\/?\s*>/g, "\n")
+      .replace(/<a:br\/?\s*>/g, "\n")
+      .replace(/<\/w:p>/g, "\n")
+      .replace(/<\/a:p>/g, "\n")
+      .replace(/<\/row>/g, "\n")
+      .replace(/<[^>]+>/g, " ")
+  );
+}
+function extractDocx(files: Record<string, Uint8Array>) {
+  const parts = [
+    xmlText(xmlFromZip(files, "word/document.xml")),
+    ...Object.keys(files).filter((name) => /^word\/(header|footer)\d+\.xml$/.test(name)).sort().map((name) => xmlText(xmlFromZip(files, name))),
+  ];
+  return cleanText(parts.filter(Boolean).join("\n\n"));
+}
+function extractPptx(files: Record<string, Uint8Array>) {
+  const slideNames = Object.keys(files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => {
+    const ai = Number(a.match(/slide(\d+)/)?.[1] || 0), bi = Number(b.match(/slide(\d+)/)?.[1] || 0);
+    return ai - bi;
+  });
+  return cleanText(slideNames.map((name, index) => `Folie ${index + 1}\n${xmlText(xmlFromZip(files, name))}`).join("\n\n"));
+}
+function cellRefs(xml: string) {
+  return [...xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)].map((match) => ({ attrs: match[1], inner: match[2] }));
+}
+function extractXlsx(files: Record<string, Uint8Array>) {
+  const sharedXml = xmlFromZip(files, "xl/sharedStrings.xml");
+  const shared = [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((match) => cleanText(xmlText(match[1])));
+  const sheets = Object.keys(files).filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name)).sort((a, b) => {
+    const ai = Number(a.match(/sheet(\d+)/)?.[1] || 0), bi = Number(b.match(/sheet(\d+)/)?.[1] || 0);
+    return ai - bi;
+  });
+  const output: string[] = [];
+  sheets.forEach((name, index) => {
+    const xml = xmlFromZip(files, name);
+    const values = cellRefs(xml).map(({ attrs, inner }) => {
+      const type = attrs.match(/\bt="([^"]+)"/)?.[1] || "";
+      if (type === "inlineStr") return cleanText(xmlText(inner.match(/<is>([\s\S]*?)<\/is>/)?.[1] || ""));
+      const raw = decodeXmlText(inner.match(/<v>([\s\S]*?)<\/v>/)?.[1] || "").trim();
+      if (!raw) return "";
+      if (type === "s") return shared[Number(raw)] || "";
+      if (type === "b") return raw === "1" ? "WAHR" : "FALSCH";
+      return raw;
+    }).filter(Boolean);
+    if (values.length) output.push(`Tabelle ${index + 1}\n${values.join(" | ")}`);
+  });
+  return cleanText(output.join("\n\n"));
+}
+function extractOffice(bytes: Uint8Array, type: string) {
+  if (bytes.byteLength > MAX_OFFICE_BYTES) throw new Error("Office-Dokument ist für die Indexierung zu groß.");
+  const files = unzipSync(bytes);
+  if (type === "docx") return extractDocx(files);
+  if (type === "pptx") return extractPptx(files);
+  if (type === "xlsx") return extractXlsx(files);
+  return "";
 }
 async function extractPdf(bytes: Uint8Array, title: string) {
   if (!AI_ENABLED || !ANTHROPIC_API_KEY || !ANTHROPIC_MODEL) return null;
@@ -128,6 +205,8 @@ Deno.serve(async (req: Request) => {
     let text = "";
     if (["txt", "csv"].includes(type)) {
       text = cleanText(await fileResponse.text());
+    } else if (["docx", "xlsx", "pptx"].includes(type)) {
+      text = extractOffice(new Uint8Array(await fileResponse.arrayBuffer()), type);
     } else if (type === "pdf") {
       const bytes = new Uint8Array(await fileResponse.arrayBuffer());
       if (bytes.byteLength > MAX_PDF_BYTES) throw new Error("PDF ist für die Indexierung zu groß.");
@@ -153,11 +232,11 @@ Deno.serve(async (req: Request) => {
     await api(`/rest/v1/knowledge_chunks`, adminHeaders(), {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v4" } }))),
+      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v5" } }))),
     });
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexed", index_error: "", indexed_at: new Date().toISOString() }) });
 
-    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client.organization_id, client_id: project.client_id, project_id: document.project_id, actor_user_id: profile.id, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type, actor_role: profile.role } }) }).catch(() => null);
+    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client.organization_id, client_id: project.client_id, project_id: document.project_id, actor_user_id: profile.id, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type, actor_role: profile.role, extraction: ["docx", "xlsx", "pptx"].includes(type) ? "local_office_parser" : type === "pdf" ? "ai_pdf_parser" : "plain_text" } }) }).catch(() => null);
 
     return json(req, 200, { ok: true, indexed: true, chunks: parts.length });
   } catch (error) {
