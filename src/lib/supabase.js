@@ -11,7 +11,7 @@ export const supabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_KEY)
 function headers(accessToken, json = true) {
   return {
     apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${accessToken || SUPABASE_KEY}`,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(json ? { 'Content-Type': 'application/json' } : {}),
   }
 }
@@ -109,8 +109,16 @@ export async function signOut(accessToken) {
   storeAuthSession(null)
 }
 
-export async function fetchMyProfile(accessToken) {
-  const rows = await supabaseRequest('/rest/v1/profiles?select=id,email,full_name,role,organization_id,client_id&limit=1', {
+export async function fetchAuthUser(accessToken) {
+  return supabaseRequest('/auth/v1/user', { method: 'GET', accessToken })
+}
+
+export async function fetchMyProfile(accessToken, userId = null) {
+  const authUser = userId ? null : await fetchAuthUser(accessToken)
+  const resolvedUserId = userId || authUser?.id
+  if (!resolvedUserId) throw new Error('Die Identität dieses Zugangs konnte nicht bestimmt werden.')
+
+  const rows = await supabaseRequest(`/rest/v1/profiles?id=eq.${encodeURIComponent(resolvedUserId)}&select=id,email,full_name,role,organization_id,client_id&limit=1`, {
     method: 'GET', accessToken, headers: { Prefer: 'return=representation' },
   })
   return rows?.[0] ?? null
