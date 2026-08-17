@@ -1,18 +1,15 @@
 import { Link } from 'react-router-dom'
-import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
-import { Card } from '../../components/ui/layout.jsx'
-import { HeroDashboard } from './HeroDashboard.jsx'
-import { Vertrauensleiste, CtaBand, MarketingBild } from './parts.jsx'
+import { CtaBand, Vertrauensleiste } from './parts.jsx'
 import { ZielgruppeSection, TeamSection } from './HomeSections.jsx'
-import { HERO, VISUALS } from '../../content/marketing.js'
+import { GrowthSystemVisual } from './GrowthSystemVisual.jsx'
+import { HERO } from '../../content/marketing.js'
 import {
   IconAlert,
   IconArrowRight,
   IconCalendar,
   IconChart,
   IconCheck,
-  IconInfo,
   IconLayers,
   IconRoute,
   IconShield,
@@ -20,103 +17,104 @@ import {
   IconTarget,
 } from '../../components/ui/Icons.jsx'
 
-const WEGWEISER = [
-  { to: '/problem', icon: IconAlert, titel: 'Das Problem', text: 'Warum gute Gesundheitsprodukte am Markt scheitern – und woran man Ursache von Symptom unterscheidet.' },
-  { to: '/analysebereiche', icon: IconLayers, titel: 'Analysebereiche', text: 'Zehn Dimensionen werden zu einem belastbaren Gesamtbild für Positionierung, Vertrieb und Marktaktivierung.' },
-  { to: '/funktionsweise', icon: IconRoute, titel: 'Funktionsweise', text: 'Von Unterlagen und Evidenz über die Diagnose bis zum priorisierten 90-Tage-Plan.' },
-  { to: '/plattform', icon: IconChart, titel: 'Diagnosis OS', text: 'Analyse, Freigabe, Aufgaben, ROI, Dokumente und Zusammenarbeit in einer Plattform.' },
-  { to: '/angebot', icon: IconSparkles, titel: 'Das Angebot', text: 'Strategische Ursachenanalyse mit klarer Entscheidungsvorlage statt weiterer Maßnahmen auf Verdacht.' },
-  { to: '/faq', icon: IconInfo, titel: 'Häufige Fragen', text: 'Dauer, Datensicherheit, Vorgehen und Zusammenarbeit kompakt beantwortet.' },
+const OUTCOMES = [
+  {
+    icon: IconTarget,
+    kicker: '01 · Diagnose',
+    title: 'Sie wissen, was Wachstum wirklich bremst.',
+    text: 'Nicht die lauteste Vermutung gewinnt, sondern die Ursache mit der stärksten Beleglage und dem größten wirtschaftlichen Hebel.',
+  },
+  {
+    icon: IconShield,
+    kicker: '02 · Entscheidung',
+    title: 'Hypothese und freigegebene Wahrheit bleiben getrennt.',
+    text: 'Jedes Finding hat Quelle, Confidence und Prüfstatus. Nichts wird automatisch zum Kundenergebnis erklärt.',
+  },
+  {
+    icon: IconRoute,
+    kicker: '03 · Umsetzung',
+    title: 'Aus Erkenntnis wird eine Reihenfolge.',
+    text: 'Priorisierte Ursachen werden in einen 30/60/90-Tage-Plan mit Verantwortung, Fälligkeit und messbarem Ziel übersetzt.',
+  },
 ]
 
-const PRODUKTWERTE = [
-  { wert: '10', label: 'Diagnosedimensionen', text: 'Ein konsistenter Blick auf Positionierung, Markt, Vertrieb und Kommunikation.' },
-  { wert: '3', label: 'priorisierte Wachstumsbremsen', text: 'Nicht alles gleichzeitig – zuerst die Ursachen mit dem größten Hebel.' },
-  { wert: '90', label: 'Tage Umsetzungsfokus', text: 'Aus Diagnose wird ein sequenzierter Plan mit Verantwortung und Messgrößen.' },
+const PROCESS = [
+  ['01', 'Kontext erfassen', 'Unterlagen, Website, Vertrieb, Markt und bestehende Evidenz werden zu einem strukturierten Projektbild zusammengeführt.'],
+  ['02', 'System diagnostizieren', 'Zehn Dimensionen werden einzeln bewertet und anschließend als zusammenhängendes Wachstumsmodell betrachtet.'],
+  ['03', 'Ursachen priorisieren', 'Die drei wichtigsten Wachstumsbremsen werden mit Beleg, Confidence und wirtschaftlicher Relevanz herausgearbeitet.'],
+  ['04', 'Entscheiden & umsetzen', 'Menschliche Freigabe, Management-Report und 90-Tage-Plan schaffen einen klaren nächsten Schritt.'],
 ]
 
-const SYSTEMPRINZIPIEN = [
-  'Evidenz statt Bauchgefühl',
-  'Human-in-the-loop statt Autopilot',
-  'Mandantensichere Kunden- und Mitarbeiterportale',
-  'Verifizierter Impact statt erfundener ROI',
+const PRODUCT_MODULES = [
+  ['Diagnosis', '10 Dimensionen', 'Score, Beobachtung, Ursache, Auswirkung, Empfehlung, Evidenz und Confidence.'],
+  ['Evidence', 'Projektwissen', 'Dokumente, Quellen und Findings bleiben nachvollziehbar mit dem Projekt verbunden.'],
+  ['Impact', 'Verifizierter ROI', 'Potenziale zählen erst, wenn Annahmen gegen reale Kundendaten geprüft wurden.'],
+  ['Execution', '90-Tage-Plan', 'Aus priorisierten Findings entstehen sequenzierte Aufgaben und Messgrößen.'],
+]
+
+const PROOF = [
+  'Health, MedTech & erklärungsbedürftige B2B-Produkte',
+  'Mandantensicheres Kunden- und Mitarbeiterportal',
+  'Human-in-the-loop statt automatischer Veröffentlichung',
+  'Von Diagnose bis Umsetzung in einem Arbeitsraum',
 ]
 
 export function HomePage() {
-  const { getKunde } = useWorkspace()
-  const kunde = getKunde('nordvita')
-
   return (
     <>
-      <section className="relative overflow-hidden border-b border-line bg-canvas">
-        <div aria-hidden="true" className="dot-grid absolute inset-0 opacity-45" />
-        <div aria-hidden="true" className="absolute -left-24 top-16 size-80 rounded-full bg-brand-soft/70 blur-3xl" />
-        <div aria-hidden="true" className="absolute -right-20 bottom-0 size-96 rounded-full bg-accent-soft/60 blur-3xl" />
+      <section className="relative isolate overflow-hidden bg-[#07101d] text-white">
+        <div aria-hidden="true" className="absolute inset-0 opacity-60" style={{ backgroundImage: 'radial-gradient(circle at 15% 10%, rgba(94,129,255,.26), transparent 30%), radial-gradient(circle at 88% 28%, rgba(83,224,189,.14), transparent 27%)' }} />
+        <div aria-hidden="true" className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-        <div className="shell-container relative py-16 lg:py-24">
-          <div className="grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
+        <div className="shell-container relative py-16 sm:py-20 lg:py-28">
+          <div className="grid items-center gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 xl:gap-20">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Chip toneName="brand" icon={IconSparkles}>SYMMEDIS Diagnosis OS</Chip>
-                <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink-3">Strategic Growth Intelligence</span>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white/85 backdrop-blur">
+                  <IconSparkles className="size-3.5 text-emerald-200" /> SYMMEDIS Diagnosis OS
+                </span>
+                <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/40">Strategic Growth Intelligence</span>
               </div>
 
-              <p className="eyebrow mt-7">{HERO.eyebrow}</p>
-              <h1 className="mt-3 max-w-3xl text-[2.15rem] font-semibold leading-[1.04] tracking-[-0.035em] text-ink sm:text-[3rem] lg:text-[3.7rem]">
-                Wachstum verstehen, bevor Sie mehr dafür ausgeben.
+              <p className="mt-8 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200/80">{HERO.eyebrow}</p>
+              <h1 className="mt-4 max-w-3xl text-[2.65rem] font-semibold leading-[0.99] tracking-[-0.045em] text-white sm:text-[3.65rem] lg:text-[4.25rem]">
+                Wachstum ist ein System. Wir zeigen, wo es bricht.
               </h1>
-              <p className="mt-6 max-w-2xl text-[1.02rem] leading-7 text-ink-2 sm:text-[1.08rem]">
-                {HERO.text}
+              <p className="mt-6 max-w-2xl text-[1rem] leading-7 text-white/68 sm:text-[1.08rem]">
+                SYMMEDIS verbindet strategische Ursachenanalyse, Evidenz, menschliche Freigabe und Umsetzung in einem Diagnosis OS – damit Sie nicht mehr Budget auf Symptome werfen.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button as={Link} to="/termin" variant="cta" size="lg">
-                  <IconCalendar className="size-4" />
-                  {HERO.ctaPrimary}
+                <Button as={Link} to="/termin" size="lg" className="border-white bg-white text-[#07101d] hover:bg-white/90">
+                  <IconCalendar className="size-4" /> 15-Minuten-Diagnosegespräch
                 </Button>
-                <Button as={Link} to="/demo" variant="secondary" size="lg">
-                  Produkt live ansehen
-                  <IconArrowRight className="size-4" />
+                <Button as={Link} to="/demo" size="lg" className="border border-white/20 bg-white/[0.04] text-white hover:bg-white/[0.09]">
+                  Diagnosis OS ansehen <IconArrowRight className="size-4" />
                 </Button>
               </div>
 
-              <ul className="mt-8 grid max-w-xl gap-2.5 sm:grid-cols-2">
-                {SYSTEMPRINZIPIEN.map((punkt) => (
-                  <li key={punkt} className="flex items-start gap-2 text-[0.8125rem] leading-relaxed text-ink-2">
-                    <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-ink">
-                      <IconCheck className="size-3.5" />
-                    </span>
-                    {punkt}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="relative">
-              <div aria-hidden="true" className="absolute -inset-4 rounded-[2rem] border border-brand-border/50 bg-brand-softer/40 blur-xl" />
-              <div className="relative rounded-[1.6rem] border border-line bg-surface/95 p-2 shadow-xl shadow-black/5 backdrop-blur">
-                <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
-                  <div className="flex items-center gap-1.5" aria-hidden="true">
-                    <span className="size-2.5 rounded-full bg-line-strong" />
-                    <span className="size-2.5 rounded-full bg-line-strong" />
-                    <span className="size-2.5 rounded-full bg-line-strong" />
+              <div className="mt-8 grid max-w-xl gap-2 sm:grid-cols-2">
+                {PROOF.map((item) => (
+                  <div key={item} className="flex items-start gap-2 text-[0.75rem] leading-relaxed text-white/55">
+                    <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-300/10 text-emerald-200"><IconCheck className="size-3" /></span>
+                    {item}
                   </div>
-                  <span className="text-[0.68rem] font-medium uppercase tracking-[0.13em] text-ink-3">Live Diagnosis Workspace</span>
-                  <span className="inline-flex items-center gap-1 text-[0.7rem] font-medium text-accent-ink"><span className="size-1.5 rounded-full bg-accent" /> Human reviewed</span>
-                </div>
-                {kunde ? <HeroDashboard kunde={kunde} /> : null}
+                ))}
               </div>
             </div>
+
+            <GrowthSystemVisual />
           </div>
 
-          <div className="mt-14 grid overflow-hidden rounded-2xl border border-line bg-surface/90 sm:grid-cols-3">
-            {PRODUKTWERTE.map((item, index) => (
-              <div key={item.label} className={`p-5 sm:p-6 ${index ? 'border-t border-line sm:border-l sm:border-t-0' : ''}`}>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold tracking-tight text-ink">{item.wert}</span>
-                  <span className="text-xs font-semibold uppercase tracking-[0.11em] text-brand-ink">{item.label}</span>
-                </div>
-                <p className="mt-2 text-[0.78rem] leading-relaxed text-ink-2">{item.text}</p>
+          <div className="mt-14 grid overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur sm:grid-cols-3">
+            {[
+              ['10–14 Tage', 'bis zur strategischen Ergebnislage'],
+              ['3 Ursachen', 'statt 30 gleichwertiger Maßnahmen'],
+              ['90 Tage', 'priorisierte Umsetzung mit Messgrößen'],
+            ].map(([value, label], index) => (
+              <div key={value} className={`px-5 py-5 sm:px-7 ${index ? 'border-t border-white/10 sm:border-l sm:border-t-0' : ''}`}>
+                <p className="text-xl font-semibold tracking-tight text-white">{value}</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/45">{label}</p>
               </div>
             ))}
           </div>
@@ -126,32 +124,31 @@ export function HomePage() {
       <Vertrauensleiste />
 
       <section className="border-b border-line bg-surface">
-        <div className="shell-container py-16 lg:py-20">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-            <div className="lg:sticky lg:top-24 lg:self-start">
-              <p className="eyebrow">Diagnosis OS</p>
-              <h2 className="mt-3 text-[1.8rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2.15rem]">
-                Von der diffusen Wachstumsfrage zur belastbaren Entscheidung.
+        <div className="shell-container py-16 lg:py-24">
+          <div className="grid gap-12 lg:grid-cols-[0.78fr_1.22fr] lg:gap-20">
+            <div className="lg:sticky lg:top-28 lg:self-start">
+              <Chip toneName="brand" icon={IconAlert}>Das eigentliche Problem</Chip>
+              <h2 className="mt-5 text-[2rem] font-semibold leading-[1.06] tracking-[-0.035em] text-ink sm:text-[2.6rem]">
+                Mehr Aktivität löst kein Systemproblem.
               </h2>
-              <p className="mt-4 text-[0.95rem] leading-7 text-ink-2">
-                SYMMEDIS verbindet strukturierte Analyse, belastbare Evidenz, menschliche Freigabe und Umsetzung in einem durchgängigen System. Das Ergebnis ist keine weitere Präsentation, sondern ein Arbeitsmodell für die nächsten Entscheidungen.
+              <p className="mt-5 text-[0.95rem] leading-7 text-ink-2">
+                Wenn Positionierung, Nutzenargumentation, Website und Vertrieb nicht dieselbe Geschichte erzählen, wird mehr Reichweite häufig nur teurer. SYMMEDIS arbeitet deshalb eine Ebene früher: bei der Ursache.
               </p>
-              <Button as={Link} to="/plattform" variant="secondary" size="sm" className="mt-6">
-                Plattform entdecken <IconArrowRight className="size-4" />
-              </Button>
+              <Button as={Link} to="/problem" variant="secondary" size="sm" className="mt-7">Warum Symptome teuer werden <IconArrowRight className="size-4" /></Button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {WEGWEISER.map((eintrag, index) => (
-                <Card as={Link} key={eintrag.to} to={eintrag.to} className={`group flex min-h-52 flex-col p-5 transition-all hover:-translate-y-0.5 hover:border-brand-border hover:shadow-md ${index === 3 ? 'border-brand-border bg-brand-softer' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><eintrag.icon className="size-5" /></span>
-                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-ink-3">0{index + 1}</span>
-                  </div>
-                  <h3 className="mt-5 text-base font-semibold tracking-tight text-ink">{eintrag.titel}</h3>
-                  <p className="mt-2 flex-1 text-[0.8125rem] leading-relaxed text-ink-2">{eintrag.text}</p>
-                  <span className="mt-5 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-brand-ink">Mehr erfahren <IconArrowRight className="size-4 transition-transform group-hover:translate-x-1" /></span>
-                </Card>
+            <div className="space-y-3">
+              {[
+                ['„Wir brauchen mehr Leads.“', 'Vielleicht. Oder die richtigen Menschen verstehen den Wert des Angebots nicht schnell genug.'],
+                ['„Die Website konvertiert nicht.“', 'Vielleicht. Oder Vertrieb und Website argumentieren mit unterschiedlichen Nutzenversprechen.'],
+                ['„Unsere Konkurrenz ist günstiger.“', 'Vielleicht. Oder Ihre Differenzierung ist intern klar, aber für den Markt nicht belegbar.'],
+                ['„Social funktioniert nicht.“', 'Vielleicht. Oder Reichweite endet ohne einen logischen nächsten Schritt in der Customer Journey.'],
+              ].map(([symptom, cause], index) => (
+                <div key={symptom} className="group grid gap-4 rounded-2xl border border-line bg-canvas p-5 transition hover:border-brand-border sm:grid-cols-[2.3rem_0.85fr_1.15fr] sm:items-start sm:p-6">
+                  <span className="text-xs font-semibold tabular text-ink-3">0{index + 1}</span>
+                  <p className="text-[0.95rem] font-semibold leading-snug text-ink">{symptom}</p>
+                  <p className="text-[0.8125rem] leading-relaxed text-ink-2">{cause}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -159,29 +156,64 @@ export function HomePage() {
       </section>
 
       <section className="border-b border-line bg-canvas">
-        <div className="shell-container py-16 lg:py-20">
-          <div className="overflow-hidden rounded-[1.75rem] border border-brand-border bg-brand-softer">
-            <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="p-7 sm:p-10 lg:p-12">
-                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-brand text-on-brand"><IconTarget className="size-6" /></span>
-                <p className="eyebrow mt-7">Der Unterschied</p>
-                <h2 className="mt-3 text-[1.7rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2rem]">Wir optimieren nicht zuerst die Maßnahme. Wir diagnostizieren zuerst das System.</h2>
-                <p className="mt-4 text-[0.9375rem] leading-7 text-ink-2">Wenn Positionierung, Nutzenargumentation und Vertriebslogik nicht zusammenpassen, wird mehr Reichweite schnell nur teurer. SYMMEDIS macht Ursache, Beleg, Auswirkung und nächste Aktion sichtbar – und trennt Hypothese von freigegebenem Ergebnis.</p>
-                <Button as={Link} to="/problem" variant="secondary" size="sm" className="mt-6">Warum klassische Maßnahmen zu kurz greifen <IconArrowRight className="size-4" /></Button>
+        <div className="shell-container py-16 lg:py-24">
+          <div className="max-w-3xl">
+            <p className="eyebrow">Was Sie danach anders wissen</p>
+            <h2 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.5rem]">Nicht mehr Daten. Bessere Entscheidungen.</h2>
+            <p className="mt-4 text-[0.95rem] leading-7 text-ink-2">Diagnosis OS macht nicht alles gleich wichtig. Es schafft eine belastbare Reihenfolge zwischen Beobachtung, Ursache, Auswirkung und nächster Aktion.</p>
+          </div>
+
+          <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-3">
+            {OUTCOMES.map(({ icon: Icon, kicker, title, text }) => (
+              <article key={title} className="bg-surface p-6 sm:p-8">
+                <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><Icon className="size-5" /></span>
+                <p className="mt-7 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-ink-3">{kicker}</p>
+                <h3 className="mt-2 text-lg font-semibold leading-snug tracking-tight text-ink">{title}</h3>
+                <p className="mt-3 text-[0.8125rem] leading-relaxed text-ink-2">{text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden border-b border-line bg-[#f2f5fa]">
+        <div className="shell-container py-16 lg:py-24">
+          <div className="grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+            <div>
+              <p className="eyebrow">Diagnosis OS</p>
+              <h2 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.55rem]">Ein Arbeitsraum für die Entscheidung – nicht nur ein Bericht.</h2>
+              <p className="mt-5 text-[0.95rem] leading-7 text-ink-2">Analyse, Evidenz, Impact, Freigabe, Aufgaben, Dokumente und Kundenkommunikation bleiben in einem nachvollziehbaren Projektkontext.</p>
+              <div className="mt-7 flex flex-wrap gap-2">
+                <Chip toneName="ok" icon={IconShield}>Human reviewed</Chip>
+                <Chip toneName="brand" icon={IconLayers}>Tenant isolated</Chip>
+                <Chip toneName="accent" icon={IconChart}>Impact verified</Chip>
               </div>
-              <div className="border-t border-brand-border bg-surface/70 p-7 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {[
-                    ['Diagnose', 'Zehn Dimensionen, Confidence, Quellen und klare Priorität.'],
-                    ['Freigabe', 'KI darf vorschlagen. Menschen prüfen, ändern und veröffentlichen.'],
-                    ['Impact', 'Umsatz- und Kostenpotenziale zählen erst nach manueller Verifizierung.'],
-                    ['Umsetzung', 'Priorisierte Findings werden direkt in einen 30/60/90-Tage-Plan übersetzt.'],
-                  ].map(([titel, text]) => (
-                    <div key={titel} className="rounded-xl border border-line bg-surface p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-ink"><IconShield className="size-4 text-brand-ink" />{titel}</div>
-                      <p className="mt-2 text-[0.78rem] leading-relaxed text-ink-2">{text}</p>
+              <Button as={Link} to="/plattform" className="mt-7" variant="secondary">Plattform im Detail <IconArrowRight className="size-4" /></Button>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-xl shadow-black/5">
+              <div className="flex items-center justify-between border-b border-line bg-surface-muted px-4 py-3">
+                <div className="flex gap-1.5" aria-hidden="true"><span className="size-2.5 rounded-full bg-line-strong" /><span className="size-2.5 rounded-full bg-line-strong" /><span className="size-2.5 rounded-full bg-line-strong" /></div>
+                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-ink-3">SYMMEDIS · Project Intelligence</span>
+                <span className="text-[0.65rem] font-semibold text-ok-ink">Live workspace</span>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {PRODUCT_MODULES.map(([label, value, text], index) => (
+                    <div key={label} className={`rounded-xl border p-4 ${index === 0 ? 'border-brand-border bg-brand-softer' : 'border-line bg-canvas'}`}>
+                      <div className="flex items-center justify-between gap-3"><span className="text-[0.67rem] font-semibold uppercase tracking-[0.11em] text-ink-3">{label}</span><span className="size-1.5 rounded-full bg-accent" /></div>
+                      <p className="mt-3 text-base font-semibold tracking-tight text-ink">{value}</p>
+                      <p className="mt-1.5 text-[0.74rem] leading-relaxed text-ink-2">{text}</p>
                     </div>
                   ))}
+                </div>
+                <div className="mt-3 rounded-xl border border-line bg-[#0b1220] p-5 text-white">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white/40">Priority queue</p><p className="mt-1 text-sm font-semibold">Die drei stärksten Wachstumshebel</p></div><span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[0.65rem] font-semibold text-emerald-200">reviewed</span></div>
+                  <div className="mt-4 space-y-2">
+                    {['Nutzenargumentation konsistent machen', 'Positionierung im Vertrieb schärfen', 'Website → Sales-Handoff schließen'].map((item, index) => (
+                      <div key={item} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5"><span className="text-[0.68rem] font-semibold tabular text-white/35">0{index + 1}</span><span className="flex-1 text-[0.76rem] text-white/75">{item}</span><IconArrowRight className="size-3.5 text-white/35" /></div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -189,15 +221,63 @@ export function HomePage() {
         </div>
       </section>
 
-      {VISUALS.netzwerk.bild ? (
-        <section className="bg-surface-inverse">
-          <div className="shell-container py-14 lg:py-18"><MarketingBild visual={VISUALS.netzwerk} ratio="21 / 9" dunkel /></div>
-        </section>
-      ) : null}
+      <section className="border-b border-line bg-surface">
+        <div className="shell-container py-16 lg:py-24">
+          <div className="grid gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
+            <div>
+              <p className="eyebrow">Der Ablauf</p>
+              <h2 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.45rem]">Von der Vermutung zur belastbaren Priorität.</h2>
+              <p className="mt-4 text-[0.95rem] leading-7 text-ink-2">Software beschleunigt Struktur und Retrieval. Die strategische Verantwortung bleibt bewusst beim Menschen.</p>
+            </div>
+
+            <ol className="relative space-y-0 border-l border-line pl-6 sm:pl-8">
+              {PROCESS.map(([number, title, text], index) => (
+                <li key={number} className={`relative pb-9 ${index === PROCESS.length - 1 ? 'pb-0' : ''}`}>
+                  <span className="absolute -left-[2.15rem] top-0 inline-flex size-5 items-center justify-center rounded-full border-4 border-surface bg-brand sm:-left-[2.65rem]" />
+                  <div className="grid gap-2 sm:grid-cols-[4rem_1fr] sm:gap-5">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-brand-ink">{number}</span>
+                    <div><h3 className="text-base font-semibold tracking-tight text-ink">{title}</h3><p className="mt-2 max-w-2xl text-[0.8125rem] leading-relaxed text-ink-2">{text}</p></div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-line bg-canvas">
+        <div className="shell-container py-16 lg:py-24">
+          <div className="overflow-hidden rounded-[2rem] border border-brand-border bg-brand-softer">
+            <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="p-7 sm:p-10 lg:p-12">
+                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-brand text-on-brand"><IconShield className="size-6" /></span>
+                <p className="eyebrow mt-7">Vertrauen ist Produktarchitektur</p>
+                <h2 className="mt-3 max-w-xl text-[1.8rem] font-semibold leading-tight tracking-[-0.025em] text-ink sm:text-[2.2rem]">KI darf helfen. Sie darf nicht heimlich entscheiden.</h2>
+                <p className="mt-4 max-w-xl text-[0.9rem] leading-7 text-ink-2">SYMMEDIS trennt Vorschlag, interne Prüfung und Kundenfreigabe technisch voneinander. Interne Notizen, unfertige Reports und nicht freigegebene Dokumente bleiben außerhalb des Kundenportals.</p>
+              </div>
+              <div className="border-t border-brand-border bg-surface/70 p-7 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
+                <ul className="space-y-4">
+                  {[
+                    'Row Level Security schützt Mandanten auf Datenbankebene.',
+                    'Kundensichtbarkeit wird pro Finding, KPI und Dokument bewusst freigegeben.',
+                    'Finale Reports erhalten unveränderliche Versions-Snapshots.',
+                    'Bezahlte KI ist technisch deaktivierbar und aktuell standardmäßig gesperrt.',
+                  ].map((item) => <li key={item} className="flex items-start gap-3 text-[0.8125rem] leading-relaxed text-ink-2"><span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-ok-soft text-ok-ink"><IconCheck className="size-3.5" /></span>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <ZielgruppeSection />
       <TeamSection />
-      <CtaBand />
+      <CtaBand
+        titel="Bevor Sie die nächste Maßnahme finanzieren: Finden Sie heraus, welche Ursache sie lösen soll."
+        text="15 Minuten reichen für eine erste Einschätzung, ob SYMMEDIS in Ihrer Situation sinnvoll ist. Keine Präsentation, kein künstlicher Druck."
+        primaer={{ to: '/termin', label: 'Diagnosegespräch anfragen' }}
+        sekundaer={{ to: '/demo', label: 'Diagnosis OS ansehen' }}
+      />
     </>
   )
 }
