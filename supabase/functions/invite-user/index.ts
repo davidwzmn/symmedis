@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
     const { count } = await admin.from("audit_events").select("id", { count: "exact", head: true }).eq("actor_user_id", caller.id).eq("event_type", "access.invited").gte("occurred_at", since);
     if ((count || 0) >= MAX_INVITES_PER_HOUR) return json(req, 429, { error: "Invite-Limit erreicht. Bitte später erneut versuchen." });
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const clientId = String(body?.clientId || "");
     const projectId = body?.projectId ? String(body.projectId) : null;
     const email = String(body?.email || "").trim().toLowerCase();
@@ -77,7 +77,10 @@ Deno.serve(async (req: Request) => {
     if (!invited.user?.id) throw new Error("Einladung erzeugte keine Benutzer-ID.");
 
     const { error: profileError } = await admin.from("profiles").upsert({ id: invited.user.id, email, full_name: fullName || email.split("@")[0], role: "kunde", organization_id: client.organization_id, client_id: client.id, updated_at: new Date().toISOString() });
-    if (profileError) throw profileError;
+    if (profileError) {
+      await admin.auth.admin.deleteUser(invited.user.id).catch(() => undefined);
+      throw profileError;
+    }
 
     await admin.from("activities").insert({ project_id: projectId, title: `Kunden-Zugang eingeladen: ${email}`, actor: "SYMMEDIS", tone: "info", happened_at: new Date().toISOString() }).then(() => undefined).catch(() => undefined);
     await admin.from("audit_events").insert({ organization_id: client.organization_id, client_id: client.id, project_id: projectId, actor_user_id: caller.id, event_type: "access.invited", entity_type: "profile", entity_id: invited.user.id, summary: "Kundenzugang eingeladen", metadata: { invited_email_domain: email.split("@")[1] || "", redirect_origin: originOf(APP_URL) } }).then(() => undefined).catch(() => undefined);
