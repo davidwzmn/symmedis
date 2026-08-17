@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '../../lib/cn.js'
 import { KATEGORIEN, KATEGORIE_MAP } from '../../data/catalog.js'
 import { FREIGABE, PRIORITAETEN, scoreStufe, tone } from '../../lib/tone.js'
@@ -103,8 +103,22 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
   const { setAnalyseFeld, setFreigabe } = useWorkspace()
   const toast = useToast()
   const [freigabeSaving, setFreigabeSaving] = useState(false)
+  const [feldSaving, setFeldSaving] = useState(null)
+  const [entwurf, setEntwurf] = useState({})
   const eintrag = kunde.analyse.find((a) => a.kategorieId === kategorieId)
   const kategorie = kategorieId ? KATEGORIE_MAP[kategorieId] : null
+
+  useEffect(() => {
+    if (!eintrag) return
+    setEntwurf({
+      beobachtung: eintrag.beobachtung ?? '',
+      ursache: eintrag.ursache ?? '',
+      auswirkung: eintrag.auswirkung ?? '',
+      beleg: eintrag.beleg ?? '',
+      empfehlung: eintrag.empfehlung ?? '',
+      internNotiz: eintrag.internNotiz ?? '',
+    })
+  }, [eintrag?.beobachtung, eintrag?.ursache, eintrag?.auswirkung, eintrag?.beleg, eintrag?.empfehlung, eintrag?.internNotiz, kategorieId])
 
   if (!eintrag || !kategorie) return <Drawer open={false} onClose={onClose} title="" />
 
@@ -137,6 +151,24 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
     }
   }
 
+  const feldSpeichern = async (key, label, next = entwurf[key] ?? '') => {
+    if (feldSaving || next === (eintrag[key] ?? '')) return true
+    setFeldSaving(key)
+    try {
+      const gespeichert = await setAnalyseFeld(kunde.id, kategorie.id, { [key]: next })
+      if (!gespeichert) {
+        toast.show({ title: `${label} nicht gespeichert`, description: 'Der letzte gespeicherte Stand wurde wiederhergestellt.', variant: 'danger' })
+        return false
+      }
+      return true
+    } catch (error) {
+      toast.show({ title: `${label} nicht gespeichert`, description: error instanceof Error ? error.message : 'Änderung fehlgeschlagen.', variant: 'danger' })
+      return false
+    } finally {
+      setFeldSaving(null)
+    }
+  }
+
   return (
     <Drawer
       open={Boolean(kategorieId)}
@@ -154,7 +186,7 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
         </div>
       ) : <p className="text-xs text-ink-3">Bewertung durch das SYMMEDIS-Team geprüft · Beleg: {eintrag.beleg}</p>}
     >
-      <div className="space-y-5 px-5 py-5">
+      <div className="space-y-5 px-5 py-5" aria-busy={Boolean(feldSaving)}>
         <div className="flex flex-wrap items-center gap-2">
           <Chip toneName={stufe.tone}>{stufe.label}</Chip>
           <Chip toneName={PRIORITAETEN[eintrag.prioritaet].tone}>Priorität {PRIORITAETEN[eintrag.prioritaet].label}</Chip>
@@ -171,14 +203,32 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
         {felder.map((feld) => (
           <div key={feld.key}>
             <h3 className="text-xs font-semibold text-ink-2">{feld.label}</h3>
-            {bearbeitbar ? <Textarea rows={feld.key === 'beleg' ? 2 : 3} value={eintrag[feld.key]} onChange={(e) => setAnalyseFeld(kunde.id, kategorie.id, { [feld.key]: e.target.value })} className="mt-1.5" aria-label={feld.label} /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag[feld.key]}</p>}
+            {bearbeitbar ? (
+              <>
+                <Textarea
+                  rows={feld.key === 'beleg' ? 2 : 3}
+                  value={entwurf[feld.key] ?? ''}
+                  onChange={(e) => setEntwurf((aktuell) => ({ ...aktuell, [feld.key]: e.target.value }))}
+                  onBlur={() => feldSpeichern(feld.key, feld.label)}
+                  disabled={feldSaving === feld.key}
+                  className="mt-1.5"
+                  aria-label={feld.label}
+                />
+                <p className="mt-1 min-h-4 text-xs text-ink-3" role="status" aria-live="polite">{feldSaving === feld.key ? 'Wird gespeichert …' : ''}</p>
+              </>
+            ) : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag[feld.key]}</p>}
           </div>
         ))}
 
         {bearbeitbar ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Select label="Priorität" value={eintrag.prioritaet} onChange={(e) => setAnalyseFeld(kunde.id, kategorie.id, { prioritaet: e.target.value })}>
+              <Select
+                label="Priorität"
+                value={eintrag.prioritaet}
+                disabled={feldSaving === 'prioritaet'}
+                onChange={(e) => feldSpeichern('prioritaet', 'Priorität', e.target.value)}
+              >
                 {Object.entries(PRIORITAETEN).map(([key, wert]) => <option key={key} value={key}>{wert.label}</option>)}
               </Select>
               <Select label="Freigabestatus" value={eintrag.freigabe} disabled={freigabeSaving} onChange={(e) => freigabeSetzen(e.target.value)}>
@@ -188,7 +238,17 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
 
             <div className="rounded-lg border border-warn-border bg-warn-soft p-4">
               <h3 className="flex items-center gap-2 text-xs font-semibold text-warn-ink"><IconLock className="size-3.5" />Interne Notiz – nicht für den Kunden sichtbar</h3>
-              <Textarea rows={3} value={eintrag.internNotiz} placeholder="Nur für das SYMMEDIS-Team …" onChange={(e) => setAnalyseFeld(kunde.id, kategorie.id, { internNotiz: e.target.value })} className="mt-2" aria-label="Interne Notiz" />
+              <Textarea
+                rows={3}
+                value={entwurf.internNotiz ?? ''}
+                placeholder="Nur für das SYMMEDIS-Team …"
+                onChange={(e) => setEntwurf((aktuell) => ({ ...aktuell, internNotiz: e.target.value }))}
+                onBlur={() => feldSpeichern('internNotiz', 'Interne Notiz')}
+                disabled={feldSaving === 'internNotiz'}
+                className="mt-2"
+                aria-label="Interne Notiz"
+              />
+              <p className="mt-1 min-h-4 text-xs text-warn-ink/70" role="status" aria-live="polite">{feldSaving === 'internNotiz' ? 'Wird gespeichert …' : ''}</p>
             </div>
           </>
         ) : null}
