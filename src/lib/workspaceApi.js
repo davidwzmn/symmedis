@@ -1,4 +1,4 @@
-import { restInsert, restRpc, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
+import { invokeEdgeFunction, restInsert, restRpc, restSelect, restUpdate, uploadProjectFile } from './supabase.js'
 import { PHASEN } from '../data/workspace.js'
 import { PLATTFORMEN } from '../data/catalog.js'
 
@@ -22,6 +22,15 @@ function mapClient(client, project, data) {
     confidence: row.confidence || 0,
     evidenceSources: row.evidence_sources || [],
     analysisRunId: row.analysis_run_id || null,
+    impactCurrency: row.impact_currency || 'EUR',
+    revenueImpactMin: row.revenue_impact_min == null ? null : Number(row.revenue_impact_min),
+    revenueImpactMax: row.revenue_impact_max == null ? null : Number(row.revenue_impact_max),
+    costImpactMin: row.cost_impact_min == null ? null : Number(row.cost_impact_min),
+    costImpactMax: row.cost_impact_max == null ? null : Number(row.cost_impact_max),
+    effort: row.effort || null,
+    timeToImpactDays: row.time_to_impact_days || null,
+    impactBasis: row.impact_basis || '',
+    impactVerified: Boolean(row.impact_verified),
   }))
 
   const aufgaben = byProject(data.tasks, project.id).map((row) => ({
@@ -35,6 +44,7 @@ function mapClient(client, project, data) {
     status: row.status,
     faellig: row.due_date,
     kpi: row.kpi,
+    sourceAnalysisItemId: row.source_analysis_item_id || null,
   }))
 
   const rowsByPlatform = Object.fromEntries(byProject(data.socialProfiles, project.id).map((row) => [row.platform_id, row]))
@@ -116,6 +126,23 @@ function mapClient(client, project, data) {
       datum: row.report_date,
       autor: row.author,
       storagePath: row.storage_path,
+      analysisRunId: row.generated_from_analysis_run_id || null,
+      executiveSummary: row.executive_summary || '',
+      content: row.content || {},
+    })),
+    messungen: byProject(data.measurements, project.id).map((row) => ({
+      id: row.id,
+      key: row.metric_key,
+      label: row.label,
+      unit: row.unit,
+      baseline: row.baseline_value == null ? null : Number(row.baseline_value),
+      current: row.current_value == null ? null : Number(row.current_value),
+      target: row.target_value == null ? null : Number(row.target_value),
+      baselineAt: row.baseline_at,
+      currentAt: row.current_at,
+      targetAt: row.target_at,
+      source: row.source || '',
+      sichtbarKunde: Boolean(row.customer_visible),
     })),
     aktivitaet: byProject(data.activities, project.id).map((row) => ({
       id: row.id,
@@ -161,15 +188,16 @@ async function selectAll(accessToken, table, query = 'select=*') {
 }
 
 export async function fetchWorkspace(accessToken) {
-  const [clients, projects, analysis, blockers, tasks, documents, appointments, reports, activities, messages, notes, socialProfiles, socialInsights, competitors] = await Promise.all([
+  const [clients, projects, analysis, blockers, tasks, documents, appointments, reports, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors] = await Promise.all([
     selectAll(accessToken, 'clients'), selectAll(accessToken, 'projects'), selectAll(accessToken, 'analysis_items'),
     selectAll(accessToken, 'growth_blockers'), selectAll(accessToken, 'tasks'), selectAll(accessToken, 'documents'),
-    selectAll(accessToken, 'appointments'), selectAll(accessToken, 'reports'), selectAll(accessToken, 'activities', 'select=*&order=happened_at.desc'),
-    selectAll(accessToken, 'messages', 'select=*&order=sent_at.asc'), selectAll(accessToken, 'internal_notes', 'select=*&order=created_at.desc'),
-    selectAll(accessToken, 'social_profiles'), selectAll(accessToken, 'social_insights'), selectAll(accessToken, 'competitor_snapshots'),
+    selectAll(accessToken, 'appointments'), selectAll(accessToken, 'reports'), selectAll(accessToken, 'measurement_snapshots'),
+    selectAll(accessToken, 'activities', 'select=*&order=happened_at.desc'), selectAll(accessToken, 'messages', 'select=*&order=sent_at.asc'),
+    selectAll(accessToken, 'internal_notes', 'select=*&order=created_at.desc'), selectAll(accessToken, 'social_profiles'),
+    selectAll(accessToken, 'social_insights'), selectAll(accessToken, 'competitor_snapshots'),
   ])
 
-  const data = { analysis, blockers, tasks, documents, appointments, reports, activities, messages, notes, socialProfiles, socialInsights, competitors }
+  const data = { analysis, blockers, tasks, documents, appointments, reports, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors }
   const projectsByClient = new Map()
   for (const project of projects) {
     const current = projectsByClient.get(project.client_id)
@@ -186,13 +214,31 @@ export async function fetchWorkspace(accessToken) {
 export const persistTaskStatus = (accessToken, id, status) => restUpdate('tasks', accessToken, `id=eq.${id}`, { status, updated_at: new Date().toISOString() })
 export const persistAnalysisPatch = (accessToken, projectId, categoryId, patch) => restUpdate('analysis_items', accessToken, `project_id=eq.${projectId}&category_id=eq.${encodeURIComponent(categoryId)}`, patch)
 export const persistBlockerStatus = (accessToken, id, status) => restUpdate('growth_blockers', accessToken, `id=eq.${id}`, { status })
+export const generate90DayPlan = (accessToken, projectId) => restRpc('generate_90_day_plan', accessToken, { p_project_id: projectId })
 
 export function searchProjectEvidence(accessToken, projectId, query, limit = 8) {
-  return restRpc('search_project_evidence', accessToken, {
-    p_project_id: projectId,
-    p_query: query,
-    p_limit: limit,
-  })
+  return restRpc('search_project_evidence', accessToken, { p_project_id: projectId, p_query: query, p_limit: limit })
+}
+
+export async function persistMeasurement(accessToken, projectId, measurement, userId) {
+  const rows = await restSelect('measurement_snapshots', accessToken, `select=id&project_id=eq.${projectId}&metric_key=eq.${encodeURIComponent(measurement.key)}&limit=1`)
+  const payload = {
+    project_id: projectId,
+    metric_key: measurement.key,
+    label: measurement.label,
+    unit: measurement.unit || '',
+    baseline_value: measurement.baseline ?? null,
+    current_value: measurement.current ?? null,
+    target_value: measurement.target ?? null,
+    baseline_at: measurement.baselineAt || null,
+    current_at: measurement.currentAt || null,
+    target_at: measurement.targetAt || null,
+    source: measurement.source || '',
+    customer_visible: Boolean(measurement.sichtbarKunde),
+    updated_at: new Date().toISOString(),
+  }
+  if (rows?.[0]?.id) return restUpdate('measurement_snapshots', accessToken, `id=eq.${rows[0].id}`, payload)
+  return restInsert('measurement_snapshots', accessToken, { ...payload, created_by: userId || null })
 }
 
 export function persistMessage(accessToken, projectId, userId, message) {
@@ -235,5 +281,7 @@ export async function persistDocument(accessToken, clientId, projectId, file, me
     status: 'neu',
     storage_path: path,
   })
-  return rows?.[0]
+  const document = rows?.[0]
+  if (document?.id) invokeEdgeFunction('index-document', accessToken, { documentId: document.id }).catch(() => null)
+  return document
 }
