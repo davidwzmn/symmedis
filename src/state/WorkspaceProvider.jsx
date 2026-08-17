@@ -108,23 +108,53 @@ export function WorkspaceProvider({ children }) {
     if (echteAuthentifizierung && accessToken && kunde?.projectId) persistiere(persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch)))
   }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere])
 
-  const setFreigabe = useCallback((kundeId, kategorieId, freigabe) => {
-    setAnalyseFeld(kundeId, kategorieId, { freigabe, sichtbarKunde: freigabe === 'kunde' })
-  }, [setAnalyseFeld])
+  const setFreigabe = useCallback(async (kundeId, kategorieId, freigabe) => {
+    const kunde = getKunde(kundeId)
+    const eintrag = kunde?.analyse.find((item) => item.kategorieId === kategorieId)
+    if (!kunde || !eintrag) return false
 
-  const freigebenAlle = useCallback((kundeId) => {
+    const vorher = { freigabe: eintrag.freigabe, sichtbarKunde: eintrag.sichtbarKunde }
+    const patch = { freigabe, sichtbarKunde: freigabe === 'kunde' }
+    patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...patch } : item) }))
+
+    if (echteAuthentifizierung && accessToken && kunde.projectId) {
+      try {
+        await persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...vorher } : item) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
+
+  const freigebenAlle = useCallback(async (kundeId) => {
     const kunde = getKunde(kundeId)
     if (!kunde) return 0
     const aenderungen = kunde.analyse.filter((item) => item.freigabe === 'intern' || item.freigabe === 'bearbeitet')
+    if (!aenderungen.length) return 0
+    const vorher = new Map(aenderungen.map((item) => [item.kategorieId, { freigabe: item.freigabe, sichtbarKunde: item.sichtbarKunde }]))
+
     patchKunde(kundeId, (entry) => ({
       ...entry,
       analyse: entry.analyse.map((item) => aenderungen.some((change) => change.kategorieId === item.kategorieId) ? { ...item, freigabe: 'kunde', sichtbarKunde: true } : item),
     }))
+
     if (echteAuthentifizierung && accessToken && kunde.projectId) {
-      aenderungen.forEach((item) => persistiere(persistAnalysisPatch(accessToken, kunde.projectId, item.kategorieId, { approval_status: 'kunde', customer_visible: true })))
+      try {
+        await Promise.all(aenderungen.map((item) => persistAnalysisPatch(accessToken, kunde.projectId, item.kategorieId, { approval_status: 'kunde', customer_visible: true })))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({
+          ...entry,
+          analyse: entry.analyse.map((item) => vorher.has(item.kategorieId) ? { ...item, ...vorher.get(item.kategorieId) } : item),
+        }))
+        meldePersistenzfehler(error)
+        return 0
+      }
     }
     return aenderungen.length
-  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere])
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
   const addNachricht = useCallback(async (kundeId, nachricht) => {
     const kunde = getKunde(kundeId)
