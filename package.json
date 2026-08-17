@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "SYMMEDIS Diagnosis OS – interaktive Beta-Demo (React + Vite + Tailwind CSS)",
+  "description": "SYMMEDIS Diagnosis OS – strategische Ursachenanalyse, Evidenz und Umsetzung in einem sicheren Arbeitsraum",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
