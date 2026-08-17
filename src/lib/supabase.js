@@ -140,7 +140,7 @@ export async function invokeEdgeFunction(functionName, accessToken, body) {
   return supabaseRequest(`/functions/v1/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(body) })
 }
 export async function uploadProjectFile(accessToken, path, file) {
-  return supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'POST', accessToken, json: false, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, body: file })
+  return supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'POST', accessToken, json: false, headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
 }
 export async function downloadProjectFile(accessToken, path) {
   return supabaseRequest(`/storage/v1/object/authenticated/project-files/${path}`, { method: 'GET', accessToken, json: false })
