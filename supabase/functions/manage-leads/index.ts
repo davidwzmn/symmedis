@@ -15,11 +15,9 @@ function cors(req: Request) {
     "Vary": "Origin",
   };
 }
-
 function json(req: Request, status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), { status, headers: { ...cors(req), "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }
-
 async function request(path: string, key: string, auth: string, init: RequestInit = {}) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -29,6 +27,11 @@ async function request(path: string, key: string, auth: string, init: RequestIni
   if (!response.ok) throw new Error(payload?.message || payload?.error || `Database request failed (${response.status})`);
   return payload;
 }
+async function authenticatedUserId(auth: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: auth } });
+  const user = await response.json().catch(() => null);
+  return response.ok && user?.id ? String(user.id) : null;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req) });
@@ -37,7 +40,10 @@ Deno.serve(async (req: Request) => {
   if (!auth.startsWith("Bearer ")) return json(req, 401, { error: "unauthorized" });
 
   try {
-    const profiles = await request("profiles?select=id,role,organization_id&limit=1", ANON_KEY, auth);
+    const userId = await authenticatedUserId(auth);
+    if (!userId) return json(req, 401, { error: "Sitzung ist ungültig oder abgelaufen." });
+
+    const profiles = await request(`profiles?id=eq.${encodeURIComponent(userId)}&select=id,role,organization_id&limit=1`, ANON_KEY, auth);
     const profile = profiles?.[0];
     if (!profile || !["intern", "admin"].includes(profile.role)) return json(req, 403, { error: "forbidden" });
 
