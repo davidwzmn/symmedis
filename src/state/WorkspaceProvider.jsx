@@ -76,9 +76,6 @@ export function WorkspaceProvider({ children }) {
   const meldePersistenzfehler = useCallback((error) => {
     setWorkspaceFehler(error instanceof Error ? error.message : 'Änderung konnte nicht gespeichert werden.')
   }, [])
-  const persistiere = useCallback((promise) => {
-    if (promise) Promise.resolve(promise).catch(meldePersistenzfehler)
-  }, [meldePersistenzfehler])
   const getKunde = useCallback((id) => kunden.find((k) => k.id === id) ?? null, [kunden])
   const patchKunde = useCallback((kundeId, updater) => {
     setKunden((liste) => liste.map((k) => (k.id === kundeId ? updater(k) : k)))
@@ -93,9 +90,7 @@ export function WorkspaceProvider({ children }) {
       try {
         await persistTaskStatus(accessToken, aufgabeId, status)
       } catch (error) {
-        if (vorher) {
-          patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status: vorher } : a)) }))
-        }
+        if (vorher) patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status: vorher } : a)) }))
         throw error
       }
     }
@@ -159,10 +154,7 @@ export function WorkspaceProvider({ children }) {
       try {
         await Promise.all(aenderungen.map((item) => persistAnalysisPatch(accessToken, kunde.projectId, item.kategorieId, { approval_status: 'kunde', customer_visible: true })))
       } catch (error) {
-        patchKunde(kundeId, (entry) => ({
-          ...entry,
-          analyse: entry.analyse.map((item) => vorher.has(item.kategorieId) ? { ...item, ...vorher.get(item.kategorieId) } : item),
-        }))
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => vorher.has(item.kategorieId) ? { ...item, ...vorher.get(item.kategorieId) } : item) }))
         meldePersistenzfehler(error)
         return 0
       }
@@ -223,17 +215,40 @@ export function WorkspaceProvider({ children }) {
     return true
   }, [accessToken, echteAuthentifizierung, getKunde, ladeWorkspace, meldePersistenzfehler, patchKunde])
 
-  const addAktivitaet = useCallback((kundeId, eintrag) => {
+  const addAktivitaet = useCallback(async (kundeId, eintrag) => {
     const kunde = getKunde(kundeId)
     const local = { id: naechsteId('akt'), zeit: jetztIso(), ...eintrag }
     patchKunde(kundeId, (entry) => ({ ...entry, aktivitaet: [local, ...entry.aktivitaet] }))
-    if (echteAuthentifizierung && accessToken && kunde?.projectId) persistiere(persistActivity(accessToken, kunde.projectId, local))
-  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere])
 
-  const setBremseStatus = useCallback((kundeId, bremseId, status) => {
-    patchKunde(kundeId, (kunde) => ({ ...kunde, bremsen: kunde.bremsen.map((b) => (b.id === bremseId ? { ...b, status } : b)) }))
-    if (echteAuthentifizierung && accessToken) persistiere(persistBlockerStatus(accessToken, bremseId, status))
-  }, [accessToken, echteAuthentifizierung, patchKunde, persistiere])
+    if (echteAuthentifizierung && accessToken && kunde?.projectId) {
+      try {
+        await persistActivity(accessToken, kunde.projectId, local)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, aktivitaet: entry.aktivitaet.filter((item) => item.id !== local.id) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
+
+  const setBremseStatus = useCallback(async (kundeId, bremseId, status) => {
+    const kunde = getKunde(kundeId)
+    const vorher = kunde?.bremsen.find((b) => b.id === bremseId)?.status
+    if (!kunde || vorher === undefined) return false
+
+    patchKunde(kundeId, (entry) => ({ ...entry, bremsen: entry.bremsen.map((b) => (b.id === bremseId ? { ...b, status } : b)) }))
+    if (echteAuthentifizierung && accessToken) {
+      try {
+        await persistBlockerStatus(accessToken, bremseId, status)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, bremsen: entry.bremsen.map((b) => (b.id === bremseId ? { ...b, status: vorher } : b)) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
   const benachrichtigungen = useMemo(() => {
     const liste = []
