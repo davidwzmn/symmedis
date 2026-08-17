@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
 import { fetchWebsiteLeads, updateWebsiteLead } from '../../lib/leadsApi.js'
@@ -28,8 +28,12 @@ export function LeadsPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('open')
 
-  const load = async () => {
-    if (!accessToken) return
+  const load = useCallback(async () => {
+    if (!accessToken) {
+      setLeads([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       setLeads(await fetchWebsiteLeads(accessToken))
@@ -38,9 +42,9 @@ export function LeadsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [accessToken, toast])
 
-  useEffect(() => { load() }, [accessToken])
+  useEffect(() => { load() }, [load])
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -82,7 +86,7 @@ export function LeadsPage() {
         </CardBody>
       </Card>
 
-      {loading ? <Card><CardBody><p className="text-sm text-ink-2">Anfragen werden geladen …</p></CardBody></Card> : null}
+      {loading ? <Card><CardBody><p className="text-sm text-ink-2" role="status">Anfragen werden geladen …</p></CardBody></Card> : null}
 
       {!loading && visible.length === 0 ? <Card><EmptyState icon={IconMail} title="Keine Anfragen in dieser Auswahl" description="Neue Website-Anfragen erscheinen hier automatisch." /></Card> : null}
 
