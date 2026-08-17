@@ -10,6 +10,7 @@ import { ApprovalCenter } from './ApprovalCenter.jsx'
 import { AnalysesPage } from './AnalysesPage.jsx'
 import { StaffTasksPage, StaffDocumentsPage, StaffReportsPage, StaffAppointmentsPage, StaffInboxPage, StaffSocialPage } from './StaffLists.jsx'
 import { TeamPage } from './TeamPage.jsx'
+import { LeadsPage } from './LeadsPage.jsx'
 import { AuditPage } from './AuditPage.jsx'
 import { SettingsPage } from './SettingsPage.jsx'
 import {
@@ -22,54 +23,27 @@ import {
   IconFolder,
   IconGrid,
   IconHistory,
+  IconMail,
   IconSettings,
   IconShare,
   IconShield,
   IconUsers,
 } from '../../components/ui/Icons.jsx'
 
-/**
- * Mitarbeiterportal – internes Analyse-, Projekt- und Kundensystem.
- *
- * Bewusst anders aufgebaut als das Kundenportal: mandantenübergreifende
- * Listen, Freigabeprozess, Prüfpfad und interne Notizen.
- */
 export function StaffApp() {
   const { session } = useSession()
   const { kennzahlen } = useWorkspace()
 
-  if (!session || session.rolle !== 'intern') {
-    return <Navigate to="/login?rolle=intern" replace />
-  }
+  if (!session || session.rolle !== 'intern') return <Navigate to="/login?rolle=intern" replace />
 
   const nav = [
     { id: 'uebersicht', label: 'Übersicht', to: '/intern/uebersicht', icon: IconGrid },
+    { id: 'anfragen', label: 'Website-Anfragen', to: '/intern/anfragen', icon: IconMail },
     { id: 'kunden', label: 'Kunden', to: '/intern/kunden', icon: IconBuilding },
     { id: 'analysen', label: 'Analysen', to: '/intern/analysen', icon: IconChart },
-    {
-      id: 'freigaben',
-      label: 'Freigaben',
-      to: '/intern/freigaben',
-      icon: IconShield,
-      badge: kennzahlen.offeneFreigaben,
-      badgeTone: 'warn',
-    },
-    {
-      id: 'aufgaben',
-      label: 'Aufgaben',
-      to: '/intern/aufgaben',
-      icon: IconCheckSquare,
-      badge: kennzahlen.ueberfaellig,
-      badgeTone: 'urgent',
-    },
-    {
-      id: 'dokumente',
-      label: 'Dokumente',
-      to: '/intern/dokumente',
-      icon: IconFolder,
-      badge: kennzahlen.neueDokumente,
-      badgeTone: 'info',
-    },
+    { id: 'freigaben', label: 'Freigaben', to: '/intern/freigaben', icon: IconShield, badge: kennzahlen.offeneFreigaben, badgeTone: 'warn' },
+    { id: 'aufgaben', label: 'Aufgaben', to: '/intern/aufgaben', icon: IconCheckSquare, badge: kennzahlen.ueberfaellig, badgeTone: 'urgent' },
+    { id: 'dokumente', label: 'Dokumente', to: '/intern/dokumente', icon: IconFolder, badge: kennzahlen.neueDokumente, badgeTone: 'info' },
     { id: 'social', label: 'Social Media', to: '/intern/social', icon: IconShare },
     { id: 'berichte', label: 'Berichte', to: '/intern/berichte', icon: IconDocument },
     { id: 'termine', label: 'Termine', to: '/intern/termine', icon: IconCalendar },
@@ -84,21 +58,13 @@ export function StaffApp() {
       nav={nav}
       bereich="Mitarbeiterportal"
       badge={{ label: 'Interner Bereich', tone: 'info' }}
-      kopf={
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-semibold text-ink">SYMMEDIS Diagnosis OS</p>
-          <span className="hidden shrink-0 sm:inline-flex">
-            <Chip size="sm" toneName="neutral">
-              {kennzahlen.aktiveKunden} aktive Projekte
-            </Chip>
-          </span>
-        </div>
-      }
+      kopf={<div className="flex min-w-0 items-center gap-2"><p className="truncate text-sm font-semibold text-ink">SYMMEDIS Diagnosis OS</p><span className="hidden shrink-0 sm:inline-flex"><Chip size="sm" toneName="neutral">{kennzahlen.aktiveKunden} aktive Projekte</Chip></span></div>}
     >
       <div className="mx-auto max-w-[92rem]">
         <Routes>
           <Route index element={<Navigate to="uebersicht" replace />} />
           <Route path="uebersicht" element={<StaffDashboard />} />
+          <Route path="anfragen" element={<LeadsPage />} />
           <Route path="kunden" element={<ClientsPage />} />
           <Route path="kunden/:kundeId" element={<ClientDetail />} />
           <Route path="analysen" element={<AnalysesPage />} />
