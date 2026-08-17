@@ -124,10 +124,11 @@ export function LoginPage() {
             </fieldset>
 
             <form className="mt-6 space-y-4" onSubmit={absenden}>
-              <Input label="E-Mail-Adresse" type="email" required value={email} onChange={(event) => { setEmail(event.target.value); setFehler(null); setMagicGesendet(false) }} placeholder={aktiv.beispiel} hint="Ihre für SYMMEDIS freigeschaltete E-Mail-Adresse." error={fehler} autoComplete="username" disabled={laedt} />
-              <Input label="Kennwort" type="password" value={passwort} onChange={(event) => { setPasswort(event.target.value); setFehler(null) }} placeholder="Ihr Kennwort" hint="Wenn Sie kein Kennwort verwenden, senden wir Ihnen alternativ einen einmaligen Anmeldelink." autoComplete="current-password" disabled={laedt} />
+              <Input label="E-Mail-Adresse" type="email" required value={email} onChange={(event) => { setEmail(event.target.value); setFehler(null); setMagicGesendet(false) }} placeholder={aktiv.beispiel} hint="Ihre für SYMMEDIS freigeschaltete E-Mail-Adresse." autoComplete="username" disabled={laedt} />
+              <Input label="Kennwort" type="password" required value={passwort} onChange={(event) => { setPasswort(event.target.value); setFehler(null) }} placeholder="Ihr Kennwort" hint="Wenn Sie kein Kennwort verwenden, senden wir Ihnen alternativ einen einmaligen Anmeldelink." autoComplete="current-password" disabled={laedt} />
 
-              {magicGesendet ? <Banner toneName="ok" icon={IconCheck}>Anmeldelink wurde versendet. Öffnen Sie den Link auf diesem Gerät; anschließend werden Sie automatisch Ihrem freigeschalteten Portal zugeordnet.</Banner> : null}
+              {fehler ? <div role="alert" aria-live="assertive"><Banner toneName="urgent" icon={IconShield}>{fehler}</Banner></div> : null}
+              {magicGesendet ? <div role="status" aria-live="polite"><Banner toneName="ok" icon={IconCheck}>Anmeldelink wurde versendet. Öffnen Sie den Link auf diesem Gerät; anschließend werden Sie automatisch Ihrem freigeschalteten Portal zugeordnet.</Banner></div> : null}
 
               <Button type="submit" size="lg" fullWidth disabled={laedt || !authBereit}>{laedt ? 'Anmeldung wird geprüft …' : `${aktiv.titel} mit Kennwort öffnen`}{!laedt && <IconArrowRight className="size-4" />}</Button>
               <Button type="button" size="lg" fullWidth variant="secondary" onClick={magicLink} disabled={laedt || !authBereit}>Einmaligen Anmeldelink per E-Mail senden</Button>
