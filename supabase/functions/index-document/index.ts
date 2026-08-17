@@ -12,6 +12,10 @@ const APP_URL = Deno.env.get("SYMMEDIS_APP_URL") || "https://davidwzmn.github.io
 const MAX_TEXT_CHARS = 180_000;
 const MAX_PDF_BYTES = 18 * 1024 * 1024;
 const MAX_OFFICE_BYTES = 25 * 1024 * 1024;
+const MAX_OFFICE_UNCOMPRESSED_BYTES = 96 * 1024 * 1024;
+const MAX_OFFICE_ENTRY_BYTES = 32 * 1024 * 1024;
+const MAX_OFFICE_ENTRIES = 2500;
+const MAX_OFFICE_COMPRESSION_RATIO = 60;
 
 function originOf(value: string) { try { return new URL(value).origin; } catch { return ""; } }
 function cors(req: Request) {
@@ -73,6 +77,61 @@ function chunks(text: string) {
   }
   return out;
 }
+function readU16(bytes: Uint8Array, offset: number) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+function readU32(bytes: Uint8Array, offset: number) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+function inspectOfficeArchive(bytes: Uint8Array) {
+  if (bytes.byteLength > MAX_OFFICE_BYTES) throw new Error("Office-Dokument ist für die Indexierung zu groß.");
+  const minEocd = 22;
+  if (bytes.length < minEocd) throw new Error("Office-Datei ist kein gültiges ZIP-Archiv.");
+
+  const searchStart = Math.max(0, bytes.length - 65_557);
+  let eocd = -1;
+  for (let offset = bytes.length - minEocd; offset >= searchStart; offset -= 1) {
+    if (readU32(bytes, offset) === 0x06054b50) { eocd = offset; break; }
+  }
+  if (eocd < 0) throw new Error("Office-Datei enthält kein gültiges ZIP-Verzeichnis.");
+
+  const entries = readU16(bytes, eocd + 10);
+  const centralSize = readU32(bytes, eocd + 12);
+  const centralOffset = readU32(bytes, eocd + 16);
+  if (entries === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
+    throw new Error("ZIP64-Office-Dateien werden aus Sicherheitsgründen nicht indexiert.");
+  }
+  if (entries === 0 || entries > MAX_OFFICE_ENTRIES) throw new Error(`Office-Archiv enthält zu viele Einträge (maximal ${MAX_OFFICE_ENTRIES}).`);
+  if (centralOffset + centralSize > bytes.length) throw new Error("Office-Archiv enthält ein beschädigtes ZIP-Verzeichnis.");
+
+  let offset = centralOffset;
+  let seen = 0;
+  let compressedTotal = 0;
+  let uncompressedTotal = 0;
+  while (offset < centralOffset + centralSize && seen < entries) {
+    if (readU32(bytes, offset) !== 0x02014b50) throw new Error("Office-Archiv enthält einen ungültigen ZIP-Eintrag.");
+    const flags = readU16(bytes, offset + 8);
+    const compressed = readU32(bytes, offset + 20);
+    const uncompressed = readU32(bytes, offset + 24);
+    const nameLength = readU16(bytes, offset + 28);
+    const extraLength = readU16(bytes, offset + 30);
+    const commentLength = readU16(bytes, offset + 32);
+    if (flags & 0x0001) throw new Error("Passwortgeschützte Office-Dateien können nicht indexiert werden.");
+    if (compressed === 0xffffffff || uncompressed === 0xffffffff) throw new Error("ZIP64-Einträge werden aus Sicherheitsgründen nicht indexiert.");
+    if (uncompressed > MAX_OFFICE_ENTRY_BYTES) throw new Error("Office-Archiv enthält einen ungewöhnlich großen Eintrag und wurde aus Sicherheitsgründen abgelehnt.");
+    compressedTotal += compressed;
+    uncompressedTotal += uncompressed;
+    if (uncompressedTotal > MAX_OFFICE_UNCOMPRESSED_BYTES) throw new Error("Office-Archiv würde beim Entpacken zu viel Speicher benötigen.");
+    offset += 46 + nameLength + extraLength + commentLength;
+    seen += 1;
+  }
+  if (seen !== entries || offset > centralOffset + centralSize) throw new Error("Office-Archiv enthält ein inkonsistentes ZIP-Verzeichnis.");
+  const ratio = compressedTotal > 0 ? uncompressedTotal / compressedTotal : uncompressedTotal > 0 ? Infinity : 1;
+  if (uncompressedTotal > 8 * 1024 * 1024 && ratio > MAX_OFFICE_COMPRESSION_RATIO) {
+    throw new Error("Office-Archiv ist ungewöhnlich stark komprimiert und wurde aus Sicherheitsgründen abgelehnt.");
+  }
+  return { entries, compressedTotal, uncompressedTotal };
+}
 function xmlFromZip(files: Record<string, Uint8Array>, name: string) {
   const file = files[name];
   return file ? new TextDecoder().decode(file) : "";
@@ -131,8 +190,12 @@ function extractXlsx(files: Record<string, Uint8Array>) {
   return cleanText(output.join("\n\n"));
 }
 function extractOffice(bytes: Uint8Array, type: string) {
-  if (bytes.byteLength > MAX_OFFICE_BYTES) throw new Error("Office-Dokument ist für die Indexierung zu groß.");
+  inspectOfficeArchive(bytes);
   const files = unzipSync(bytes);
+  const actualSize = Object.values(files).reduce((sum, value) => sum + value.byteLength, 0);
+  if (Object.keys(files).length > MAX_OFFICE_ENTRIES || actualSize > MAX_OFFICE_UNCOMPRESSED_BYTES) {
+    throw new Error("Office-Archiv überschreitet nach dem Entpacken die sichere Verarbeitungsgrenze.");
+  }
   if (type === "docx") return extractDocx(files);
   if (type === "pptx") return extractPptx(files);
   if (type === "xlsx") return extractXlsx(files);
@@ -232,11 +295,11 @@ Deno.serve(async (req: Request) => {
     await api(`/rest/v1/knowledge_chunks`, adminHeaders(), {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v5" } }))),
+      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v6" } }))),
     });
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexed", index_error: "", indexed_at: new Date().toISOString() }) });
 
-    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client.organization_id, client_id: project.client_id, project_id: document.project_id, actor_user_id: profile.id, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type, actor_role: profile.role, extraction: ["docx", "xlsx", "pptx"].includes(type) ? "local_office_parser" : type === "pdf" ? "ai_pdf_parser" : "plain_text" } }) }).catch(() => null);
+    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client.organization_id, client_id: project.client_id, project_id: document.project_id, actor_user_id: profile.id, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type, actor_role: profile.role, extraction: ["docx", "xlsx", "pptx"].includes(type) ? "local_office_parser" : type === "pdf" ? "ai_pdf_parser" : "plain_text", archive_guard: ["docx", "xlsx", "pptx"].includes(type) ? "central_directory_v1" : null } }) }).catch(() => null);
 
     return json(req, 200, { ok: true, indexed: true, chunks: parts.length });
   } catch (error) {
