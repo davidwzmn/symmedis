@@ -53,6 +53,7 @@ export function ClientDetail() {
   const toast = useToast()
   const [tab, setTab] = useState('ueberblick')
   const [team, setTeam] = useState([])
+  const [freigabeSaving, setFreigabeSaving] = useState(false)
 
   useEffect(() => {
     if (!echteAuthentifizierung || !accessToken) return undefined
@@ -71,14 +72,23 @@ export function ClientDetail() {
   const betreuer = liveBetreuer || TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'
   const offeneFreigaben = kunde.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length
 
-  const alleFreigeben = () => {
-    const anzahl = freigebenAlle(kunde.id)
-    if (anzahl === 0) {
-      toast.show({ title: 'Nichts freizugeben', description: 'Kein Punkt ist geprüft und offen.' })
-      return
+  const alleFreigeben = async () => {
+    if (freigabeSaving || offeneFreigaben === 0) return
+    const erwartet = offeneFreigaben
+    setFreigabeSaving(true)
+    try {
+      const anzahl = await freigebenAlle(kunde.id)
+      if (anzahl === 0) {
+        toast.show({ title: 'Freigabe nicht gespeichert', description: 'Die Analysepunkte bleiben im vorherigen Freigabestatus. Bitte erneut versuchen.', variant: 'danger' })
+        return
+      }
+      addAktivitaet(kunde.id, { titel: `${anzahl} Analysepunkte für den Kunden freigegeben`, actor: 'SYMMEDIS', tone: 'ok' })
+      toast.show({ title: `${anzahl} Punkte freigegeben`, description: anzahl === erwartet ? 'Sie sind jetzt im Kundenportal sichtbar.' : `${anzahl} von ${erwartet} offenen Punkten wurden freigegeben.`, variant: 'success' })
+    } catch (error) {
+      toast.show({ title: 'Freigabe fehlgeschlagen', description: error instanceof Error ? error.message : 'Die Analysepunkte konnten nicht freigegeben werden.', variant: 'danger' })
+    } finally {
+      setFreigabeSaving(false)
     }
-    addAktivitaet(kunde.id, { titel: `${anzahl} Analysepunkte für den Kunden freigegeben`, actor: 'SYMMEDIS', tone: 'ok' })
-    toast.show({ title: `${anzahl} Punkte freigegeben`, description: 'Sie sind ab sofort im Kundenportal sichtbar.', variant: 'success' })
   }
 
   return (
@@ -94,7 +104,7 @@ export function ClientDetail() {
         </>}
         actions={<>
           <Button as={Link} to="/intern/freigaben" variant="secondary" size="sm">Freigabezentrum</Button>
-          <Button size="sm" onClick={alleFreigeben} disabled={offeneFreigaben === 0}><IconShield className="size-4" />Geprüfte Punkte freigeben</Button>
+          <Button size="sm" onClick={alleFreigeben} disabled={offeneFreigaben === 0 || freigabeSaving} aria-busy={freigabeSaving}><IconShield className="size-4" />{freigabeSaving ? 'Freigabe läuft …' : 'Geprüfte Punkte freigeben'}</Button>
         </>}
       />
 
