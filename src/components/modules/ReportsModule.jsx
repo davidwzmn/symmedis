@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast.js'
 import { Button, Chip } from '../ui/primitives.jsx'
 import { Card, CardBody, CardHeader, Banner, MetricCard } from '../ui/layout.jsx'
 import { DataTable, KeyValueList } from '../ui/data.jsx'
-import { IconDocument, IconDownload, IconLock, IconShield, IconTarget } from '../ui/Icons.jsx'
+import { IconDocument, IconDownload, IconHistory, IconLock, IconShield, IconTarget } from '../ui/Icons.jsx'
 
 const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]))
@@ -81,6 +81,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   }
 
   const verfuegbar = kunde.berichte.filter((b) => !nurFreigegeben || b.stand === 'final')
+  const versionen = (kunde.berichtVersionen || []).filter((v) => !nurFreigegeben || v.stand === 'final')
   const spalten = [
     { key: 'titel', label: 'Bericht', render: (b) => <span className="flex min-w-0 items-center gap-2.5"><span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-muted text-ink-2"><IconDocument className="size-4" /></span><span className="min-w-0"><span className="block truncate font-medium text-ink">{b.titel}</span><span className="block text-xs text-ink-3">{b.typ} · {b.seiten} Seiten</span></span></span> },
     { key: 'autor', label: 'Erstellt von', hideBelow: 'lg', render: (b) => <span className="text-ink-2">{b.autor}</span> },
@@ -88,9 +89,17 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
     { key: 'datum', label: 'Datum', hideBelow: 'md', align: 'right', render: (b) => <span className="text-ink-2">{formatDate(b.datum)}</span> },
   ]
 
+  const versionSpalten = [
+    { key: 'version', label: 'Version', render: (v) => <Chip size="sm" toneName="neutral">v{v.version}</Chip> },
+    { key: 'titel', label: 'Snapshot', render: (v) => <span><span className="block font-medium text-ink">{v.titel}</span><span className="block text-xs text-ink-3">{v.typ}</span></span> },
+    { key: 'autor', label: 'Freigegeben von', hideBelow: 'lg', render: (v) => <span className="text-ink-2">{v.autor || 'SYMMEDIS'}</span> },
+    { key: 'stand', label: 'Status', render: () => <Chip size="sm" toneName="ok">Unveränderlich</Chip> },
+    { key: 'erstelltAm', label: 'Archiviert', hideBelow: 'md', align: 'right', render: (v) => <span className="text-ink-2">{v.erstelltAm ? new Date(v.erstelltAm).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '–'}</span> },
+  ]
+
   return (
     <div className="min-w-0 space-y-5">
-      {rolle === 'kunde' && kunde.berichte.some((b) => b.stand !== 'final') ? <Banner toneName="info" icon={IconLock} title="Berichte in Arbeit">{kunde.berichte.filter((b) => b.stand !== 'final').length} Bericht(e) befinden sich noch in der internen Prüfung und erscheinen hier nach der Freigabe.</Banner> : null}
+      {rolle === 'kunde' && kunde.berichte.some((b) => b.stand !== 'final') ? <Banner toneName="info" icon={IconLock} title="Berichte in Arbeit">Interne Entwürfe sind für Kundenzugänge technisch nicht lesbar und erscheinen erst nach finaler Freigabe.</Banner> : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Freigegebene Findings" value={kunde.analyse.filter((a) => a.sichtbarKunde).length} unit={`/ ${kunde.analyse.length}`} icon={IconShield} toneName="info" />
@@ -108,7 +117,7 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
         <Card>
-          <CardHeader title="Berichte" subtitle={`${verfuegbar.length} von ${kunde.berichte.length} Dokumenten`} />
+          <CardHeader title="Berichte" subtitle={`${verfuegbar.length} aktuelle Dokumente`} />
           <DataTable caption="Berichte des Projekts" columns={spalten} rows={verfuegbar} getKey={(b) => b.id} renderCard={(b) => <div><p className="text-[0.8125rem] font-medium text-ink">{b.titel}</p><p className="mt-0.5 text-xs text-ink-3">{b.typ} · {b.seiten} Seiten · {formatDate(b.datum)}</p><div className="mt-1.5"><Chip size="sm" toneName={b.stand === 'final' ? 'ok' : 'warn'}>{b.stand === 'final' ? 'Freigegeben' : 'Entwurf'}</Chip></div></div>} />
         </Card>
         <div className="min-w-0 space-y-5">
@@ -116,6 +125,15 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
           <Card><CardHeader title="Projektdaten" /><CardBody><KeyValueList items={[{ label: 'Unternehmen', value: kunde.unternehmen }, { label: 'Branche', value: kunde.branche }, { label: 'Analysestart', value: formatDate(kunde.start) }, { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) }, { label: 'Gesamtreifegrad', value: `${kunde.gesamtScore} / 100` }]} /></CardBody></Card>
         </div>
       </div>
+
+      <Card>
+        <CardHeader title="Freigabe-Historie" subtitle="Unveränderliche Snapshots finalisierter Management-Reports" icon={IconHistory} />
+        {versionen.length ? (
+          <DataTable caption="Archivierte Report-Versionen" columns={versionSpalten} rows={versionen} getKey={(v) => v.id} renderCard={(v) => <div className="flex items-start gap-3"><Chip size="sm" toneName="neutral">v{v.version}</Chip><div><p className="text-[0.8125rem] font-medium text-ink">{v.titel}</p><p className="mt-0.5 text-xs text-ink-3">Archiviert {v.erstelltAm ? new Date(v.erstelltAm).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '–'}</p><div className="mt-1.5"><Chip size="sm" toneName="ok">Unveränderlich</Chip></div></div></div>} />
+        ) : (
+          <CardBody><p className="text-[0.8125rem] leading-relaxed text-ink-2">Noch keine finalisierte Report-Version archiviert. Sobald ein Bericht final freigegeben wird, legt SYMMEDIS automatisch einen unveränderlichen Snapshot an.</p></CardBody>
+        )}
+      </Card>
     </div>
   )
 }
