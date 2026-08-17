@@ -67,6 +67,9 @@ function mapClient(client, project, data) {
     dokumente: byProject(data.documents, project.id).map((row) => ({ id: row.id, name: row.name, typ: row.file_type, groesse: Number(row.size_bytes), von: row.source, version: row.version, hochgeladen: row.uploaded_on, status: row.status, storagePath: row.storage_path, indexStatus: row.index_status || null, indexError: row.index_error || '', sichtbarKunde: Boolean(row.customer_visible) })),
     termine: byProject(data.appointments, project.id).map((row) => ({ id: row.id, titel: row.title, datum: row.starts_at, dauer: row.duration_minutes, typ: row.appointment_type, teilnehmer: row.participants || [] })),
     berichte: byProject(data.reports, project.id).map((row) => ({ id: row.id, titel: row.title, typ: row.report_type, seiten: row.pages, stand: row.state, datum: row.report_date, autor: row.author, storagePath: row.storage_path, analysisRunId: row.generated_from_analysis_run_id || null, executiveSummary: row.executive_summary || '', content: row.content || {} })),
+    berichtVersionen: byProject(data.reportVersions, project.id)
+      .sort((a, b) => b.version_number - a.version_number || String(b.created_at).localeCompare(String(a.created_at)))
+      .map((row) => ({ id: row.id, reportId: row.report_id, version: row.version_number, stand: row.state, titel: row.title, typ: row.report_type, datum: row.report_date, autor: row.author, storagePath: row.storage_path, analysisRunId: row.generated_from_analysis_run_id || null, executiveSummary: row.executive_summary || '', content: row.content || {}, erstelltAm: row.created_at })),
     messungen: byProject(data.measurements, project.id).map((row) => ({ id: row.id, key: row.metric_key, label: row.label, unit: row.unit, baseline: row.baseline_value == null ? null : Number(row.baseline_value), current: row.current_value == null ? null : Number(row.current_value), target: row.target_value == null ? null : Number(row.target_value), baselineAt: row.baseline_at, currentAt: row.current_at, targetAt: row.target_at, source: row.source || '', sichtbarKunde: Boolean(row.customer_visible) })),
     aktivitaet: byProject(data.activities, project.id).map((row) => ({ id: row.id, titel: row.title, actor: row.actor, tone: row.tone, zeit: row.happened_at })),
     chat: byProject(data.messages, project.id).map((row) => ({ id: row.id, from: row.sender_kind, via: row.via, author: row.author, text: row.body, zeit: row.sent_at })),
@@ -79,13 +82,13 @@ function mapClient(client, project, data) {
 async function selectAll(accessToken, table, query = 'select=*') { return restSelect(table, accessToken, query) }
 
 export async function fetchWorkspace(accessToken) {
-  const [clients, projects, analysis, blockers, tasks, documents, appointments, reports, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors] = await Promise.all([
+  const [clients, projects, analysis, blockers, tasks, documents, appointments, reports, reportVersions, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors] = await Promise.all([
     selectAll(accessToken, 'clients'), selectAll(accessToken, 'projects'), selectAll(accessToken, 'analysis_items'), selectAll(accessToken, 'growth_blockers'),
-    selectAll(accessToken, 'tasks'), selectAll(accessToken, 'documents'), selectAll(accessToken, 'appointments'), selectAll(accessToken, 'reports'),
+    selectAll(accessToken, 'tasks'), selectAll(accessToken, 'documents'), selectAll(accessToken, 'appointments'), selectAll(accessToken, 'reports'), selectAll(accessToken, 'report_versions', 'select=*&order=created_at.desc'),
     selectAll(accessToken, 'measurement_snapshots'), selectAll(accessToken, 'activities', 'select=*&order=happened_at.desc'), selectAll(accessToken, 'messages', 'select=*&order=sent_at.asc'),
     selectAll(accessToken, 'internal_notes', 'select=*&order=created_at.desc'), selectAll(accessToken, 'social_profiles'), selectAll(accessToken, 'social_insights'), selectAll(accessToken, 'competitor_snapshots'),
   ])
-  const data = { analysis, blockers, tasks, documents, appointments, reports, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors }
+  const data = { analysis, blockers, tasks, documents, appointments, reports, reportVersions, measurements, activities, messages, notes, socialProfiles, socialInsights, competitors }
   const projectsByClient = new Map()
   for (const project of projects) {
     const current = projectsByClient.get(project.client_id)
