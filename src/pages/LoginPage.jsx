@@ -22,14 +22,14 @@ const ROLLEN = {
   kunde: {
     titel: 'Kundenportal',
     text: 'Ihr Projektstand, die freigegebene Analyse, der 90-Tage-Plan und der direkte Draht zum Team.',
-    beispiel: 'k.ahlers@nordvita-demo.de',
+    beispiel: 'name@unternehmen.de',
     ziel: '/portal/uebersicht', icon: IconBuilding,
     punkte: ['Freigegebene Analyse mit Beleg und Empfehlung', 'Aufgaben, Dokumente und Termine des eigenen Projekts', 'Keine internen Notizen, keine fremden Mandanten'],
   },
   intern: {
     titel: 'Mitarbeiterportal',
     text: 'Alle Projekte, der Analyse-Editor, das Freigabezentrum und der interne Prüfpfad.',
-    beispiel: 'm.reinhardt@symmedis-demo.de',
+    beispiel: 'name@symmedis.de',
     ziel: '/intern/uebersicht', icon: IconUsers,
     punkte: ['Analyse bearbeiten und stufenweise freigeben', 'Interne Notizen, Prüfpfad und Teamauslastung', 'Projektübergreifende Listen und Auswertungen'],
   },
@@ -94,14 +94,14 @@ export function LoginPage() {
       <main id="hauptinhalt" className="shell-container py-10 lg:py-16">
         <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-12">
           <div>
-            <Chip toneName={echteAuthentifizierung ? 'ok' : 'warn'} icon={IconShield}>{echteAuthentifizierung ? 'Geschützter SYMMEDIS-Zugang' : 'Demo-Zugang ohne echte Anmeldung'}</Chip>
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Zwei Zugänge, zwei Sichten auf dasselbe Projekt</h1>
+            <Chip toneName="ok" icon={IconShield}>Geschützter SYMMEDIS-Zugang</Chip>
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Sicher anmelden. Nur das sehen, was für Sie freigegeben ist.</h1>
             <p className="mt-3 max-w-md text-[0.9375rem] leading-relaxed text-ink-2">Das Kundenportal zeigt ausschließlich geprüfte und freigegebene Inhalte. Das Mitarbeiterportal enthält zusätzlich Analyse-Editor, Freigabeprozess und interne Notizen.</p>
             <ul className="mt-6 space-y-2.5">
               {aktiv.punkte.map((punkt) => <li key={punkt} className="flex items-start gap-2.5 text-[0.875rem] text-ink"><IconCheck className="mt-0.5 size-4 shrink-0 text-accent-ink" />{punkt}</li>)}
             </ul>
-            <Banner toneName={echteAuthentifizierung ? 'info' : 'neutral'} icon={IconShield} className="mt-6">
-              {echteAuthentifizierung ? 'Die Anmeldung wird über Supabase Auth geprüft; der Datenzugriff zusätzlich durch Row Level Security je Mandant begrenzt.' : 'Diese öffentliche Beta läuft weiterhin im Demo-Modus. Bitte geben Sie hier keine echten Kennwörter ein.'}
+            <Banner toneName="info" icon={IconShield} className="mt-6">
+              Die Anmeldung wird über Supabase Auth geprüft; der Datenzugriff zusätzlich durch Row Level Security je Mandant begrenzt.
             </Banner>
           </div>
 
@@ -124,16 +124,16 @@ export function LoginPage() {
             </fieldset>
 
             <form className="mt-6 space-y-4" onSubmit={absenden}>
-              <Input label="E-Mail-Adresse" type="email" required value={email} onChange={(event) => { setEmail(event.target.value); setFehler(null); setMagicGesendet(false) }} placeholder={aktiv.beispiel} hint={echteAuthentifizierung ? 'Ihre hinterlegte SYMMEDIS-Adresse.' : 'In der Demo genügt eine beliebige Adresse.'} error={fehler} autoComplete="username" disabled={laedt} />
-              <Input label="Kennwort" type="password" required={!echteAuthentifizierung} value={passwort} onChange={(event) => { setPasswort(event.target.value); setFehler(null) }} placeholder={echteAuthentifizierung ? 'Ihr Kennwort (falls gesetzt)' : 'beliebig'} hint={echteAuthentifizierung ? 'Alternativ können Sie sich ohne Kennwort einen sicheren Anmeldelink senden lassen.' : 'Wird im Demo-Modus nicht geprüft und nicht gespeichert.'} autoComplete="current-password" disabled={laedt} />
+              <Input label="E-Mail-Adresse" type="email" required value={email} onChange={(event) => { setEmail(event.target.value); setFehler(null); setMagicGesendet(false) }} placeholder={aktiv.beispiel} hint="Ihre für SYMMEDIS freigeschaltete E-Mail-Adresse." error={fehler} autoComplete="username" disabled={laedt} />
+              <Input label="Kennwort" type="password" value={passwort} onChange={(event) => { setPasswort(event.target.value); setFehler(null) }} placeholder="Ihr Kennwort" hint="Wenn Sie kein Kennwort verwenden, senden wir Ihnen alternativ einen einmaligen Anmeldelink." autoComplete="current-password" disabled={laedt} />
 
               {magicGesendet ? <Banner toneName="ok" icon={IconCheck}>Anmeldelink wurde versendet. Öffnen Sie den Link auf diesem Gerät; anschließend werden Sie automatisch Ihrem freigeschalteten Portal zugeordnet.</Banner> : null}
 
-              <Button type="submit" size="lg" fullWidth disabled={laedt || !authBereit}>{laedt ? 'Anmeldung wird geprüft …' : `${aktiv.titel} öffnen`}{!laedt && <IconArrowRight className="size-4" />}</Button>
-              {echteAuthentifizierung ? <Button type="button" size="lg" fullWidth variant="secondary" onClick={magicLink} disabled={laedt || !authBereit}>Sicheren Anmeldelink per E-Mail senden</Button> : null}
+              <Button type="submit" size="lg" fullWidth disabled={laedt || !authBereit}>{laedt ? 'Anmeldung wird geprüft …' : `${aktiv.titel} mit Kennwort öffnen`}{!laedt && <IconArrowRight className="size-4" />}</Button>
+              <Button type="button" size="lg" fullWidth variant="secondary" onClick={magicLink} disabled={laedt || !authBereit}>Einmaligen Anmeldelink per E-Mail senden</Button>
             </form>
 
-            <p className="mt-4 text-center text-xs leading-relaxed text-ink-3">Lieber erst ansehen? <Link to="/demo" className="font-medium text-brand-ink hover:underline">Zur Produktdemo ohne Anmeldung</Link></p>
+            <p className="mt-4 text-center text-xs leading-relaxed text-ink-3">Noch keinen Zugang? Dieser wird vom SYMMEDIS-Team für Ihr Projekt freigeschaltet. <Link to="/demo" className="font-medium text-brand-ink hover:underline">Produktdemo ansehen</Link></p>
           </div>
         </div>
       </main>
