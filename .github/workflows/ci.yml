@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   quality:
@@ -31,3 +31,21 @@ jobs:
         env:
           VITE_ROUTER: hash
         run: npm run build -- --outDir dist-hash
+      - name: Build standalone Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        run: node scripts/build-standalone.mjs pages-index.html
+      - name: Publish live staging to gh-pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git checkout --orphan pages-publish
+          git rm -rf .
+          cp pages-index.html index.html
+          touch .nojekyll
+          git add index.html .nojekyll
+          git commit -m "Deploy SYMMEDIS staging ${GITHUB_SHA::7}"
+          git push --force origin HEAD:gh-pages
