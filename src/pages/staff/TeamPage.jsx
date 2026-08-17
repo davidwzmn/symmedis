@@ -1,22 +1,49 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { useSession } from '../../hooks/useSession.js'
+import { useToast } from '../../hooks/useToast.js'
 import { TEAM } from '../../data/workspace.js'
 import { fetchTeamDirectory } from '../../lib/workspaceApi.js'
+import { inviteStaffUser } from '../../lib/staffAccessApi.js'
 import { formatDate } from '../../lib/format.js'
 import { faelligkeit } from '../../lib/aufgaben.js'
 import { Avatar, Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card, CardBody, CardHeader, PageHeader, EmptyState, Banner } from '../../components/ui/layout.jsx'
+import { Input, Select } from '../../components/ui/forms.jsx'
 import { ProgressBar } from '../../components/ui/data.jsx'
-import { IconBuilding, IconCheckSquare, IconShield, IconUsers } from '../../components/ui/Icons.jsx'
+import { IconBuilding, IconCheckSquare, IconMail, IconShield, IconUsers } from '../../components/ui/Icons.jsx'
+
+const LEERE_EINLADUNG = { fullName: '', email: '', role: 'intern' }
 
 export function TeamPage() {
   const { kunden, echteDaten } = useWorkspace()
-  const { accessToken, echteAuthentifizierung } = useSession()
+  const { session, accessToken, echteAuthentifizierung } = useSession()
+  const toast = useToast()
   const [directory, setDirectory] = useState([])
   const [loading, setLoading] = useState(Boolean(echteAuthentifizierung))
   const [error, setError] = useState(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invite, setInvite] = useState(LEERE_EINLADUNG)
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [inviteError, setInviteError] = useState(null)
+
+  const loadDirectory = useCallback(async () => {
+    if (!echteAuthentifizierung || !accessToken) return []
+    setLoading(true)
+    setError(null)
+    try {
+      const rows = await fetchTeamDirectory(accessToken)
+      setDirectory(rows)
+      return rows
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Team konnte nicht geladen werden.'
+      setError(message)
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken, echteAuthentifizierung])
 
   useEffect(() => {
     if (!echteAuthentifizierung || !accessToken) return undefined
@@ -36,21 +63,86 @@ export function TeamPage() {
         ...member,
         rolle: member.roleLabel,
         auslastung: null,
-        betreuerKey: null,
+        betreuerKey: member.id,
       }))
     }
     return TEAM.map((member) => ({ ...member, betreuerKey: member.id }))
   }, [directory, echteAuthentifizierung])
 
+  const ownMember = useMemo(
+    () => directory.find((member) => member.id === session?.userId) || null,
+    [directory, session?.userId],
+  )
+  const istAdmin = echteAuthentifizierung && ownMember?.role === 'admin'
+
+  const sendInvite = async (event) => {
+    event.preventDefault()
+    if (!istAdmin || !accessToken) return
+    const email = invite.email.trim().toLowerCase()
+    if (!email) {
+      setInviteError('Bitte geben Sie eine E-Mail-Adresse ein.')
+      return
+    }
+
+    setInviteBusy(true)
+    setInviteError(null)
+    try {
+      await inviteStaffUser(accessToken, { ...invite, email })
+      await loadDirectory()
+      toast.show({
+        title: 'Teameinladung versendet',
+        description: `${email} wurde als ${invite.role === 'admin' ? 'Administrator:in' : 'Mitarbeiter:in'} eingeladen.`,
+        variant: 'success',
+      })
+      setInvite(LEERE_EINLADUNG)
+      setInviteOpen(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Einladung konnte nicht versendet werden.'
+      setInviteError(message)
+      toast.show({ title: 'Einladung fehlgeschlagen', description: message, variant: 'danger' })
+    } finally {
+      setInviteBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Team" subtitle="Zugänge, Zuständigkeiten und offene Arbeitspakete innerhalb Ihrer SYMMEDIS-Organisation." />
+      <PageHeader
+        title="Team"
+        subtitle="Zugänge, Zuständigkeiten und offene Arbeitspakete innerhalb Ihrer SYMMEDIS-Organisation."
+        actions={istAdmin ? <Button size="sm" onClick={() => { setInviteOpen((value) => !value); setInviteError(null) }}><IconMail className="size-4" />Teammitglied einladen</Button> : null}
+      />
 
       <Banner toneName={echteAuthentifizierung ? 'ok' : 'warn'} icon={IconShield} title={echteAuthentifizierung ? 'Live Team Directory' : 'Demo-Team'}>
         {echteAuthentifizierung
           ? 'Die Teamliste wird direkt aus Supabase geladen. RLS begrenzt die Sicht auf interne Profile derselben Organisation.'
           : 'Im Demo-Modus werden statische Beispieldaten angezeigt.'}
       </Banner>
+
+      {inviteOpen && istAdmin ? (
+        <Card className="border-brand-border">
+          <CardHeader title="Neues Teammitglied" subtitle="Die Einladung erstellt erst nach erfolgreichem Auth-Invite ein organisationsgebundenes internes Profil." icon={IconShield} />
+          <CardBody>
+            <form onSubmit={sendInvite} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Input label="Name" value={invite.fullName} onChange={(event) => setInvite((value) => ({ ...value, fullName: event.target.value }))} />
+                <Input label="E-Mail" type="email" required value={invite.email} onChange={(event) => { setInvite((value) => ({ ...value, email: event.target.value })); setInviteError(null) }} error={inviteError} />
+                <Select label="Rolle" value={invite.role} onChange={(event) => setInvite((value) => ({ ...value, role: event.target.value }))} required>
+                  <option value="intern">Mitarbeiter:in</option>
+                  <option value="admin">Administrator:in</option>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-2xl text-xs leading-relaxed text-ink-3">Administratoren können Teamzugänge verwalten und weitere interne Personen einladen. Die Berechtigung wird serverseitig geprüft; ein Browser kann sich nicht selbst zum Admin machen.</p>
+                <div className="flex shrink-0 gap-2">
+                  <Button type="button" variant="secondary" size="sm" disabled={inviteBusy} onClick={() => { setInviteOpen(false); setInviteError(null) }}>Abbrechen</Button>
+                  <Button type="submit" size="sm" disabled={inviteBusy}>{inviteBusy ? 'Einladung wird versendet …' : 'Einladung versenden'}</Button>
+                </div>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {loading ? <p className="text-sm text-ink-2">Team wird geladen …</p> : null}
       {error ? <Banner toneName="danger" title="Team konnte nicht geladen werden">{error}</Banner> : null}
@@ -85,7 +177,7 @@ export function TeamPage() {
                         <p className="mt-1.5 text-xs text-ink-3">{mitglied.auslastung} % Auslastung</p>
                       </>
                     ) : (
-                      <p className="mt-1 text-xs text-ink-3">Authentifizierter SYMMEDIS-Zugang</p>
+                      <p className="mt-1 text-xs text-ink-3">Authentifizierter SYMMEDIS-Zugang{mitglied.id === session?.userId ? ' · Sie' : ''}</p>
                     )}
                   </div>
                 </div>
