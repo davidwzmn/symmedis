@@ -31,7 +31,14 @@ function ScrollToTop() {
 
 function WorkspaceGate({ children }) {
   const { session, echteAuthentifizierung } = useSession()
-  const { workspaceBereit, workspaceFehler, workspaceFuerUser, neuLaden } = useWorkspace()
+  const {
+    workspaceBereit,
+    workspaceFehler,
+    workspaceAktionsfehler,
+    aktionsfehlerLeeren,
+    workspaceFuerUser,
+    neuLaden,
+  } = useWorkspace()
   const aktuellerWorkspaceGeladen = !echteAuthentifizierung || !session?.userId || workspaceFuerUser === session.userId
 
   if (!workspaceBereit || !aktuellerWorkspaceGeladen) {
@@ -49,7 +56,7 @@ function WorkspaceGate({ children }) {
   if (workspaceFehler) {
     return (
       <main className="shell-container flex min-h-[60vh] items-center justify-center py-16">
-        <div className="w-full max-w-lg rounded-2xl border border-danger-border bg-danger-soft p-8 text-center">
+        <div className="w-full max-w-lg rounded-2xl border border-danger-border bg-danger-soft p-8 text-center" role="alert">
           <h1 className="text-base font-semibold text-danger-ink">Workspace konnte nicht geladen werden</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-2">{workspaceFehler}</p>
           <button type="button" onClick={neuLaden} className="mt-5 rounded-lg bg-surface-inverse px-4 py-2 text-sm font-semibold text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">Erneut laden</button>
@@ -58,7 +65,19 @@ function WorkspaceGate({ children }) {
     )
   }
 
-  return children
+  return (
+    <>
+      {workspaceAktionsfehler ? (
+        <div className="sticky top-0 z-[70] border-b border-danger-border bg-danger-soft px-4 py-2.5" role="alert" aria-live="assertive">
+          <div className="mx-auto flex max-w-[92rem] items-start justify-between gap-4">
+            <p className="text-sm leading-relaxed text-danger-ink"><strong className="font-semibold">Änderung nicht gespeichert.</strong> {workspaceAktionsfehler} Der letzte bestätigte Stand bleibt erhalten.</p>
+            <button type="button" onClick={aktionsfehlerLeeren} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-danger-ink hover:bg-danger-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" aria-label="Speicherfehler-Hinweis schließen">Schließen</button>
+          </div>
+        </div>
+      ) : null}
+      {children}
+    </>
+  )
 }
 
 const Router = import.meta.env.VITE_ROUTER === 'hash' ? HashRouter : BrowserRouter
