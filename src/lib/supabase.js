@@ -31,6 +31,21 @@ export async function supabaseRequest(path, options = {}) {
   return payload
 }
 
+export async function submitWebsiteLead(payload) {
+  if (!supabaseEnabled) throw new Error('Die Anfragefunktion ist derzeit nicht verfügbar.')
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/submit-lead`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(data?.error || 'Die Anfrage konnte gerade nicht gesendet werden.')
+  return data
+}
+
 function storeAuthSession(session) {
   if (typeof window === 'undefined') return
   if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
