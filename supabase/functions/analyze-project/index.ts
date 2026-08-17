@@ -27,6 +27,11 @@ async function db(auth: string, path: string, init: RequestInit = {}) {
   if (!response.ok) throw new Error(data?.message || data?.error || `Database request failed (${response.status})`);
   return data;
 }
+async function authenticatedUserId(auth: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: auth } });
+  const user = await response.json().catch(() => null);
+  return response.ok && user?.id ? String(user.id) : null;
+}
 async function adminInsert(table: string, payload: unknown) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: "POST", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(payload) });
   if (!response.ok) throw new Error(`Admin insert failed (${response.status})`);
@@ -96,7 +101,9 @@ Deno.serve(async (req: Request) => {
     if (!projectId) return json(req, 400, { error: "Projekt-ID fehlt." });
     auditProjectId = projectId;
 
-    const profiles = await db(auth, "profiles?select=id,role&limit=1");
+    const userId = await authenticatedUserId(auth);
+    if (!userId) return json(req, 401, { error: "Sitzung ist ungültig oder abgelaufen." });
+    const profiles = await db(auth, `profiles?id=eq.${encodeURIComponent(userId)}&select=id,role,organization_id&limit=1`);
     const profile = profiles?.[0];
     if (!profile || !["intern", "admin"].includes(profile.role)) return json(req, 403, { error: "Nur das SYMMEDIS-Team darf Analysen starten." });
     actorId = profile.id;
@@ -115,7 +122,7 @@ Deno.serve(async (req: Request) => {
 
     const clients = await db(auth, `clients?id=eq.${encodeURIComponent(project.client_id)}&select=id,organization_id,name,industry,location,employee_count,contact&limit=1`);
     const client = clients?.[0];
-    if (!client) return json(req, 404, { error: "Kunde nicht gefunden." });
+    if (!client || client.organization_id !== profile.organization_id) return json(req, 404, { error: "Kunde nicht gefunden." });
     auditOrgId = client.organization_id;
 
     const documents = await db(auth, `documents?project_id=eq.${encodeURIComponent(projectId)}&select=id,name,file_type,size_bytes,storage_path,status&order=created_at.desc&limit=20`);
@@ -142,18 +149,7 @@ Deno.serve(async (req: Request) => {
     await db(auth, "growth_blockers?on_conflict=project_id,rank", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(top.map((finding: any, index: number) => ({ project_id: projectId, rank: index + 1, title: finding.observation.slice(0, 180) || finding.category_id, category_id: finding.category_id, priority: finding.priority, description: finding.impact, cause: finding.cause, score: finding.score, next_action: finding.recommendation, status: "offen" }))) });
     await db(auth, `projects?id=eq.${projectId}`, { method: "PATCH", body: JSON.stringify({ status: "pruefung", progress: 55, updated_at: new Date().toISOString() }) });
     await db(auth, "activities", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ project_id: projectId, title: "KI-Ursachenanalyse erzeugt – menschliche Prüfung erforderlich", actor: "SYMMEDIS Analyse-Engine", tone: "warn", happened_at: new Date().toISOString() }) });
-
-    if (runId) await db(auth, `analysis_runs?id=eq.${runId}`, { method: "PATCH", body: JSON.stringify({
-      status: "completed",
-      source_documents: used,
-      finding_count: findings.length,
-      input_tokens: Number(usage.input_tokens || 0),
-      output_tokens: Number(usage.output_tokens || 0),
-      cache_read_input_tokens: Number(usage.cache_read_input_tokens || 0),
-      cache_creation_input_tokens: Number(usage.cache_creation_input_tokens || 0),
-      completed_at: new Date().toISOString(),
-    }) });
-
+    if (runId) await db(auth, `analysis_runs?id=eq.${runId}`, { method: "PATCH", body: JSON.stringify({ status: "completed", source_documents: used, finding_count: findings.length, input_tokens: Number(usage.input_tokens || 0), output_tokens: Number(usage.output_tokens || 0), cache_read_input_tokens: Number(usage.cache_read_input_tokens || 0), cache_creation_input_tokens: Number(usage.cache_creation_input_tokens || 0), completed_at: new Date().toISOString() }) });
     await adminInsert("audit_events", { organization_id: auditOrgId, client_id: auditClientId, project_id: projectId, actor_user_id: actorId, event_type: "analysis.completed", entity_type: "analysis_run", entity_id: runId, summary: "KI-Ursachenanalyse abgeschlossen – Prüfung erforderlich", metadata: { model: ANTHROPIC_MODEL, source_documents: used, findings: findings.length, input_tokens: Number(usage.input_tokens || 0), output_tokens: Number(usage.output_tokens || 0) } }).catch(() => undefined);
     return json(req, 200, { ok: true, runId, model: ANTHROPIC_MODEL, sourceDocuments: used, findings: findings.length });
   } catch (error) {
