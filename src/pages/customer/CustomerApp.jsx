@@ -45,19 +45,11 @@ const NAV = [
   { id: 'nachrichten', label: 'Nachrichten', to: '/portal/nachrichten', icon: IconChat },
 ]
 
-/**
- * Kundenportal – Projekt- und Analyse-Cockpit eines einzelnen Mandanten.
- *
- * Der Bereich zeigt ausschließlich freigegebene Inhalte des eigenen Projekts.
- * Interne Notizen und andere Kunden sind hier grundsätzlich nicht erreichbar.
- */
 export function CustomerApp() {
   const { session } = useSession()
   const { getKunde } = useWorkspace()
 
-  if (!session || session.rolle !== 'kunde') {
-    return <Navigate to="/login?rolle=kunde" replace />
-  }
+  if (!session || session.rolle !== 'kunde') return <Navigate to="/login?rolle=kunde" replace />
 
   const kunde = getKunde(session.kundeId)
   if (!kunde) return <Navigate to="/login?rolle=kunde" replace />
@@ -70,16 +62,7 @@ export function CustomerApp() {
       kundenBereich={kunde.id}
       aufgabenZiel="/portal/aufgaben"
       benachrichtigungsZiel={() => '/portal/uebersicht'}
-      kopf={
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-semibold text-ink">{kunde.unternehmen}</p>
-          <span className="hidden shrink-0 sm:inline-flex">
-            <Chip size="sm" toneName="neutral">
-              Ursachenanalyse
-            </Chip>
-          </span>
-        </div>
-      }
+      kopf={<div className="flex min-w-0 items-center gap-2"><p className="truncate text-sm font-semibold text-ink">{kunde.unternehmen}</p><span className="hidden shrink-0 sm:inline-flex"><Chip size="sm" toneName="neutral">Ursachenanalyse</Chip></span></div>}
     >
       <div className="mx-auto max-w-[88rem]">
         <Routes>
@@ -94,30 +77,12 @@ export function CustomerApp() {
           <Route path="dokumente" element={<Bereich titel="Dokumente" text="Ihre Unterlagen und die Arbeitsergebnisse von SYMMEDIS an einer Stelle."><DocumentsModule kunde={kunde} rolle="kunde" /></Bereich>} />
           <Route path="berichte" element={<Bereich titel="Berichte und Export" text="Freigegebene Berichte sowie der Datenexport Ihrer Analyse."><ReportsModule kunde={kunde} rolle="kunde" /></Bereich>} />
           <Route path="termine" element={<Bereich titel="Termine" text="Alle Besprechungen zu Ihrem Analyseprojekt."><AppointmentsModule kunde={kunde} /></Bereich>} />
-          <Route
-            path="nachrichten"
-            element={
-              <Bereich titel="Nachrichten" text="Direkter Draht zum SYMMEDIS-Team. Der Assistent ordnet Ihre Frage sofort ein, verbindlich ist die Antwort des Teams.">
-                <div className="grid gap-5 xl:grid-cols-[1fr_20rem]">
-                  <ChatModule kunde={kunde} rolle="kunde" />
-                  <div className="min-w-0 space-y-5">
-                    <Card>
-                      <CardHeader title="Ihr Projekt" />
-                      <CardBody>
-                        <KeyValueList items={[
-                          { label: 'Unternehmen', value: kunde.unternehmen },
-                          { label: 'Ansprechpartner', value: kunde.ansprechpartner.name },
-                          { label: 'Analysestart', value: formatDate(kunde.start) },
-                          { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) },
-                        ]} />
-                      </CardBody>
-                    </Card>
-                    <ActivityFeed kunde={kunde} titel="Projektverlauf" limit={4} />
-                  </div>
-                </div>
-              </Bereich>
-            }
-          />
+          <Route path="nachrichten" element={<Bereich titel="Nachrichten" text="Direkter, geschützter Projektkanal zum SYMMEDIS-Team. Ihre Nachrichten und Antworten bleiben im gemeinsamen Projektverlauf nachvollziehbar."><div className="grid gap-5 xl:grid-cols-[1fr_20rem]"><ChatModule kunde={kunde} rolle="kunde" /><div className="min-w-0 space-y-5"><Card><CardHeader title="Ihr Projekt" /><CardBody><KeyValueList items={[
+            { label: 'Unternehmen', value: kunde.unternehmen },
+            { label: 'Ansprechpartner', value: kunde.ansprechpartner.name },
+            { label: 'Analysestart', value: formatDate(kunde.start) },
+            { label: 'Ergebnistermin', value: formatDate(kunde.ergebnis) },
+          ]} /></CardBody></Card><ActivityFeed kunde={kunde} titel="Projektverlauf" limit={4} /></div></div></Bereich>} />
           <Route path="*" element={<Navigate to="/portal/uebersicht" replace />} />
         </Routes>
       </div>
@@ -126,12 +91,7 @@ export function CustomerApp() {
 }
 
 function Bereich({ titel, text, children }) {
-  return (
-    <div className="space-y-6">
-      <PageHeader title={titel} subtitle={text} />
-      {children}
-    </div>
-  )
+  return <div className="space-y-6"><PageHeader title={titel} subtitle={text} />{children}</div>
 }
 
 function PlanModuleMitNavigation({ kunde }) {
@@ -143,18 +103,9 @@ function BremsenSeite({ kunde }) {
   const navigate = useNavigate()
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Die drei größten Umsatzbremsen"
-        subtitle="Priorisiert nach Hebelwirkung. Jede Bremse ist mit der Analysedimension verknüpft, aus der sie stammt."
-        actions={<Button variant="secondary" size="sm" onClick={() => navigate('/portal/plan')}>Zum 90-Tage-Plan</Button>}
-      />
-
-      <Banner toneName="brand" icon={IconAlert} title="Warum nur drei">
-        Mehr gleichzeitige Baustellen führen erfahrungsgemäß dazu, dass keine davon zu Ende gebracht wird. Die Auswahl trifft das SYMMEDIS-Team auf Basis der vollständigen Analyse.
-      </Banner>
-
+      <PageHeader title="Die drei größten Umsatzbremsen" subtitle="Priorisiert nach Hebelwirkung. Jede Bremse ist mit der Analysedimension verknüpft, aus der sie stammt." actions={<Button variant="secondary" size="sm" onClick={() => navigate('/portal/plan')}>Zum 90-Tage-Plan</Button>} />
+      <Banner toneName="brand" icon={IconAlert} title="Warum nur drei">Mehr gleichzeitige Baustellen führen erfahrungsgemäß dazu, dass keine davon zu Ende gebracht wird. Die Auswahl trifft das SYMMEDIS-Team auf Basis der vollständigen Analyse.</Banner>
       <BremsenCards kunde={kunde} onOeffnen={() => navigate('/portal/analyse')} />
-
       <Card>
         <CardHeader title="Wirkungskette" subtitle="Von der Ursache zur Umsatzwirkung" />
         <CardBody className="px-0 py-0">
