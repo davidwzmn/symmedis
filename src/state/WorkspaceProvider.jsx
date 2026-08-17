@@ -102,11 +102,25 @@ export function WorkspaceProvider({ children }) {
     return true
   }, [accessToken, echteAuthentifizierung, getKunde, patchKunde])
 
-  const setAnalyseFeld = useCallback((kundeId, kategorieId, patch) => {
+  const setAnalyseFeld = useCallback(async (kundeId, kategorieId, patch) => {
     const kunde = getKunde(kundeId)
+    const eintrag = kunde?.analyse.find((item) => item.kategorieId === kategorieId)
+    if (!kunde || !eintrag) return false
+
+    const vorher = Object.fromEntries(Object.keys(patch).map((key) => [key, eintrag[key]]))
     patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...patch } : item) }))
-    if (echteAuthentifizierung && accessToken && kunde?.projectId) persistiere(persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch)))
-  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere])
+
+    if (echteAuthentifizierung && accessToken && kunde.projectId) {
+      try {
+        await persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...vorher } : item) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
   const setFreigabe = useCallback(async (kundeId, kategorieId, freigabe) => {
     const kunde = getKunde(kundeId)
