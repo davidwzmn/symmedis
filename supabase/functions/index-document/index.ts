@@ -4,6 +4,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const AI_ENABLED = Deno.env.get("SYMMEDIS_AI_ENABLED") === "true";
 const ANTHROPIC_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
 const ANTHROPIC_BASE_URL = (Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com").replace(/\/+$/, "");
 const APP_URL = Deno.env.get("SYMMEDIS_APP_URL") || "https://davidwzmn.github.io/symmedis/";
@@ -56,7 +57,7 @@ function chunks(text: string) {
   return out;
 }
 async function extractPdf(bytes: Uint8Array, title: string) {
-  if (!ANTHROPIC_API_KEY) return null;
+  if (!AI_ENABLED || !ANTHROPIC_API_KEY) return null;
   const response = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": ANTHROPIC_API_KEY },
@@ -97,19 +98,22 @@ Deno.serve(async (req: Request) => {
     const client = clients?.[0];
 
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexing", index_error: "" }) });
+
     const fileResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/project-files/${pathEncode(document.storage_path)}`, { headers: { apikey: ANON_KEY, Authorization: auth } });
     if (!fileResponse.ok) throw new Error(`Datei konnte nicht gelesen werden (${fileResponse.status}).`);
 
     const type = String(document.file_type || "").toLowerCase();
     let text = "";
-    if (["txt", "csv"].includes(type)) text = cleanText(await fileResponse.text());
-    else if (type === "pdf") {
+    if (["txt", "csv"].includes(type)) {
+      text = cleanText(await fileResponse.text());
+    } else if (type === "pdf") {
       const bytes = new Uint8Array(await fileResponse.arrayBuffer());
       if (bytes.byteLength > MAX_PDF_BYTES) throw new Error("PDF ist für die Indexierung zu groß.");
       const extracted = await extractPdf(bytes, document.name);
       if (!extracted) {
-        await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "pending", index_error: "PDF-Indexierung wartet auf ANTHROPIC_API_KEY." }) });
-        return json(req, 202, { ok: true, pending: true, reason: "anthropic_key_required" });
+        const reason = AI_ENABLED ? "ANTHROPIC_API_KEY fehlt." : "Bezahlte KI-Extraktion ist in dieser Umgebung deaktiviert.";
+        await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "pending", index_error: reason }) });
+        return json(req, 202, { ok: true, pending: true, reason: AI_ENABLED ? "anthropic_key_required" : "ai_disabled" });
       }
       text = extracted;
     } else {
@@ -120,7 +124,11 @@ Deno.serve(async (req: Request) => {
     const parts = chunks(text);
     if (!parts.length) throw new Error("Dokument enthält keinen indexierbaren Text.");
     await api(`/rest/v1/knowledge_chunks?document_id=eq.${document.id}`, adminHeaders(), { method: "DELETE" });
-    await api(`/rest/v1/knowledge_chunks`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v1" } }))) });
+    await api(`/rest/v1/knowledge_chunks`, adminHeaders(), {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v2" } }))),
+    });
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexed", index_error: "", indexed_at: new Date().toISOString() }) });
 
     const token = auth.slice(7);
@@ -128,6 +136,7 @@ Deno.serve(async (req: Request) => {
     let actorUserId: string | null = null;
     try { actorUserId = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))).sub || null; } catch { /* no-op */ }
     await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client?.organization_id || null, client_id: project.client_id, project_id: document.project_id, actor_user_id: actorUserId, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type } }) }).catch(() => null);
+
     return json(req, 200, { ok: true, indexed: true, chunks: parts.length });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Indexierung fehlgeschlagen.";
