@@ -1,8 +1,11 @@
 const DEFAULT_SUPABASE_URL = 'https://jmxxinrvszwggcxvlwfs.supabase.co'
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_2G8T8KeA7cfKZwK4r6R__Q_Ccso3s6U'
+const DEFAULT_APP_URL = 'https://davidwzmn.github.io/symmedis/'
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '')
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
+const APP_URL = (import.meta.env.VITE_SITE_URL || DEFAULT_APP_URL).replace(/\/$/, '')
+const AUTH_REDIRECT_URL = `${APP_URL}/#/login`
 
 const STORAGE_KEY = 'symmedis.supabase.session'
 
@@ -92,7 +95,7 @@ export async function signInWithPassword(email, password) {
 export async function sendMagicLink(email) {
   return supabaseRequest('/auth/v1/otp', {
     method: 'POST',
-    body: JSON.stringify({ email, create_user: false }),
+    body: JSON.stringify({ email, create_user: false, redirect_to: AUTH_REDIRECT_URL }),
   })
 }
 
