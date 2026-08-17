@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
@@ -6,6 +6,7 @@ import { useWorkspace } from './hooks/useWorkspace.js'
 import { useSession } from './hooks/useSession.js'
 import { consumeAuthRedirectSession } from './lib/supabase.js'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
+import { Skeleton } from './components/ui/layout.jsx'
 import { MarketingLayout } from './pages/marketing/MarketingLayout.jsx'
 import { HomePage } from './pages/marketing/HomePage.jsx'
 import { ProblemPage } from './pages/marketing/ProblemPage.jsx'
@@ -29,6 +30,58 @@ function ScrollToTop() {
   return null
 }
 
+function WorkspaceLoading() {
+  return (
+    <main className="shell-container py-8 sm:py-10" aria-live="polite" aria-busy="true">
+      <div className="mx-auto max-w-[92rem] space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-44 rounded-md" />
+            <Skeleton className="h-3 w-64 max-w-[70vw] rounded-md" />
+          </div>
+          <Skeleton className="hidden h-9 w-28 rounded-lg sm:block" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-card" />)}
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <Skeleton className="h-80 rounded-card" />
+          <div className="space-y-5">
+            <Skeleton className="h-36 rounded-card" />
+            <Skeleton className="h-36 rounded-card" />
+          </div>
+        </div>
+        <p className="sr-only">Ihre autorisierten Projekt- und Analysedaten werden sicher geladen.</p>
+      </div>
+    </main>
+  )
+}
+
+function ConnectivityNotice() {
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
+
+  useEffect(() => {
+    const onlineHandler = () => setOnline(true)
+    const offlineHandler = () => setOnline(false)
+    window.addEventListener('online', onlineHandler)
+    window.addEventListener('offline', offlineHandler)
+    return () => {
+      window.removeEventListener('online', onlineHandler)
+      window.removeEventListener('offline', offlineHandler)
+    }
+  }, [])
+
+  if (online) return null
+
+  return (
+    <div className="sticky top-0 z-[72] border-b border-warn-border bg-warn-soft px-4 py-2.5" role="status" aria-live="polite">
+      <div className="mx-auto max-w-[92rem] text-sm leading-relaxed text-warn-ink">
+        <strong className="font-semibold">Keine Internetverbindung.</strong> Bereits geladene Inhalte bleiben sichtbar. Änderungen und Uploads können erst wieder sicher gespeichert werden, sobald die Verbindung zurück ist.
+      </div>
+    </div>
+  )
+}
+
 function WorkspaceGate({ children }) {
   const { session, echteAuthentifizierung } = useSession()
   const {
@@ -41,17 +94,7 @@ function WorkspaceGate({ children }) {
   } = useWorkspace()
   const aktuellerWorkspaceGeladen = !echteAuthentifizierung || !session?.userId || workspaceFuerUser === session.userId
 
-  if (!workspaceBereit || !aktuellerWorkspaceGeladen) {
-    return (
-      <main className="shell-container flex min-h-[60vh] items-center justify-center py-16" aria-live="polite">
-        <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
-          <div className="mx-auto size-8 animate-spin rounded-full border-2 border-line-strong border-t-brand" aria-hidden="true" />
-          <h1 className="mt-5 text-base font-semibold text-ink">SYMMEDIS wird geladen</h1>
-          <p className="mt-2 text-sm text-ink-2">Ihre autorisierten Projekt- und Analysedaten werden sicher geladen.</p>
-        </div>
-      </main>
-    )
-  }
+  if (!workspaceBereit || !aktuellerWorkspaceGeladen) return <WorkspaceLoading />
 
   if (workspaceFehler) {
     return (
@@ -59,7 +102,8 @@ function WorkspaceGate({ children }) {
         <div className="w-full max-w-lg rounded-2xl border border-danger-border bg-danger-soft p-8 text-center" role="alert">
           <h1 className="text-base font-semibold text-danger-ink">Workspace konnte nicht geladen werden</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-2">{workspaceFehler}</p>
-          <button type="button" onClick={neuLaden} className="mt-5 rounded-lg bg-surface-inverse px-4 py-2 text-sm font-semibold text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">Erneut laden</button>
+          <p className="mt-2 text-xs leading-relaxed text-ink-3">Ihre Daten wurden nicht verändert. Prüfen Sie die Verbindung und versuchen Sie es erneut.</p>
+          <button type="button" onClick={neuLaden} className="mt-5 min-h-11 rounded-lg bg-surface-inverse px-4 py-2 text-sm font-semibold text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">Erneut laden</button>
         </div>
       </main>
     )
@@ -67,11 +111,12 @@ function WorkspaceGate({ children }) {
 
   return (
     <>
+      <ConnectivityNotice />
       {workspaceAktionsfehler ? (
         <div className="sticky top-0 z-[70] border-b border-danger-border bg-danger-soft px-4 py-2.5" role="alert" aria-live="assertive">
           <div className="mx-auto flex max-w-[92rem] items-start justify-between gap-4">
             <p className="text-sm leading-relaxed text-danger-ink"><strong className="font-semibold">Änderung nicht gespeichert.</strong> {workspaceAktionsfehler} Der letzte bestätigte Stand bleibt erhalten.</p>
-            <button type="button" onClick={aktionsfehlerLeeren} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-danger-ink hover:bg-danger-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" aria-label="Speicherfehler-Hinweis schließen">Schließen</button>
+            <button type="button" onClick={aktionsfehlerLeeren} className="min-h-9 shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-danger-ink hover:bg-danger-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" aria-label="Speicherfehler-Hinweis schließen">Schließen</button>
           </div>
         </div>
       ) : null}
