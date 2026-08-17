@@ -142,12 +142,22 @@ export function WorkspaceProvider({ children }) {
     return true
   }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, session?.userId])
 
-  const addNotiz = useCallback((kundeId, text, autor) => {
+  const addNotiz = useCallback(async (kundeId, text, autor) => {
     const kunde = getKunde(kundeId)
     const local = { id: naechsteId('note'), autor, zeit: jetztIso(), text }
     patchKunde(kundeId, (entry) => ({ ...entry, notizenIntern: [local, ...entry.notizenIntern] }))
-    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) persistiere(persistInternalNote(accessToken, kunde.projectId, session.userId, text, autor))
-  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere, session?.userId])
+
+    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) {
+      try {
+        await persistInternalNote(accessToken, kunde.projectId, session.userId, text, autor)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, notizenIntern: entry.notizenIntern.filter((item) => item.id !== local.id) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde, session?.userId])
 
   const addDokument = useCallback(async (kundeId, dokument, file = null) => {
     const kunde = getKunde(kundeId)
