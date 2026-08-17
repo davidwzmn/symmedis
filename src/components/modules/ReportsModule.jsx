@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { KATEGORIE_MAP } from '../../data/catalog.js'
 import { formatDate } from '../../lib/format.js'
 import { scoreStufe } from '../../lib/tone.js'
+import { restUpdate } from '../../lib/supabase.js'
+import { useSession } from '../../hooks/useSession.js'
+import { useWorkspace } from '../../hooks/useWorkspace.js'
 import { useToast } from '../../hooks/useToast.js'
 import { Button, Chip } from '../ui/primitives.jsx'
 import { Card, CardBody, CardHeader, Banner, MetricCard } from '../ui/layout.jsx'
 import { DataTable, KeyValueList } from '../ui/data.jsx'
-import { IconDocument, IconDownload, IconHistory, IconLock, IconShield, IconTarget } from '../ui/Icons.jsx'
+import { IconCheck, IconDocument, IconDownload, IconHistory, IconLock, IconShield, IconTarget } from '../ui/Icons.jsx'
 
 const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]))
@@ -49,6 +53,10 @@ function executiveHtml(kunde) {
 
 export function ReportsModule({ kunde, rolle = 'kunde' }) {
   const toast = useToast()
+  const { accessToken } = useSession()
+  const { echteDaten, neuLaden } = useWorkspace()
+  const [releaseCandidate, setReleaseCandidate] = useState(null)
+  const [releasing, setReleasing] = useState(null)
   const nurFreigegeben = rolle === 'kunde'
   const verified = kunde.analyse.filter((a) => a.sichtbarKunde && a.impactVerified)
   const impact = verified.reduce((sum, item) => ({ min: sum.min + (item.revenueImpactMin || 0) + (item.costImpactMin || 0), max: sum.max + (item.revenueImpactMax || 0) + (item.costImpactMax || 0) }), { min: 0, max: 0 })
@@ -80,7 +88,37 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
     else popup.addEventListener('load', printWhenReady, { once: true })
   }
 
+  const finalisieren = async (bericht) => {
+    if (!echteDaten || !accessToken) {
+      toast.show({ title: 'Finalisierung nicht verfügbar', description: 'Finale Freigaben sind nur im geschützten Live-Workspace möglich.' })
+      return
+    }
+    setReleasing(bericht.id)
+    try {
+      await restUpdate('reports', accessToken, `id=eq.${bericht.id}`, {
+        state: 'final',
+        report_date: bericht.datum || new Date().toISOString().slice(0, 10),
+      })
+      await neuLaden()
+      setReleaseCandidate(null)
+      toast.show({
+        title: 'Bericht final freigegeben',
+        description: 'Der Kunde kann den Bericht jetzt lesen. Eine unveränderliche Version wurde automatisch archiviert.',
+        variant: 'success',
+      })
+    } catch (error) {
+      toast.show({
+        title: 'Freigabe fehlgeschlagen',
+        description: error instanceof Error ? error.message : 'Der Bericht konnte nicht finalisiert werden.',
+        variant: 'danger',
+      })
+    } finally {
+      setReleasing(null)
+    }
+  }
+
   const verfuegbar = kunde.berichte.filter((b) => !nurFreigegeben || b.stand === 'final')
+  const entwuerfe = kunde.berichte.filter((b) => b.stand !== 'final')
   const versionen = (kunde.berichtVersionen || []).filter((v) => !nurFreigegeben || v.stand === 'final')
   const spalten = [
     { key: 'titel', label: 'Bericht', render: (b) => <span className="flex min-w-0 items-center gap-2.5"><span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-muted text-ink-2"><IconDocument className="size-4" /></span><span className="min-w-0"><span className="block truncate font-medium text-ink">{b.titel}</span><span className="block text-xs text-ink-3">{b.typ} · {b.seiten} Seiten</span></span></span> },
@@ -100,6 +138,44 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   return (
     <div className="min-w-0 space-y-5">
       {rolle === 'kunde' && kunde.berichte.some((b) => b.stand !== 'final') ? <Banner toneName="info" icon={IconLock} title="Berichte in Arbeit">Interne Entwürfe sind für Kundenzugänge technisch nicht lesbar und erscheinen erst nach finaler Freigabe.</Banner> : null}
+
+      {rolle === 'intern' ? (
+        <Card className="border-brand-border">
+          <CardHeader title="Freigabe & Versionierung" subtitle="Finale Reports werden kundensichtbar und unveränderlich versioniert" icon={IconShield} />
+          <CardBody className="space-y-3">
+            {entwuerfe.length ? entwuerfe.map((bericht) => {
+              const pruefen = releaseCandidate === bericht.id
+              return (
+                <div key={bericht.id} className="rounded-lg border border-line bg-surface-muted p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-[0.875rem] font-semibold text-ink">{bericht.titel}</p>
+                        <Chip size="sm" toneName="warn">Entwurf</Chip>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-ink-3">{bericht.typ} · {bericht.autor || 'SYMMEDIS'} · {formatDate(bericht.datum)}</p>
+                    </div>
+                    {!pruefen ? (
+                      <Button size="sm" variant="secondary" onClick={() => setReleaseCandidate(bericht.id)}>Freigabe prüfen</Button>
+                    ) : null}
+                  </div>
+                  {pruefen ? (
+                    <div className="mt-3 border-t border-line pt-3">
+                      <p className="text-[0.8125rem] leading-relaxed text-ink-2">Mit der finalen Freigabe wird der Bericht für Kundenzugänge sichtbar. Gleichzeitig entsteht ein unveränderlicher, auditierter Snapshot.</p>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button size="sm" variant="ghost" disabled={releasing === bericht.id} onClick={() => setReleaseCandidate(null)}>Abbrechen</Button>
+                        <Button size="sm" disabled={releasing === bericht.id} onClick={() => finalisieren(bericht)}><IconCheck className="size-4" />{releasing === bericht.id ? 'Wird freigegeben …' : 'Jetzt final freigeben'}</Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            }) : (
+              <div className="flex items-start gap-2.5 text-[0.8125rem] leading-relaxed text-ink-2"><IconCheck className="mt-0.5 size-4 shrink-0 text-ok-ink" /><span>Keine Report-Entwürfe offen. Alle vorhandenen Berichte sind final freigegeben.</span></div>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Freigegebene Findings" value={kunde.analyse.filter((a) => a.sichtbarKunde).length} unit={`/ ${kunde.analyse.length}`} icon={IconShield} toneName="info" />
