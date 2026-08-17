@@ -5,7 +5,7 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const AI_ENABLED = Deno.env.get("SYMMEDIS_AI_ENABLED") === "true";
-const ANTHROPIC_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
+const ANTHROPIC_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "";
 const ANTHROPIC_BASE_URL = (Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com").replace(/\/+$/, "");
 const APP_URL = Deno.env.get("SYMMEDIS_APP_URL") || "https://davidwzmn.github.io/symmedis/";
 const MAX_TEXT_CHARS = 180_000;
@@ -33,6 +33,11 @@ async function api(path: string, headers: Record<string,string>, init: RequestIn
   if (!response.ok) throw new Error(data?.message || data?.error || `Supabase request failed (${response.status})`);
   return data;
 }
+async function authenticatedUserId(auth: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: auth } });
+  const user = await response.json().catch(() => null);
+  return response.ok && user?.id ? String(user.id) : null;
+}
 function pathEncode(path: string) { return path.split("/").map(encodeURIComponent).join("/"); }
 function bytesToBase64(bytes: Uint8Array) {
   let binary = "";
@@ -57,7 +62,7 @@ function chunks(text: string) {
   return out;
 }
 async function extractPdf(bytes: Uint8Array, title: string) {
-  if (!AI_ENABLED || !ANTHROPIC_API_KEY) return null;
+  if (!AI_ENABLED || !ANTHROPIC_API_KEY || !ANTHROPIC_MODEL) return null;
   const response = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": ANTHROPIC_API_KEY },
@@ -84,6 +89,13 @@ Deno.serve(async (req: Request) => {
 
   let documentId = "";
   try {
+    const userId = await authenticatedUserId(auth);
+    if (!userId) return json(req, 401, { error: "Sitzung ist ungültig oder abgelaufen." });
+    const profiles = await api(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,role,organization_id,client_id&limit=1`, userHeaders(auth));
+    const profile = profiles?.[0];
+    if (!profile) return json(req, 403, { error: "Für diesen Zugang ist kein SYMMEDIS-Profil freigeschaltet." });
+    const isStaff = ["intern", "admin"].includes(profile.role);
+
     const body = await req.json();
     documentId = String(body?.documentId || "");
     if (!documentId) return json(req, 400, { error: "Dokument-ID fehlt." });
@@ -96,13 +108,23 @@ Deno.serve(async (req: Request) => {
     if (!project) return json(req, 404, { error: "Projekt nicht gefunden." });
     const clients = await api(`/rest/v1/clients?id=eq.${encodeURIComponent(project.client_id)}&select=id,organization_id&limit=1`, userHeaders(auth));
     const client = clients?.[0];
+    if (!client) return json(req, 404, { error: "Kunde nicht gefunden." });
+    if (isStaff && client.organization_id !== profile.organization_id) return json(req, 403, { error: "Projekt gehört nicht zu Ihrer Organisation." });
+    if (!isStaff && profile.client_id !== client.id) return json(req, 403, { error: "Projekt gehört nicht zu Ihrem Kundenzugang." });
+
+    const type = String(document.file_type || "").toLowerCase();
+
+    if (type === "pdf" && !isStaff) {
+      const reason = "PDF-Extraktion mit potenziellen KI-Kosten wird ausschließlich durch das SYMMEDIS-Team gestartet.";
+      await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "pending", index_error: reason }) });
+      return json(req, 202, { ok: true, pending: true, reason: "staff_review_required" });
+    }
 
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexing", index_error: "" }) });
 
     const fileResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/project-files/${pathEncode(document.storage_path)}`, { headers: { apikey: ANON_KEY, Authorization: auth } });
     if (!fileResponse.ok) throw new Error(`Datei konnte nicht gelesen werden (${fileResponse.status}).`);
 
-    const type = String(document.file_type || "").toLowerCase();
     let text = "";
     if (["txt", "csv"].includes(type)) {
       text = cleanText(await fileResponse.text());
@@ -111,9 +133,13 @@ Deno.serve(async (req: Request) => {
       if (bytes.byteLength > MAX_PDF_BYTES) throw new Error("PDF ist für die Indexierung zu groß.");
       const extracted = await extractPdf(bytes, document.name);
       if (!extracted) {
-        const reason = AI_ENABLED ? "ANTHROPIC_API_KEY fehlt." : "Bezahlte KI-Extraktion ist in dieser Umgebung deaktiviert.";
+        const reason = !AI_ENABLED
+          ? "Bezahlte KI-Extraktion ist in dieser Umgebung deaktiviert."
+          : !ANTHROPIC_API_KEY || !ANTHROPIC_MODEL
+            ? "KI-Extraktion ist noch nicht vollständig konfiguriert."
+            : "PDF konnte nicht extrahiert werden.";
         await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "pending", index_error: reason }) });
-        return json(req, 202, { ok: true, pending: true, reason: AI_ENABLED ? "anthropic_key_required" : "ai_disabled" });
+        return json(req, 202, { ok: true, pending: true, reason: !AI_ENABLED ? "ai_disabled" : "ai_not_configured" });
       }
       text = extracted;
     } else {
@@ -127,15 +153,11 @@ Deno.serve(async (req: Request) => {
     await api(`/rest/v1/knowledge_chunks`, adminHeaders(), {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v2" } }))),
+      body: JSON.stringify(parts.map((content, index) => ({ project_id: document.project_id, document_id: document.id, source_label: document.name, chunk_index: index, content, metadata: { file_type: type, indexed_by: "index-document-v4" } }))),
     });
     await api(`/rest/v1/documents?id=eq.${document.id}`, adminHeaders(), { method: "PATCH", body: JSON.stringify({ index_status: "indexed", index_error: "", indexed_at: new Date().toISOString() }) });
 
-    const token = auth.slice(7);
-    const [, payload] = token.split(".");
-    let actorUserId: string | null = null;
-    try { actorUserId = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))).sub || null; } catch { /* no-op */ }
-    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client?.organization_id || null, client_id: project.client_id, project_id: document.project_id, actor_user_id: actorUserId, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type } }) }).catch(() => null);
+    await api(`/rest/v1/audit_events`, adminHeaders(), { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ organization_id: client.organization_id, client_id: project.client_id, project_id: document.project_id, actor_user_id: profile.id, event_type: "document.indexed", entity_type: "document", entity_id: document.id, summary: `Dokument indexiert: ${document.name}`, metadata: { chunks: parts.length, file_type: type, actor_role: profile.role } }) }).catch(() => null);
 
     return json(req, 200, { ok: true, indexed: true, chunks: parts.length });
   } catch (error) {
