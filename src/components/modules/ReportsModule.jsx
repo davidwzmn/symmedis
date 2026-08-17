@@ -65,13 +65,19 @@ export function ReportsModule({ kunde, rolle = 'kunde' }) {
   }
 
   const executiveDrucken = () => {
-    const popup = window.open('', '_blank', 'noopener,noreferrer')
+    const popup = window.open('', '_blank')
     if (!popup) {
       toast.show({ title: 'Pop-up blockiert', description: 'Bitte Pop-ups für SYMMEDIS erlauben und erneut exportieren.' })
       return
     }
-    popup.document.open(); popup.document.write(executiveHtml(kunde)); popup.document.close(); popup.focus()
-    window.setTimeout(() => popup.print(), 250)
+    try { popup.opener = null } catch { /* Browser kann opener schreibgeschützt behandeln. */ }
+    popup.document.open()
+    popup.document.write(executiveHtml(kunde))
+    popup.document.close()
+    popup.focus()
+    const printWhenReady = () => window.setTimeout(() => popup.print(), 120)
+    if (popup.document.readyState === 'complete') printWhenReady()
+    else popup.addEventListener('load', printWhenReady, { once: true })
   }
 
   const verfuegbar = kunde.berichte.filter((b) => !nurFreigegeben || b.stand === 'final')
