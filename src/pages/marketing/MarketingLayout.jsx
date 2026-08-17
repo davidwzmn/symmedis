@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/primitives.jsx'
 import { Modal } from '../../components/ui/overlays.jsx'
 import { Logo } from '../../components/brand/Logo.jsx'
 import { NAV, RECHTSTEXTE } from '../../content/marketing.js'
-import { IconCalendar, IconClose, IconMenu, IconMoon, IconSun } from '../../components/ui/Icons.jsx'
+import { IconArrowRight, IconCalendar, IconClose, IconMenu, IconMoon, IconSun } from '../../components/ui/Icons.jsx'
 
 export function MarketingLayout() {
   const [rechtstext, setRechtstext] = useState(null)
@@ -33,12 +33,15 @@ export function MarketingLayout() {
 
 function MobileTerminCta() {
   const { pathname } = useLocation()
-  if (pathname === '/termin') return null
+  if (pathname === '/termin' || pathname.startsWith('/demo')) return null
   return (
     <>
       <div aria-hidden="true" className="h-[4.75rem] lg:hidden" />
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 pt-2.5 backdrop-blur lg:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.625rem)' }}>
-        <Button as={Link} to="/termin" variant="cta" size="lg" fullWidth><IconCalendar className="size-4" />Diagnosegespräch anfragen</Button>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-3 pt-2.5 backdrop-blur lg:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.625rem)' }}>
+        <div className="mx-auto grid max-w-xl grid-cols-[0.88fr_1.12fr] gap-2">
+          <Button as={Link} to="/demo" variant="secondary" size="lg" fullWidth>Demo <IconArrowRight className="size-4" /></Button>
+          <Button as={Link} to="/termin" variant="cta" size="lg" fullWidth><IconCalendar className="size-4" />Gespräch anfragen</Button>
+        </div>
       </div>
     </>
   )
@@ -69,7 +72,7 @@ function Kopfzeile() {
         <div className="flex items-center gap-2">
           <button type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Zum hellen Modus wechseln' : 'Zum dunklen Modus wechseln'} aria-pressed={theme === 'dark'} className="inline-flex size-9 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-surface-muted hover:text-ink">{theme === 'dark' ? <IconSun className="size-[1.125rem]" /> : <IconMoon className="size-[1.125rem]" />}</button>
           <span className="hidden sm:inline-flex"><Button as={Link} to="/login" variant="ghost" size="sm">Anmelden</Button></span>
-          <span className="hidden xl:inline-flex"><Button as={Link} to="/demo" variant="secondary" size="sm" className="whitespace-nowrap">Plattform ansehen</Button></span>
+          <span className="hidden xl:inline-flex"><Button as={Link} to="/demo" variant="secondary" size="sm" className="whitespace-nowrap">Produktdemo</Button></span>
           <span className="hidden md:inline-flex"><Button as={Link} to="/termin" variant="cta" size="sm" className="whitespace-nowrap"><IconCalendar className="size-4" /><span className="xl:hidden">Gespräch anfragen</span><span className="hidden xl:inline">15-Minuten-Gespräch anfragen</span></Button></span>
           <button type="button" onClick={() => setOffen((o) => !o)} aria-expanded={offen} aria-label={offen ? 'Menü schließen' : 'Menü öffnen'} className="inline-flex size-9 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-muted lg:hidden">{offen ? <IconClose className="size-5" /> : <IconMenu className="size-5" />}</button>
         </div>
@@ -82,8 +85,8 @@ function Kopfzeile() {
               {NAV.map((eintrag) => <li key={eintrag.to}><NavLink to={eintrag.to} className={({ isActive }) => cn('block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', isActive ? 'bg-brand-soft text-brand-ink' : 'text-ink-2 hover:bg-surface-muted hover:text-ink')}>{eintrag.label}</NavLink></li>)}
             </ul>
             <div className="mt-3 grid gap-2 border-t border-line pt-3">
+              <Button as={Link} to="/demo" fullWidth>Interaktive Produktdemo <IconArrowRight className="size-4" /></Button>
               <Button as={Link} to="/termin" variant="cta" fullWidth><IconCalendar className="size-4" />15-Minuten-Gespräch anfragen</Button>
-              <Button as={Link} to="/demo" fullWidth>Plattform ansehen</Button>
               <Button as={Link} to="/login" variant="secondary" fullWidth>Anmelden</Button>
             </div>
           </nav>
