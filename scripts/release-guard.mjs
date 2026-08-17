@@ -26,6 +26,9 @@ async function walk(dir) {
 
 const sourceFiles = (await walk('src')).filter((path) => /\.(js|jsx|ts|tsx)$/.test(path))
 const source = await Promise.all(sourceFiles.map(async (path) => [path, await text(path)]))
+const migrationFiles = (await walk('supabase/migrations')).filter((path) => path.endsWith('.sql'))
+const migrations = await Promise.all(migrationFiles.map(async (path) => [path, await text(path)]))
+const migrationCorpus = migrations.map(([, content]) => content).join('\n\n')
 
 // Browser code must never contain privileged Supabase credentials or server-only secrets.
 const forbiddenBrowserPatterns = [
@@ -89,15 +92,51 @@ if (/VITE_[A-Z0-9_]*(SECRET|SERVICE_ROLE|ANTHROPIC_API_KEY)/.test(envExample)) {
   fail('.env.example: Server-Secrets dürfen nicht mit VITE_ veröffentlicht werden.')
 }
 
+// Critical database invariants must remain versioned in migrations.
+const requiredMigrationGuards = [
+  ['guard_customer_task_update()', 'Kunden dürfen nur den Aufgabenstatus ändern'],
+  ["if profile_role = 'kunde'", 'Customer-Task-Guard muss rollenabhängig bleiben'],
+  ['guard_customer_document_registration()', 'Kunden-Uploads müssen serverseitig registriert werden'],
+  ["v_profile.role <> 'kunde'", 'Dokument-Guard muss Kundenzugänge separat behandeln'],
+  ['snapshot_final_report()', 'Finale Reports müssen unveränderlich versioniert werden'],
+  ["'report.version_published'", 'Finale Report-Freigaben müssen auditierbar bleiben'],
+  ['report_versions_read', 'Report-Versionen brauchen expliziten Lesezugriff per RLS'],
+  ["report_versions.state = 'final'", 'Kunden dürfen nur finale Report-Versionen sehen'],
+  ['symmedis_project_files_insert', 'Projektdateien brauchen tenantgebundene Storage-Insert-Policy'],
+  ['symmedis_project_files_delete_unregistered_customer', 'Customer-Rollback darf nur unregistrierte eigene Uploads löschen'],
+  ['revoke all privileges on all tables in schema public from anon', 'Anon darf keine direkten fachlichen Tabellenrechte erhalten'],
+  ['revoke truncate, references, trigger on all tables in schema public from authenticated', 'Authenticated darf keine DDL-nahen Tabellenrechte erhalten'],
+]
+for (const [signature, label] of requiredMigrationGuards) {
+  if (!migrationCorpus.includes(signature)) fail(`Datenintegrität: ${label} – erwartete Migration-Signatur fehlt: ${signature}`)
+}
+
+// Report versions are append-only snapshots: repo migrations must never grant browser DML on them.
+const dangerousReportVersionGrant = /grant\s+(?:all|insert|update|delete|truncate)(?:\s+privileges)?\s+on\s+(?:table\s+)?public\.report_versions\s+to\s+(?:anon|authenticated)/i
+if (dangerousReportVersionGrant.test(migrationCorpus)) {
+  fail('Datenintegrität: report_versions darf keine Browser-Schreibrechte erhalten.')
+}
+
+// Security-definer functions must not be left callable by PUBLIC when they protect privileged writes.
+for (const fn of ['snapshot_final_report()', 'guard_customer_document_registration()']) {
+  const revokePattern = new RegExp(`revoke\\s+all\\s+on\\s+function\\s+(?:private\\.)?${fn.replace(/[()]/g, '\\$&')}\\s+from\\s+[^;]*public`, 'i')
+  if (!revokePattern.test(migrationCorpus)) {
+    fail(`Datenintegrität: privilegierte Funktion ${fn} muss explizit von PUBLIC entzogen sein.`)
+  }
+}
+
 if (failures.length) {
   console.error('\nSYMMEDIS Release Guard: FEHLGESCHLAGEN\n')
   failures.forEach((message) => console.error(`- ${message}`))
   process.exit(1)
 }
 
-console.log(`SYMMEDIS Release Guard: OK (${sourceFiles.length} Browser-Quelldateien geprüft)`)
+console.log(`SYMMEDIS Release Guard: OK (${sourceFiles.length} Browser-Quelldateien, ${migrationFiles.length} Migrationen geprüft)`)
 console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in')
 console.log('✓ Demo-, Kunden- und Staff-Routen bleiben getrennt')
 console.log('✓ Öffentliche Indexierung bleibt explizites Opt-in')
+console.log('✓ Customer-Task- und Dokument-Guards bleiben versioniert')
+console.log('✓ Report-Versionierung und Audit bleiben geschützt')
+console.log('✓ Storage-Tenantgrenzen und Least-Privilege-Grants bleiben versioniert')
