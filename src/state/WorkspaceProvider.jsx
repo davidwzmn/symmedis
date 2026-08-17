@@ -84,10 +84,23 @@ export function WorkspaceProvider({ children }) {
     setKunden((liste) => liste.map((k) => (k.id === kundeId ? updater(k) : k)))
   }, [])
 
-  const setAufgabeStatus = useCallback((kundeId, aufgabeId, status) => {
-    patchKunde(kundeId, (kunde) => ({ ...kunde, aufgaben: kunde.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status } : a)) }))
-    if (echteAuthentifizierung && accessToken) persistiere(persistTaskStatus(accessToken, aufgabeId, status))
-  }, [accessToken, echteAuthentifizierung, patchKunde, persistiere])
+  const setAufgabeStatus = useCallback(async (kundeId, aufgabeId, status) => {
+    const kunde = getKunde(kundeId)
+    const vorher = kunde?.aufgaben.find((a) => a.id === aufgabeId)?.status
+    patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status } : a)) }))
+
+    if (echteAuthentifizierung && accessToken) {
+      try {
+        await persistTaskStatus(accessToken, aufgabeId, status)
+      } catch (error) {
+        if (vorher) {
+          patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status: vorher } : a)) }))
+        }
+        throw error
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde])
 
   const setAnalyseFeld = useCallback((kundeId, kategorieId, patch) => {
     const kunde = getKunde(kundeId)
@@ -113,12 +126,21 @@ export function WorkspaceProvider({ children }) {
     return aenderungen.length
   }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere])
 
-  const addNachricht = useCallback((kundeId, nachricht) => {
+  const addNachricht = useCallback(async (kundeId, nachricht) => {
     const kunde = getKunde(kundeId)
     const local = { id: naechsteId('msg'), zeit: jetztIso(), ...nachricht }
     patchKunde(kundeId, (entry) => ({ ...entry, chat: [...entry.chat, local] }))
-    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) persistiere(persistMessage(accessToken, kunde.projectId, session.userId, nachricht))
-  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, persistiere, session?.userId])
+
+    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) {
+      try {
+        await persistMessage(accessToken, kunde.projectId, session.userId, nachricht)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, chat: entry.chat.filter((item) => item.id !== local.id) }))
+        throw error
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, session?.userId])
 
   const addNotiz = useCallback((kundeId, text, autor) => {
     const kunde = getKunde(kundeId)
