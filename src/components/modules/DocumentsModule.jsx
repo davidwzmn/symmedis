@@ -20,6 +20,8 @@ import {
 } from '../ui/Icons.jsx'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+const MAX_OFFICE_INDEX_BYTES = 25 * 1024 * 1024
+const OFFICE_ENDUNGEN = new Set(['docx', 'xlsx', 'pptx'])
 const ERLAUBTE_ENDUNGEN = new Set(['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg'])
 const ENDUNG_TYP = {
   pdf: 'pdf', docx: 'docx', xlsx: 'xlsx', csv: 'xlsx',
@@ -35,6 +37,15 @@ const INDEX_STATUS = {
 
 function dateiEndung(datei) {
   return datei.name.split('.').pop()?.toLowerCase() ?? ''
+}
+
+function uploadFehler(datei) {
+  const endung = dateiEndung(datei)
+  if (!ERLAUBTE_ENDUNGEN.has(endung)) return 'format'
+  if (datei.size === 0) return 'leer'
+  if (datei.size > MAX_UPLOAD_BYTES) return 'upload-groesse'
+  if (OFFICE_ENDUNGEN.has(endung) && datei.size > MAX_OFFICE_INDEX_BYTES) return 'office-groesse'
+  return null
 }
 
 function indexStatus(dokument) {
@@ -76,13 +87,18 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
     const files = Array.from(dateien)
     if (!files.length || uploading) return
 
-    const ungueltig = files.filter((datei) => !ERLAUBTE_ENDUNGEN.has(dateiEndung(datei)) || datei.size > MAX_UPLOAD_BYTES || datei.size === 0)
-    const gueltig = files.filter((datei) => !ungueltig.includes(datei))
+    const abgelehnt = files.map((datei) => ({ datei, grund: uploadFehler(datei) })).filter((item) => item.grund)
+    const gueltig = files.filter((datei) => !uploadFehler(datei))
 
-    if (ungueltig.length) {
+    if (abgelehnt.length) {
+      const officeZuGross = abgelehnt.filter((item) => item.grund === 'office-groesse').length
+      const sonstige = abgelehnt.length - officeZuGross
+      const hinweise = []
+      if (officeZuGross) hinweise.push(`${officeZuGross} Office-Datei${officeZuGross > 1 ? 'en' : ''} überschreitet ${officeZuGross > 1 ? 'überschreiten' : 'überschreitet'} die 25-MB-Grenze für die kostenlose lokale Indexierung.`)
+      if (sonstige) hinweise.push(`${sonstige} Datei${sonstige > 1 ? 'en entsprechen' : ' entspricht'} nicht den unterstützten Upload-Regeln.`)
       toast.show({
-        title: `${ungueltig.length} Datei${ungueltig.length > 1 ? 'en' : ''} nicht übernommen`,
-        description: 'Erlaubt sind PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG und JPG mit maximal 50 MB pro Datei. Leere Dateien werden nicht hochgeladen.',
+        title: `${abgelehnt.length} Datei${abgelehnt.length > 1 ? 'en' : ''} nicht übernommen`,
+        description: `${hinweise.join(' ')} Unterstützt: PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG und JPG. Allgemeines Upload-Limit: 50 MB. DOCX/XLSX/PPTX: 25 MB, damit die Evidenzsuche zuverlässig funktioniert.`,
         variant: gueltig.length ? 'warning' : 'danger',
       })
     }
@@ -178,6 +194,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
       const rows = await searchProjectEvidence(accessToken, kunde.projectId, query, 8)
       setEvidenceResults(rows || [])
     } catch (error) {
+      setEvidenceResults([])
       toast.show({ title: 'Evidenzsuche fehlgeschlagen', description: error instanceof Error ? error.message : 'Suche konnte nicht ausgeführt werden.', variant: 'danger' })
     } finally {
       setEvidenceLoading(false)
@@ -229,12 +246,12 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
       {rolle === 'intern' && echteDaten ? (
         <Card>
           <CardHeader title="Frag SYMMEDIS" subtitle="Projektweite Evidenzsuche über Analyse-Findings und indexiertes Kundenwissen" icon={IconShield} />
-          <CardBody className="space-y-4">
+          <CardBody className="space-y-4" aria-busy={evidenceLoading}>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <SearchInput value={evidenceQuery} onChange={(event) => setEvidenceQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') evidenceSuchen() }} placeholder="z. B. Warum ist die Conversion schwach?" label="Projektwissen durchsuchen" className="flex-1" />
+              <SearchInput value={evidenceQuery} onChange={(event) => { const value = event.target.value; setEvidenceQuery(value); if (value.trim().length < 2) setEvidenceResults([]) }} onKeyDown={(event) => { if (event.key === 'Enter') evidenceSuchen() }} placeholder="z. B. Warum ist die Conversion schwach?" label="Projektwissen durchsuchen" className="flex-1" />
               <Button onClick={evidenceSuchen} disabled={evidenceLoading || evidenceQuery.trim().length < 2}>{evidenceLoading ? 'Suche …' : 'Evidenz suchen'}</Button>
             </div>
-            {evidenceResults.length ? (
+            {evidenceLoading ? <p className="text-xs text-ink-3" role="status" aria-live="polite">Projektwissen wird durchsucht …</p> : evidenceResults.length ? (
               <div className="space-y-2">
                 {evidenceResults.map((result) => (
                   <div key={`${result.source_type}-${result.source_id}`} className="rounded-lg border border-line bg-surface-muted p-3">
@@ -243,7 +260,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
                   </div>
                 ))}
               </div>
-            ) : evidenceQuery.trim().length >= 2 && !evidenceLoading ? <p className="text-xs text-ink-3">Noch keine Treffer. Findings werden sofort durchsucht; Dokument-Inhalte erscheinen nach Indexierung als zusätzliche Knowledge-Quellen.</p> : <p className="text-xs text-ink-3">Die Suche respektiert dieselbe Projekt-/Tenant-RLS wie der restliche Workspace und kann keine fremden Kundendaten lesen.</p>}
+            ) : evidenceQuery.trim().length >= 2 ? <p className="text-xs text-ink-3">Keine Treffer für diese Suche. Findings werden sofort durchsucht; Dokument-Inhalte erscheinen nach Indexierung als zusätzliche Knowledge-Quellen.</p> : <p className="text-xs text-ink-3">Die Suche respektiert dieselbe Projekt-/Tenant-RLS wie der restliche Workspace und kann keine fremden Kundendaten lesen.</p>}
           </CardBody>
         </Card>
       ) : null}
@@ -251,11 +268,11 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
       {hochladen ? (
         <Card>
           <CardBody>
-            <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (event.dataTransfer.files.length) hochladenDateien(event.dataTransfer.files) }} className="flex flex-col items-center rounded-lg border border-dashed border-line-strong px-6 py-8 text-center">
+            <div aria-busy={uploading} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (!uploading && event.dataTransfer.files.length) hochladenDateien(event.dataTransfer.files) }} className="flex flex-col items-center rounded-lg border border-dashed border-line-strong px-6 py-8 text-center">
               <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><IconUpload className="size-5" /></span>
               <p className="mt-3 text-sm font-semibold text-ink">Unterlagen hinzufügen</p>
-              <p className="mt-1 max-w-lg text-[0.8125rem] leading-relaxed text-ink-2">PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG oder JPG · maximal 50 MB pro Datei.</p>
-              {echteDaten ? <p className="mt-2 max-w-lg text-xs leading-relaxed text-ink-3">DOCX, XLSX, PPTX, CSV und TXT werden ohne bezahlte KI für die Evidenzsuche aufbereitet. Bilder bleiben sichere Ablage; PDFs warten auf den kontrollierten internen Extraktionsschritt.</p> : null}
+              <p className="mt-1 max-w-lg text-[0.8125rem] leading-relaxed text-ink-2">PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG oder JPG · allgemein maximal 50 MB pro Datei.</p>
+              {echteDaten ? <p className="mt-2 max-w-xl text-xs leading-relaxed text-ink-3"><strong className="font-semibold text-ink-2">Für die kostenlose Evidenzsuche:</strong> DOCX, XLSX und PPTX maximal 25 MB. CSV und TXT werden lokal aufbereitet. Bilder bleiben sichere Ablage; PDFs warten auf den kontrollierten internen Extraktionsschritt.</p> : null}
               {rolle === 'intern' && echteDaten ? <p className="mt-2 text-xs font-medium text-ink-3">Neue SYMMEDIS-Uploads sind zunächst intern.</p> : null}
               <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.png,.jpg,.jpeg" className="sr-only" onChange={(event) => { if (event.target.files?.length) hochladenDateien(event.target.files); event.target.value = '' }} />
               <Button className="mt-4" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>{uploading ? 'Upload läuft …' : 'Dateien auswählen'}</Button>
@@ -280,7 +297,7 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
         <div className="border-t border-line">
           <DataTable
             caption="Dokumente des Projekts" columns={spalten} rows={gefiltert} getKey={(d) => d.id}
-            empty={<EmptyState icon={IconFolder} title="Keine Dokumente in dieser Auswahl" description="Setzen Sie den Filter zurück oder laden Sie Unterlagen hoch." />}
+            empty={<EmptyState icon={IconFolder} title="Keine Dokumente in dieser Auswahl" description="Setzen Sie den Filter zurück oder laden Sie Unterlagen hoch." action={(filter !== 'alle' || suche) ? <Button variant="secondary" size="sm" onClick={() => { setFilter('alle'); setSuche('') }}>Filter zurücksetzen</Button> : undefined} />}
             renderCard={(d) => {
               const state = indexStatus(d)
               return (
