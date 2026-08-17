@@ -8,7 +8,7 @@ import { fetchTeamDirectory } from '../../lib/workspaceApi.js'
 import { formatDate, formatNumber } from '../../lib/format.js'
 import { FREIGABE, scoreStufe } from '../../lib/tone.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
-import { Card, CardBody, CardHeader, PageHeader, MetricCard } from '../../components/ui/layout.jsx'
+import { Card, CardBody, CardHeader, PageHeader, MetricCard, EmptyState } from '../../components/ui/layout.jsx'
 import { Tabs, KeyValueList, ProgressBar } from '../../components/ui/data.jsx'
 import { Breadcrumb } from '../../components/shell/Topbar.jsx'
 import { AnalysisModule, BremsenCards } from '../../components/modules/AnalysisModule.jsx'
@@ -46,6 +46,11 @@ const TABS = [
   { id: 'verlauf', label: 'Verlauf', icon: IconHistory },
 ]
 
+function sichererScore(value) {
+  const zahl = Number(value)
+  return Number.isFinite(zahl) ? Math.max(0, Math.min(100, zahl)) : null
+}
+
 export function ClientDetail() {
   const { kundeId } = useParams()
   const { getKunde, freigebenAlle, addAktivitaet } = useWorkspace()
@@ -67,10 +72,11 @@ export function ClientDetail() {
   const kunde = getKunde(kundeId)
   if (!kunde) return <Navigate to="/intern/kunden" replace />
 
-  const status = PROJEKT_STATUS[kunde.status] || PROJEKT_STATUS.onboarding
+  const status = PROJEKT_STATUS[kunde.status] || { label: 'Projekt aktiv', tone: 'neutral' }
   const liveBetreuer = team.find((member) => member.id === kunde.betreuerId)?.name
   const betreuer = liveBetreuer || TEAM_MAP[kunde.betreuerId]?.name || 'Nicht zugewiesen'
   const offeneFreigaben = kunde.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length
+  const reifegrad = kunde.analyse.length ? sichererScore(kunde.gesamtScore) : null
 
   const alleFreigeben = async () => {
     if (freigabeSaving || offeneFreigaben === 0) return
@@ -82,8 +88,27 @@ export function ClientDetail() {
         toast.show({ title: 'Freigabe nicht gespeichert', description: 'Die Analysepunkte bleiben im vorherigen Freigabestatus. Bitte erneut versuchen.', variant: 'danger' })
         return
       }
-      addAktivitaet(kunde.id, { titel: `${anzahl} Analysepunkte für den Kunden freigegeben`, actor: 'SYMMEDIS', tone: 'ok' })
-      toast.show({ title: `${anzahl} Punkte freigegeben`, description: anzahl === erwartet ? 'Sie sind jetzt im Kundenportal sichtbar.' : `${anzahl} von ${erwartet} offenen Punkten wurden freigegeben.`, variant: 'success' })
+
+      const auditGespeichert = await addAktivitaet(kunde.id, {
+        titel: `${anzahl} Analysepunkte für den Kunden freigegeben`,
+        actor: 'SYMMEDIS',
+        tone: 'ok',
+      })
+
+      if (auditGespeichert === false) {
+        toast.show({
+          title: `${anzahl} Punkte freigegeben`,
+          description: 'Die Freigabe wurde gespeichert, der zusätzliche Aktivitätseintrag jedoch nicht. Der Freigabestatus ist maßgeblich.',
+          variant: 'info',
+        })
+        return
+      }
+
+      toast.show({
+        title: `${anzahl} Punkte freigegeben`,
+        description: anzahl === erwartet ? 'Sie sind jetzt im Kundenportal sichtbar und im Verlauf dokumentiert.' : `${anzahl} von ${erwartet} offenen Punkten wurden freigegeben und dokumentiert.`,
+        variant: 'success',
+      })
     } catch (error) {
       toast.show({ title: 'Freigabe fehlgeschlagen', description: error instanceof Error ? error.message : 'Die Analysepunkte konnten nicht freigegeben werden.', variant: 'danger' })
     } finally {
@@ -93,18 +118,18 @@ export function ClientDetail() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ label: 'Kunden', to: '/intern/kunden' }, { label: kunde.unternehmen }]} />
+      <Breadcrumb items={[{ label: 'Kunden', to: '/intern/kunden' }, { label: kunde.unternehmen || 'Kundenakte' }]} />
       <PageHeader
-        title={kunde.unternehmen}
+        title={kunde.unternehmen || 'Unbenannter Kunde'}
         subtitle={`${kunde.branche || 'Branche offen'} · ${kunde.ort || 'Ort offen'} · ${formatNumber(kunde.mitarbeitende || 0)} Mitarbeitende · Betreuung ${betreuer}`}
         meta={<>
           <Chip toneName={status.tone} dot>{status.label}</Chip>
-          <Chip toneName={scoreStufe(kunde.gesamtScore).tone}>Reifegrad {kunde.gesamtScore}</Chip>
+          {reifegrad === null ? <Chip toneName="neutral">Noch nicht bewertet</Chip> : <Chip toneName={scoreStufe(reifegrad).tone}>Reifegrad {reifegrad}</Chip>}
           {offeneFreigaben > 0 ? <Chip toneName="warn" icon={IconShield}>{offeneFreigaben} Freigaben offen</Chip> : kunde.analyse.length > 0 ? <Chip toneName="ok" icon={IconShield}>Keine geprüften Freigaben offen</Chip> : <Chip toneName="neutral" icon={IconShield}>Analyse noch nicht gestartet</Chip>}
         </>}
         actions={<>
           <Button as={Link} to="/intern/freigaben" variant="secondary" size="sm">Freigabezentrum</Button>
-          <Button size="sm" onClick={alleFreigeben} disabled={offeneFreigaben === 0 || freigabeSaving} aria-busy={freigabeSaving}><IconShield className="size-4" />{freigabeSaving ? 'Freigabe läuft …' : 'Geprüfte Punkte freigeben'}</Button>
+          <Button size="sm" onClick={alleFreigeben} disabled={offeneFreigaben === 0 || freigabeSaving} aria-busy={freigabeSaving || undefined}><IconShield className="size-4" />{freigabeSaving ? 'Freigabe läuft …' : 'Geprüfte Punkte freigeben'}</Button>
         </>}
       />
 
@@ -130,14 +155,17 @@ function Ueberblick({ kunde }) {
   const freigegeben = kunde.analyse.filter((a) => a.sichtbarKunde).length
   const offeneAufgaben = kunde.aufgaben.filter((a) => a.status !== 'erledigt').length
   const freigabeProzent = kunde.analyse.length ? (freigegeben / kunde.analyse.length) * 100 : 0
+  const reifegrad = kunde.analyse.length ? sichererScore(kunde.gesamtScore) : null
+  const socialWert = kunde.social?.plattformen?.length ? sichererScore(kunde.social.gesamt) : null
+  const verbundeneKanaele = Array.isArray(kunde.social?.plattformen) ? kunde.social.plattformen.filter((p) => p.verbunden).length : 0
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Gesamtreifegrad" value={kunde.gesamtScore} unit="/ 100" icon={IconTarget} toneName={scoreStufe(kunde.gesamtScore).tone} hint={kunde.analyse.length ? scoreStufe(kunde.gesamtScore).label : 'Noch nicht analysiert'} />
-        <MetricCard label="Für Kunden freigegeben" value={`${freigegeben}/${kunde.analyse.length}`} icon={IconShield} toneName={kunde.analyse.length > 0 && freigegeben === kunde.analyse.length ? 'ok' : 'warn'} hint="Analysedimensionen" footer={<ProgressBar value={freigabeProzent} size="sm" hideLabel label="Freigabefortschritt" />} />
-        <MetricCard label="Offene Aufgaben" value={offeneAufgaben} icon={IconCheckSquare} toneName={offeneAufgaben > 5 ? 'warn' : 'neutral'} hint={`${kunde.aufgaben.length} insgesamt`} />
-        <MetricCard label="Social-Reife" value={kunde.social.gesamt} unit="/ 100" icon={IconShare} toneName={scoreStufe(kunde.social.gesamt).tone} hint={`${kunde.social.plattformen.filter((p) => p.verbunden).length} Kanäle ausgewertet`} />
+        <MetricCard label="Gesamtreifegrad" value={reifegrad === null ? '–' : reifegrad} unit={reifegrad === null ? undefined : '/ 100'} icon={IconTarget} toneName={reifegrad === null ? 'neutral' : scoreStufe(reifegrad).tone} hint={reifegrad === null ? 'Noch nicht analysiert' : scoreStufe(reifegrad).label} />
+        <MetricCard label="Für Kunden freigegeben" value={`${freigegeben}/${kunde.analyse.length}`} icon={IconShield} toneName={kunde.analyse.length > 0 && freigegeben === kunde.analyse.length ? 'ok' : kunde.analyse.length ? 'warn' : 'neutral'} hint={kunde.analyse.length ? 'Analysedimensionen' : 'Noch keine Analysepunkte'} footer={<ProgressBar value={freigabeProzent} size="sm" hideLabel label="Freigabefortschritt" />} />
+        <MetricCard label="Offene Aufgaben" value={offeneAufgaben} icon={IconCheckSquare} toneName={offeneAufgaben > 5 ? 'warn' : 'neutral'} hint={kunde.aufgaben.length ? `${kunde.aufgaben.length} insgesamt` : 'Noch keine Maßnahmen'} />
+        <MetricCard label="Social-Reife" value={socialWert === null ? '–' : socialWert} unit={socialWert === null ? undefined : '/ 100'} icon={IconShare} toneName={socialWert === null ? 'neutral' : scoreStufe(socialWert).tone} hint={socialWert === null ? 'Noch keine Kanaldaten' : `${verbundeneKanaele} Kanäle ausgewertet`} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -146,10 +174,10 @@ function Ueberblick({ kunde }) {
           <Card>
             <CardHeader title="Freigabestand je Dimension" subtitle="Automatisch vorgeschlagen → in Prüfung → bearbeitet → intern → Kunde" icon={IconShield} />
             <CardBody className="space-y-2.5">
-              {Object.entries(FREIGABE).map(([key, wert]) => {
+              {kunde.analyse.length ? Object.entries(FREIGABE).map(([key, wert]) => {
                 const anzahl = kunde.analyse.filter((a) => a.freigabe === key).length
                 return <div key={key} className="flex items-center justify-between gap-3"><Chip size="sm" toneName={wert.tone}>{wert.label}</Chip><span className="tabular text-[0.8125rem] font-semibold text-ink">{anzahl}</span></div>
-              })}
+              }) : <EmptyState compact icon={IconShield} title="Noch keine Analysepunkte" description="Der Freigabepfad wird sichtbar, sobald erste Analyseergebnisse vorliegen." />}
             </CardBody>
           </Card>
         </div>
