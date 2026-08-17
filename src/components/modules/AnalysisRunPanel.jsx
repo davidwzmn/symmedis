@@ -8,6 +8,8 @@ import { Card, CardBody, CardHeader, Banner } from '../ui/layout.jsx'
 import { Textarea } from '../ui/forms.jsx'
 import { IconDocument, IconShield, IconSparkles } from '../ui/Icons.jsx'
 
+const paidAiEnabled = import.meta.env.VITE_AI_ENABLED === 'true'
+
 export function AnalysisRunPanel({ kunde }) {
   const { accessToken } = useSession()
   const { echteDaten, neuLaden } = useWorkspace()
@@ -19,6 +21,15 @@ export function AnalysisRunPanel({ kunde }) {
   if (!echteDaten) return null
 
   const start = async () => {
+    if (!paidAiEnabled) {
+      toast.show({
+        title: 'KI-Kosten sind gesperrt',
+        description: 'Bezahlte Analyse-Runs sind für die Aufbauphase deaktiviert. Sie werden erst für den finalen E2E-Test bewusst freigeschaltet.',
+        variant: 'info',
+      })
+      return
+    }
+
     setRunning(true)
     setError(null)
     try {
@@ -44,11 +55,13 @@ export function AnalysisRunPanel({ kunde }) {
         title="SYMMEDIS Analyse-Engine"
         subtitle="Evidenzbasierter Entwurf · niemals automatische Kundenfreigabe"
         icon={IconSparkles}
-        action={<Chip toneName="brand" size="sm">Human-in-the-loop</Chip>}
+        action={<Chip toneName={paidAiEnabled ? 'brand' : 'neutral'} size="sm">{paidAiEnabled ? 'Human-in-the-loop' : 'KI-Kosten gesperrt'}</Chip>}
       />
       <CardBody className="space-y-4">
-        <Banner toneName="info" icon={IconShield} title="Kontrollierter Analyse-Run">
-          Die Engine verarbeitet freigegebene Projektquellen, erzeugt zehn strukturierte Findings und markiert unsichere Aussagen mit niedriger Confidence. Erst die Prüfung durch das SYMMEDIS-Team kann Inhalte für Kunden sichtbar machen.
+        <Banner toneName={paidAiEnabled ? 'info' : 'warning'} icon={IconShield} title={paidAiEnabled ? 'Kontrollierter Analyse-Run' : 'Kosten-Schutz aktiv'}>
+          {paidAiEnabled
+            ? 'Die Engine verarbeitet freigegebene Projektquellen, erzeugt zehn strukturierte Findings und markiert unsichere Aussagen mit niedriger Confidence. Erst die Prüfung durch das SYMMEDIS-Team kann Inhalte für Kunden sichtbar machen.'
+            : 'Bezahlte KI-Aufrufe sind in dieser Umgebung bewusst deaktiviert. Alle Produkt-, Auth-, Storage-, RLS-, Reporting- und Planungsfunktionen können ohne Anthropic-Kosten getestet werden.'}
         </Banner>
         <div className="flex flex-wrap gap-2 text-xs text-ink-2">
           <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2.5 py-1.5">
@@ -68,10 +81,10 @@ export function AnalysisRunPanel({ kunde }) {
         />
         {error ? <p className="text-sm text-danger-ink">{error}</p> : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-ink-3">PDF, TXT und CSV werden aktuell direkt als Analysequelle gelesen; weitere Formate bleiben als Projektkontext sichtbar.</p>
-          <Button onClick={start} disabled={running || !kunde.projectId}>
+          <p className="text-xs text-ink-3">TXT und CSV können kostenlos indexiert werden. PDF-KI-Extraktion und Analyse-Runs bleiben bis zur finalen Freigabe gesperrt.</p>
+          <Button onClick={start} disabled={running || !kunde.projectId || !paidAiEnabled}>
             <IconSparkles className="size-4" />
-            {running ? 'Analyse läuft …' : kunde.analyse.length ? 'Analyse neu ausführen' : 'Analyse starten'}
+            {running ? 'Analyse läuft …' : paidAiEnabled ? (kunde.analyse.length ? 'Analyse neu ausführen' : 'Analyse starten') : 'KI-Analyse gesperrt'}
           </Button>
         </div>
       </CardBody>
