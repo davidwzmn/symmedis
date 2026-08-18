@@ -97,6 +97,25 @@ jobs:
           render /termin /tmp/symmedis-browser-termin.html
           grep -q 'Bringen Sie die Wachstumsfrage' /tmp/symmedis-browser-termin.html
           grep -q 'Diagnosegespräch anfragen' /tmp/symmedis-browser-termin.html
+
+          render /login /tmp/symmedis-browser-login.html
+          grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-login.html
+          grep -q 'Kundenportal' /tmp/symmedis-browser-login.html
+          grep -q 'Mitarbeiterportal' /tmp/symmedis-browser-login.html
+
+          render /portal /tmp/symmedis-browser-portal.html
+          grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-portal.html
+          if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-portal.html; then
+            echo "Unauthenticated customer route exposed project content." >&2
+            exit 1
+          fi
+
+          render /intern /tmp/symmedis-browser-intern.html
+          grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-intern.html
+          if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-intern.html; then
+            echo "Unauthenticated staff route exposed project content." >&2
+            exit 1
+          fi
       - name: Build static hash version
         env:
           VITE_ROUTER: hash
