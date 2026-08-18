@@ -1,0 +1,152 @@
+import { spawn } from 'node:child_process'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const CHROME = process.env.CHROME_BIN || ''
+const BASE = (process.env.LIVE_BASE_URL || 'https://davidwzmn.github.io/symmedis/').replace(/\/$/, '')
+
+const scenarios = [
+  { name: 'home-light', hash: '#/', expected: ['Wachstum ist ein System'], theme: 'light' },
+  { name: 'home-dark', hash: '#/', expected: ['Wachstum ist ein System'], theme: 'dark' },
+  { name: 'demo', hash: '#/demo', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
+  { name: 'termin', hash: '#/termin', expected: ['Bringen Sie die Wachstumsfrage', 'Diagnosegespräch anfragen'], theme: 'light' },
+  { name: 'login', hash: '#/login', expected: ['Geschützter SYMMEDIS-Zugang', 'Kundenportal', 'Mitarbeiterportal'], theme: 'light' },
+]
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function waitFor(fn, timeoutMs = 20000) {
+  const start = Date.now()
+  let error
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const value = await fn()
+      if (value) return value
+    } catch (current) {
+      error = current
+    }
+    await sleep(250)
+  }
+  throw error || new Error(`Timeout nach ${timeoutMs} ms`)
+}
+
+class Cdp {
+  constructor(url) {
+    this.ws = new WebSocket(url)
+    this.id = 1
+    this.pending = new Map()
+    this.ws.addEventListener('message', (event) => {
+      const message = JSON.parse(String(event.data))
+      if (!message.id || !this.pending.has(message.id)) return
+      const pending = this.pending.get(message.id)
+      this.pending.delete(message.id)
+      if (message.error) pending.reject(new Error(message.error.message || 'CDP-Fehler'))
+      else pending.resolve(message.result)
+    })
+  }
+
+  async ready() {
+    if (this.ws.readyState === WebSocket.OPEN) return
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('DevTools-WebSocket nicht geöffnet.')), 10000)
+      this.ws.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
+      this.ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('DevTools-WebSocket-Fehler.')) }, { once: true })
+    })
+  }
+
+  send(method, params = {}) {
+    const id = this.id++
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject })
+      this.ws.send(JSON.stringify({ id, method, params }))
+    })
+  }
+
+  async evaluate(expression) {
+    const result = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'Browser-Auswertung fehlgeschlagen.')
+    return result.result?.value
+  }
+
+  close() { this.ws.close() }
+}
+
+async function pageSocket(port) {
+  return waitFor(async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/json`)
+    if (!response.ok) return null
+    const targets = await response.json()
+    return targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl || null
+  }, 12000)
+}
+
+async function runScenario(scenario, index) {
+  const port = 9340 + index
+  const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-`))
+  const targetUrl = `${BASE}/${scenario.hash}?smoke=${Date.now()}`
+  const chrome = spawn(CHROME, [
+    '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
+    '--window-size=390,844', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+    targetUrl,
+  ], { stdio: ['ignore', 'ignore', 'pipe'] })
+
+  let stderr = ''
+  chrome.stderr.on('data', (chunk) => { stderr += String(chunk) })
+
+  try {
+    const socket = await pageSocket(port)
+    const cdp = new Cdp(socket)
+    await cdp.ready()
+    await cdp.send('Runtime.enable')
+    await cdp.send('Page.enable')
+
+    await waitFor(() => cdp.evaluate(`document.readyState === 'complete' && Boolean(document.querySelector('#root'))`))
+    await cdp.evaluate(`localStorage.setItem('symmedis-theme', ${JSON.stringify(scenario.theme)}); location.reload(); true`)
+
+    const state = await waitFor(async () => {
+      const value = await cdp.evaluate(`(async () => {
+        if (document.fonts?.ready) await document.fonts.ready;
+        return {
+          ready: document.readyState,
+          body: document.body?.innerText || '',
+          root: Boolean(document.querySelector('#root')),
+          dark: document.documentElement.classList.contains('dark'),
+          width: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          href: location.href
+        };
+      })()`)
+      if (!value.root || value.ready !== 'complete') return null
+      if (value.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Error Boundary sichtbar.`)
+      return scenario.expected.every((text) => value.body.includes(text)) ? value : null
+    }, 25000)
+
+    if ((scenario.theme === 'dark') !== state.dark) throw new Error(`${scenario.name}: Theme ${scenario.theme} wurde nicht aktiv.`)
+    if (state.scrollWidth > state.width + 2) {
+      const offenders = await cdp.evaluate(`[...document.querySelectorAll('body *')].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { tag: el.tagName, cls: String(el.className || '').slice(0, 120), text: (el.textContent || '').trim().slice(0, 80), left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) };
+      }).filter((x) => x.width > 0 && (x.left < -2 || x.right > innerWidth + 2)).slice(0, 8)`)
+      throw new Error(`${scenario.name}: horizontaler Mobile-Overflow ${state.scrollWidth}px > ${state.width}px. Kandidaten: ${JSON.stringify(offenders)}`)
+    }
+    if (state.body.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
+
+    console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}`)
+    cdp.close()
+  } finally {
+    chrome.kill('SIGTERM')
+    await sleep(200)
+    await rm(profile, { recursive: true, force: true })
+    if (chrome.exitCode && chrome.exitCode !== 0 && stderr) console.error(stderr.slice(-1500))
+  }
+}
+
+if (!CHROME) {
+  console.error('CHROME_BIN fehlt.')
+  process.exit(1)
+}
+
+for (let index = 0; index < scenarios.length; index += 1) {
+  await runScenario(scenarios[index], index)
+}
