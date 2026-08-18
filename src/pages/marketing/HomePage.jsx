@@ -68,35 +68,35 @@ export function HomePage() {
 
         <div className="shell-container relative py-16 sm:py-20 lg:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 xl:gap-20">
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white/85 backdrop-blur">
-                  <IconSparkles className="size-3.5 text-emerald-200" /> SYMMEDIS Diagnosis OS
+                  <IconSparkles className="size-3.5 shrink-0 text-emerald-200" /> SYMMEDIS Diagnosis OS
                 </span>
-                <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/40">Strategic Growth Intelligence</span>
+                <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/50">Strategic Growth Intelligence</span>
               </div>
 
-              <p className="mt-8 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200/80">{HERO.eyebrow}</p>
-              <h1 className="mt-4 max-w-3xl text-[2.65rem] font-semibold leading-[0.99] tracking-[-0.045em] text-white sm:text-[3.65rem] lg:text-[4.25rem]">
+              <p className="mt-8 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200/90">{HERO.eyebrow}</p>
+              <h1 className="mt-4 max-w-3xl text-[2.45rem] font-semibold leading-[1.01] tracking-[-0.045em] text-white min-[380px]:text-[2.65rem] sm:text-[3.65rem] lg:text-[4.25rem]">
                 Wachstum ist ein System. Wir zeigen, wo es bricht.
               </h1>
-              <p className="mt-6 max-w-2xl text-[1rem] leading-7 text-white/68 sm:text-[1.08rem]">
+              <p className="mt-6 max-w-2xl text-[1rem] leading-7 text-white/75 sm:text-[1.08rem]">
                 SYMMEDIS verbindet strategische Ursachenanalyse, Evidenz, menschliche Freigabe und Umsetzung in einem Diagnosis OS – damit Sie nicht mehr Budget auf Symptome werfen.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Button as={Link} to="/termin" size="lg" className="border-white bg-white text-[#07101d] hover:bg-white/90">
-                  <IconCalendar className="size-4" /> 15-Minuten-Diagnosegespräch
+                  <IconCalendar className="size-4 shrink-0" /> 15-Minuten-Diagnosegespräch
                 </Button>
                 <Button as={Link} to="/demo" size="lg" className="border border-white/20 bg-white/[0.04] text-white hover:bg-white/[0.09]">
-                  Diagnosis OS ansehen <IconArrowRight className="size-4" />
+                  Diagnosis OS ansehen <IconArrowRight className="size-4 shrink-0" />
                 </Button>
               </div>
 
               <div className="mt-8 grid max-w-xl gap-2 sm:grid-cols-2">
                 {PROOF.map((item) => (
-                  <div key={item} className="flex items-start gap-2 text-[0.75rem] leading-relaxed text-white/55">
-                    <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-300/10 text-emerald-200"><IconCheck className="size-3" /></span>
+                  <div key={item} className="flex items-start gap-2 text-[0.75rem] leading-relaxed text-white/65">
+                    <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-300/10 text-emerald-200"><IconCheck className="size-3 shrink-0" /></span>
                     {item}
                   </div>
                 ))}
@@ -114,7 +114,7 @@ export function HomePage() {
             ].map(([value, label], index) => (
               <div key={value} className={`px-5 py-5 sm:px-7 ${index ? 'border-t border-white/10 sm:border-l sm:border-t-0' : ''}`}>
                 <p className="text-xl font-semibold tracking-tight text-white">{value}</p>
-                <p className="mt-1 text-xs leading-relaxed text-white/45">{label}</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/55">{label}</p>
               </div>
             ))}
           </div>
@@ -134,7 +134,7 @@ export function HomePage() {
               <p className="mt-5 text-[0.95rem] leading-7 text-ink-2">
                 Wenn Positionierung, Nutzenargumentation, Website und Vertrieb nicht dieselbe Geschichte erzählen, wird mehr Reichweite häufig nur teurer. SYMMEDIS arbeitet deshalb eine Ebene früher: bei der Ursache.
               </p>
-              <Button as={Link} to="/problem" variant="secondary" size="sm" className="mt-7">Warum Symptome teuer werden <IconArrowRight className="size-4" /></Button>
+              <Button as={Link} to="/problem" variant="secondary" size="sm" className="mt-7">Warum Symptome teuer werden <IconArrowRight className="size-4 shrink-0" /></Button>
             </div>
 
             <div className="space-y-3">
@@ -166,7 +166,7 @@ export function HomePage() {
           <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-3">
             {OUTCOMES.map(({ icon: Icon, kicker, title, text }) => (
               <article key={title} className="bg-surface p-6 sm:p-8">
-                <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><Icon className="size-5" /></span>
+                <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand-ink"><Icon className="size-5 shrink-0" /></span>
                 <p className="mt-7 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-ink-3">{kicker}</p>
                 <h3 className="mt-2 text-lg font-semibold leading-snug tracking-tight text-ink">{title}</h3>
                 <p className="mt-3 text-[0.8125rem] leading-relaxed text-ink-2">{text}</p>
@@ -176,7 +176,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="overflow-hidden border-b border-line bg-[#f2f5fa]">
+      <section className="overflow-hidden border-b border-line bg-surface-muted">
         <div className="shell-container py-16 lg:py-24">
           <div className="grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div>
@@ -188,30 +188,30 @@ export function HomePage() {
                 <Chip toneName="brand" icon={IconLayers}>Tenant isolated</Chip>
                 <Chip toneName="accent" icon={IconChart}>Impact verified</Chip>
               </div>
-              <Button as={Link} to="/plattform" className="mt-7" variant="secondary">Plattform im Detail <IconArrowRight className="size-4" /></Button>
+              <Button as={Link} to="/plattform" className="mt-7" variant="secondary">Plattform im Detail <IconArrowRight className="size-4 shrink-0" /></Button>
             </div>
 
-            <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-xl shadow-black/5">
-              <div className="flex items-center justify-between border-b border-line bg-surface-muted px-4 py-3">
+            <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-line bg-surface shadow-xl shadow-black/5 sm:rounded-[1.75rem]">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-b border-line bg-surface-muted px-4 py-3 sm:flex sm:justify-between">
                 <div className="flex gap-1.5" aria-hidden="true"><span className="size-2.5 rounded-full bg-line-strong" /><span className="size-2.5 rounded-full bg-line-strong" /><span className="size-2.5 rounded-full bg-line-strong" /></div>
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-ink-3">SYMMEDIS · Project Intelligence</span>
-                <span className="text-[0.65rem] font-semibold text-ok-ink">Live workspace</span>
+                <span className="min-w-0 truncate text-right text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-ink-3 sm:text-center sm:text-[0.65rem] sm:tracking-[0.13em]">SYMMEDIS · Project Intelligence</span>
+                <span className="col-span-2 justify-self-end text-[0.6rem] font-semibold text-ok-ink sm:col-span-1 sm:text-[0.65rem]">Live workspace</span>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {PRODUCT_MODULES.map(([label, value, text], index) => (
                     <div key={label} className={`rounded-xl border p-4 ${index === 0 ? 'border-brand-border bg-brand-softer' : 'border-line bg-canvas'}`}>
-                      <div className="flex items-center justify-between gap-3"><span className="text-[0.67rem] font-semibold uppercase tracking-[0.11em] text-ink-3">{label}</span><span className="size-1.5 rounded-full bg-accent" /></div>
+                      <div className="flex items-center justify-between gap-3"><span className="text-[0.67rem] font-semibold uppercase tracking-[0.11em] text-ink-3">{label}</span><span className="size-1.5 shrink-0 rounded-full bg-accent" /></div>
                       <p className="mt-3 text-base font-semibold tracking-tight text-ink">{value}</p>
                       <p className="mt-1.5 text-[0.74rem] leading-relaxed text-ink-2">{text}</p>
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 rounded-xl border border-line bg-[#0b1220] p-5 text-white">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white/40">Priority queue</p><p className="mt-1 text-sm font-semibold">Die drei stärksten Wachstumshebel</p></div><span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[0.65rem] font-semibold text-emerald-200">reviewed</span></div>
+                <div className="mt-3 rounded-xl border border-white/10 bg-[#0b1220] p-4 text-white sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white/50">Priority queue</p><p className="mt-1 text-sm font-semibold text-white">Die drei stärksten Wachstumshebel</p></div><span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[0.65rem] font-semibold text-emerald-200">reviewed</span></div>
                   <div className="mt-4 space-y-2">
                     {['Nutzenargumentation konsistent machen', 'Positionierung im Vertrieb schärfen', 'Website → Sales-Handoff schließen'].map((item, index) => (
-                      <div key={item} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5"><span className="text-[0.68rem] font-semibold tabular text-white/35">0{index + 1}</span><span className="flex-1 text-[0.76rem] text-white/75">{item}</span><IconArrowRight className="size-3.5 text-white/35" /></div>
+                      <div key={item} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 sm:gap-3"><span className="shrink-0 text-[0.68rem] font-semibold tabular text-white/45">0{index + 1}</span><span className="min-w-0 flex-1 text-[0.76rem] leading-snug text-white/80">{item}</span><IconArrowRight className="size-3.5 shrink-0 text-white/45" /></div>
                     ))}
                   </div>
                 </div>
@@ -250,7 +250,7 @@ export function HomePage() {
           <div className="overflow-hidden rounded-[2rem] border border-brand-border bg-brand-softer">
             <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
               <div className="p-7 sm:p-10 lg:p-12">
-                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-brand text-on-brand"><IconShield className="size-6" /></span>
+                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-brand text-on-brand"><IconShield className="size-6 shrink-0" /></span>
                 <p className="eyebrow mt-7">Vertrauen ist Produktarchitektur</p>
                 <h2 className="mt-3 max-w-xl text-[1.8rem] font-semibold leading-tight tracking-[-0.025em] text-ink sm:text-[2.2rem]">KI darf helfen. Sie darf nicht heimlich entscheiden.</h2>
                 <p className="mt-4 max-w-xl text-[0.9rem] leading-7 text-ink-2">SYMMEDIS trennt Vorschlag, interne Prüfung und Kundenfreigabe technisch voneinander. Interne Notizen, unfertige Reports und nicht freigegebene Dokumente bleiben außerhalb des Kundenportals.</p>
@@ -262,7 +262,7 @@ export function HomePage() {
                     'Kundensichtbarkeit wird pro Finding, KPI und Dokument bewusst freigegeben.',
                     'Finale Reports erhalten unveränderliche Versions-Snapshots.',
                     'Bezahlte KI ist technisch deaktivierbar und aktuell standardmäßig gesperrt.',
-                  ].map((item) => <li key={item} className="flex items-start gap-3 text-[0.8125rem] leading-relaxed text-ink-2"><span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-ok-soft text-ok-ink"><IconCheck className="size-3.5" /></span>{item}</li>)}
+                  ].map((item) => <li key={item} className="flex items-start gap-3 text-[0.8125rem] leading-relaxed text-ink-2"><span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-ok-soft text-ok-ink"><IconCheck className="size-3.5 shrink-0" /></span>{item}</li>)}
                 </ul>
               </div>
             </div>
