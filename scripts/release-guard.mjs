@@ -89,9 +89,11 @@ if (/fetchWorkspace|accessToken|persist[A-Z]|supabase/i.test(demoWorkspace)) fai
 
 const homePage = await text('src/pages/marketing/HomePage.jsx')
 for (const signature of [
-  'Wir finden heraus, warum Ihr Wachstum stockt.',
+  'Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.',
   'variant="cta"',
-  'Mehr Aktivität löst kein strategisches Systemproblem.',
+  'Mehr Aktivität löst kein strukturelles Wachstumsproblem.',
+  'Menschliche Freigabe statt Blackbox',
+  'Plattform ansehen',
   '<TeamSection />',
 ]) {
   if (!homePage.includes(signature)) fail(`Homepage: erwartete Premium-Hierarchie fehlt: ${signature}`)
@@ -162,7 +164,7 @@ console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
-console.log('✓ Homepage-Hierarchie, CTA-Logik und reduzierte Diagnose-Darstellung bleiben geschützt')
+console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
 console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
