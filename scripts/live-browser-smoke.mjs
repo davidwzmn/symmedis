@@ -5,10 +5,11 @@ import { join } from 'node:path'
 
 const CHROME = process.env.CHROME_BIN || ''
 const BASE = (process.env.LIVE_BASE_URL || 'https://davidwzmn.github.io/symmedis/').replace(/\/$/, '')
+const EXPECTED_BUILD = process.env.LIVE_EXPECTED_BUILD || ''
 
 const scenarios = [
-  { name: 'home-light', hash: '#/', expected: ['Wir finden heraus, warum Ihr Wachstum stockt.', 'Diagnosegespräch anfragen', 'Mehrere Quellen bestätigt'], theme: 'light' },
-  { name: 'home-dark', hash: '#/', expected: ['Wir finden heraus, warum Ihr Wachstum stockt.', 'Diagnosegespräch anfragen', 'Mehrere Quellen bestätigt'], theme: 'dark' },
+  { name: 'home-light', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'light' },
+  { name: 'home-dark', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'dark' },
   { name: 'demo', hash: '#/demo', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
   { name: 'termin', hash: '#/termin', expected: ['Bringen Sie die Wachstumsfrage', 'Diagnosegespräch anfragen'], theme: 'light' },
   { name: 'login', hash: '#/login', expected: ['Geschützter SYMMEDIS-Zugang', 'Kundenportal', 'Mitarbeiterportal'], theme: 'light' },
@@ -124,6 +125,7 @@ async function runScenario(scenario, index) {
           width: window.innerWidth,
           scrollWidth: document.documentElement.scrollWidth,
           href: location.href,
+          build: document.querySelector('meta[name="symmedis-build"]')?.getAttribute('content') || '',
           tinyVisibleText
         };
       })()`)
@@ -132,6 +134,7 @@ async function runScenario(scenario, index) {
       return scenario.expected.every((text) => value.body.includes(text)) ? value : null
     }, 25000)
 
+    if (EXPECTED_BUILD && state.build !== EXPECTED_BUILD) throw new Error(`${scenario.name}: erwarteter Build ${EXPECTED_BUILD}, ausgeliefert ${state.build || 'kein Marker'}.`)
     if ((scenario.theme === 'dark') !== state.dark) throw new Error(`${scenario.name}: Theme ${scenario.theme} wurde nicht aktiv.`)
     if (state.scrollWidth > state.width + 2) {
       const offenders = await cdp.evaluate(`[...document.querySelectorAll('body *')].map((el) => {
@@ -143,7 +146,7 @@ async function runScenario(scenario, index) {
     if (state.body.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
     if (scenario.name.startsWith('home-') && state.tinyVisibleText.length) throw new Error(`${scenario.name}: sichtbarer Text unter 10.5px gefunden: ${JSON.stringify(state.tinyVisibleText)}`)
 
-    console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}`)
+    console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}, build ${state.build.slice(0, 7) || 'n/a'}`)
     cdp.close()
   } finally {
     chrome.kill('SIGTERM')
@@ -155,6 +158,11 @@ async function runScenario(scenario, index) {
 
 if (!CHROME) {
   console.error('CHROME_BIN fehlt.')
+  process.exit(1)
+}
+
+if (!EXPECTED_BUILD) {
+  console.error('LIVE_EXPECTED_BUILD fehlt.')
   process.exit(1)
 }
 
