@@ -58,7 +58,6 @@ jobs:
             echo "No Chrome/Chromium binary available on runner." >&2
             exit 1
           fi
-
           PORT=4174 HOST=127.0.0.1 npm run preview > /tmp/symmedis-browser-preview.log 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
@@ -68,48 +67,34 @@ jobs:
             fi
             sleep 0.25
           done
-
           render() {
             route="$1"
             target="$2"
-            timeout 25s "$chrome" \
-              --headless=new \
-              --no-sandbox \
-              --disable-gpu \
-              --hide-scrollbars \
-              --window-size=390,844 \
-              --virtual-time-budget=3500 \
-              --dump-dom "http://127.0.0.1:4174${route}" > "$target" 2>/tmp/symmedis-chrome.log
+            timeout 25s "$chrome" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --virtual-time-budget=3500 --dump-dom "http://127.0.0.1:4174${route}" > "$target" 2>/tmp/symmedis-chrome.log
             grep -q '<div id="root">' "$target"
             if grep -q 'Etwas ist schiefgelaufen' "$target"; then
               echo "React error boundary rendered for ${route}." >&2
               exit 1
             fi
           }
-
           render / /tmp/symmedis-browser-home.html
           grep -q 'Wachstum ist ein System' /tmp/symmedis-browser-home.html
-
           render /demo /tmp/symmedis-browser-demo.html
           grep -q 'Sichere, interaktive Produktdemo' /tmp/symmedis-browser-demo.html
           grep -q '5-Minuten-Produkttour' /tmp/symmedis-browser-demo.html
-
           render /termin /tmp/symmedis-browser-termin.html
           grep -q 'Bringen Sie die Wachstumsfrage' /tmp/symmedis-browser-termin.html
           grep -q 'Diagnosegespräch anfragen' /tmp/symmedis-browser-termin.html
-
           render /login /tmp/symmedis-browser-login.html
           grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-login.html
           grep -q 'Kundenportal' /tmp/symmedis-browser-login.html
           grep -q 'Mitarbeiterportal' /tmp/symmedis-browser-login.html
-
           render /portal /tmp/symmedis-browser-portal.html
           grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-portal.html
           if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-portal.html; then
             echo "Unauthenticated customer route exposed project content." >&2
             exit 1
           fi
-
           render /intern /tmp/symmedis-browser-intern.html
           grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-intern.html
           if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-intern.html; then
@@ -128,13 +113,7 @@ jobs:
           process.stdout.write(match[1])
           NODE
           )"
-          body="$(curl --silent --show-error --fail \
-            --request POST \
-            --header "apikey: ${publishable_key}" \
-            --header 'Content-Type: application/json' \
-            --header 'Origin: https://davidwzmn.github.io' \
-            --data '{"website":"release-smoke-honeypot"}' \
-            'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/submit-lead')"
+          body="$(curl --silent --show-error --fail --request POST --header "apikey: ${publishable_key}" --header 'Content-Type: application/json' --header 'Origin: https://davidwzmn.github.io' --data '{"website":"release-smoke-honeypot"}' 'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/submit-lead')"
           printf '%s' "$body" | grep -q '"ok":true'
       - name: Authenticated browser E2E
         shell: bash
@@ -208,3 +187,14 @@ jobs:
           done
           echo "Live staging did not serve expected build ${GITHUB_SHA} within 5 minutes." >&2
           exit 1
+      - name: Live mobile browser release smoke
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$chrome" ]; then
+            echo "No Chrome/Chromium binary available on runner." >&2
+            exit 1
+          fi
+          CHROME_BIN="$chrome" LIVE_BASE_URL="https://davidwzmn.github.io/symmedis" node scripts/live-browser-smoke.mjs
