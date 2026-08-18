@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
@@ -21,10 +21,15 @@ import { TerminPage } from './pages/marketing/TerminPage.jsx'
 import { LegalPage } from './pages/marketing/LegalPage.jsx'
 import { IMPRESSUM, DATENSCHUTZ, AGB } from './content/legal.js'
 import { LoginPage } from './pages/LoginPage.jsx'
-import { DemoApp } from './pages/demo/DemoApp.jsx'
-import { CustomerApp } from './pages/customer/CustomerApp.jsx'
-import { StaffApp } from './pages/staff/StaffApp.jsx'
 import { NotFoundPage } from './pages/NotFoundPage.jsx'
+
+function lazyNamed(loader, name) {
+  return lazy(() => loader().then((module) => ({ default: module[name] })))
+}
+
+const DemoApp = lazyNamed(() => import('./pages/demo/DemoApp.jsx'), 'DemoApp')
+const CustomerApp = lazyNamed(() => import('./pages/customer/CustomerApp.jsx'), 'CustomerApp')
+const StaffApp = lazyNamed(() => import('./pages/staff/StaffApp.jsx'), 'StaffApp')
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -57,6 +62,22 @@ function WorkspaceLoading() {
       </div>
     </main>
   )
+}
+
+function RouteLoading() {
+  return (
+    <main className="shell-container flex min-h-[55vh] items-center justify-center py-16" aria-live="polite" aria-busy="true">
+      <div className="w-full max-w-md space-y-4">
+        <Skeleton className="mx-auto h-5 w-40 rounded-md" />
+        <Skeleton className="h-32 rounded-card" />
+        <p className="sr-only">Bereich wird geladen.</p>
+      </div>
+    </main>
+  )
+}
+
+function Deferred({ children }) {
+  return <Suspense fallback={<RouteLoading />}>{children}</Suspense>
 }
 
 function ConnectivityNotice() {
@@ -153,9 +174,9 @@ export default function App() {
                   <Route path="/agb" element={<LegalPage dokument={AGB} />} />
                 </Route>
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />
-                <Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />
-                <Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />
+                <Route path="/demo/*" element={<DemoWorkspaceProvider><Deferred><DemoApp /></Deferred></DemoWorkspaceProvider>} />
+                <Route path="/portal/*" element={<WorkspaceGate><Deferred><CustomerApp /></Deferred></WorkspaceGate>} />
+                <Route path="/intern/*" element={<WorkspaceGate><Deferred><StaffApp /></Deferred></WorkspaceGate>} />
                 <Route path="/404" element={<NotFoundPage />} />
                 <Route path="*" element={<Navigate to="/404" replace />} />
               </Routes>
