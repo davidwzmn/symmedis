@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "node server/index.mjs",
     "start": "node server/index.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "release:guard": "node scripts/release-guard.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high"
   },
