@@ -30,7 +30,6 @@ const migrationFiles = (await walk('supabase/migrations')).filter((path) => path
 const migrations = await Promise.all(migrationFiles.map(async (path) => [path, await text(path)]))
 const migrationCorpus = migrations.map(([, content]) => content).join('\n\n')
 
-// Browser code must never contain privileged Supabase credentials or server-only secrets.
 const forbiddenBrowserPatterns = [
   ['SUPABASE_SERVICE_ROLE_KEY', 'Supabase service-role secret name'],
   ['service_role', 'Supabase service-role credential'],
@@ -43,16 +42,10 @@ for (const [path, content] of source) {
   }
 }
 
-// Real analysis must stay on the authenticated Edge Function path.
 const analysisRunPanel = await text('src/components/modules/AnalysisRunPanel.jsx')
-if (!analysisRunPanel.includes("from '../../lib/analysisRunApi.js'")) {
-  fail('AnalysisRunPanel muss den authentifizierten analysisRunApi-Pfad verwenden.')
-}
-if (analysisRunPanel.includes('requestAnalysis')) {
-  fail('AnalysisRunPanel darf den Legacy-/Demo-Client requestAnalysis nicht verwenden.')
-}
+if (!analysisRunPanel.includes("from '../../lib/analysisRunApi.js'")) fail('AnalysisRunPanel muss den authentifizierten analysisRunApi-Pfad verwenden.')
+if (analysisRunPanel.includes('requestAnalysis')) fail('AnalysisRunPanel darf den Legacy-/Demo-Client requestAnalysis nicht verwenden.')
 
-// Legacy demo API must fail closed unless a caller opts into local demo behavior.
 const legacyApi = await text('src/lib/api.js')
 for (const signature of [
   'allowDemoFallback === true',
@@ -62,18 +55,14 @@ for (const signature of [
   if (!legacyApi.includes(signature)) fail(`src/lib/api.js: Release-Guard fehlt: ${signature}`)
 }
 
-// Every browser caller of the legacy demo API must opt in explicitly.
 for (const [path, content] of source) {
   if (path === 'src/lib/api.js') continue
   const importsLegacyApi = content.includes("from '../../lib/api.js'") || content.includes("from '../lib/api.js'") || content.includes("from './lib/api.js'")
   if (!importsLegacyApi) continue
   const callsLegacy = content.includes('requestAnalysis(') || content.includes('requestChatReply(')
-  if (callsLegacy && !content.includes('allowDemoFallback: true')) {
-    fail(`${path}: Legacy-Demo-API wird ohne explizites allowDemoFallback verwendet.`)
-  }
+  if (callsLegacy && !content.includes('allowDemoFallback: true')) fail(`${path}: Legacy-Demo-API wird ohne explizites allowDemoFallback verwendet.`)
 }
 
-// Portal routes must remain behind the authenticated workspace gate. Public demo must own an isolated local workspace.
 const app = await text('src/App.jsx')
 for (const routeGuard of [
   '<Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />',
@@ -82,43 +71,41 @@ for (const routeGuard of [
 ]) {
   if (!app.includes(routeGuard)) fail(`src/App.jsx: geschützte Routing-Grenze fehlt oder wurde verändert: ${routeGuard}`)
 }
+if (!app.includes('<AppErrorBoundary>')) fail('Recovery: Die Anwendung muss von einem globalen Render-Error-Boundary geschützt bleiben.')
+
 const demoWorkspace = await text('src/state/DemoWorkspaceProvider.jsx')
 for (const signature of ['createWorkspace()', 'echteDaten: false', "workspaceFuerUser: 'demo'"]) {
   if (!demoWorkspace.includes(signature)) fail(`Demo-Isolation: erwartete lokale Workspace-Signatur fehlt: ${signature}`)
 }
-if (/fetchWorkspace|accessToken|persist[A-Z]|supabase/i.test(demoWorkspace)) {
-  fail('Demo-Isolation: Der öffentliche DemoWorkspaceProvider darf keine produktive Persistenz oder Supabase-Session verwenden.')
-}
+if (/fetchWorkspace|accessToken|persist[A-Z]|supabase/i.test(demoWorkspace)) fail('Demo-Isolation: Der öffentliche DemoWorkspaceProvider darf keine produktive Persistenz oder Supabase-Session verwenden.')
 
-// Homepage must stay theme-safe and its main visualization must remain mobile-safe.
 const homePage = await text('src/pages/marketing/HomePage.jsx')
-if (homePage.includes('bg-[#f2f5fa]')) {
-  fail('Homepage: fest heller Hintergrund #f2f5fa kollidiert mit Dark-Mode-Texttokens.')
-}
+if (homePage.includes('bg-[#f2f5fa]')) fail('Homepage: fest heller Hintergrund #f2f5fa kollidiert mit Dark-Mode-Texttokens.')
 const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
 for (const signature of ['aspect-square', 'sm:aspect-[1.05]', "mobile: 'Aktivierung'", 'shrink-0']) {
   if (!growthVisual.includes(signature)) fail(`Homepage-Mobile: Diagnosis Graph Guard fehlt: ${signature}`)
 }
 
-// Public diagnosis request must use the real protected lead ingress, never a fake success state.
 const marketingParts = await text('src/pages/marketing/parts.jsx')
 for (const signature of ['submitWebsiteLead', "source: 'website-diagnosegespraech'", 'website: form.website']) {
   if (!marketingParts.includes(signature)) fail(`Öffentliche Anfrage: produktiver Lead-Vertrag fehlt: ${signature}`)
 }
-if (marketingParts.includes('Demo-Formular:') || marketingParts.includes('es wurde nichts versendet')) {
-  fail('Öffentliche Anfrage: Das Terminformular darf keinen Demo-Schein-Erfolg mehr anzeigen.')
+if (marketingParts.includes('Demo-Formular:') || marketingParts.includes('es wurde nichts versendet')) fail('Öffentliche Anfrage: Das Terminformular darf keinen Demo-Schein-Erfolg mehr anzeigen.')
+
+// Auch der optionale Node-/Preview-Server darf Kosten niemals allein durch das Vorhandensein eines Keys aktivieren.
+const serverApi = await text('server/api.mjs')
+for (const signature of [
+  "process.env.SYMMEDIS_AI_ENABLED === 'true'",
+  'AI_ENABLED && (API_KEY || AUTH_TOKEN)',
+  "if (!aiConfigured) throw new Error('ai_disabled')",
+]) {
+  if (!serverApi.includes(signature)) fail(`AI-Kostengrenze: Preview-Server muss explizit fail-closed bleiben: ${signature}`)
 }
 
-// Public launch must remain explicit opt-in in the documented environment template.
 const envExample = await text('.env.example')
-if (!envExample.includes('VITE_PUBLIC_LAUNCH=false')) {
-  fail('.env.example: öffentliche Indexierung muss standardmäßig deaktiviert bleiben.')
-}
-if (/VITE_[A-Z0-9_]*(SECRET|SERVICE_ROLE|ANTHROPIC_API_KEY)/.test(envExample)) {
-  fail('.env.example: Server-Secrets dürfen nicht mit VITE_ veröffentlicht werden.')
-}
+if (!envExample.includes('VITE_PUBLIC_LAUNCH=false')) fail('.env.example: öffentliche Indexierung muss standardmäßig deaktiviert bleiben.')
+if (/VITE_[A-Z0-9_]*(SECRET|SERVICE_ROLE|ANTHROPIC_API_KEY)/.test(envExample)) fail('.env.example: Server-Secrets dürfen nicht mit VITE_ veröffentlicht werden.')
 
-// Critical database invariants must remain versioned in migrations.
 const requiredMigrationGuards = [
   ['guard_customer_task_update()', 'Kunden dürfen nur den Aufgabenstatus ändern'],
   ["if profile_role = 'kunde'", 'Customer-Task-Guard muss rollenabhängig bleiben'],
@@ -137,18 +124,12 @@ for (const [signature, label] of requiredMigrationGuards) {
   if (!migrationCorpus.includes(signature)) fail(`Datenintegrität: ${label} – erwartete Migration-Signatur fehlt: ${signature}`)
 }
 
-// Report versions are append-only snapshots: repo migrations must never grant browser DML on them.
 const dangerousReportVersionGrant = /grant\s+(?:all|insert|update|delete|truncate)(?:\s+privileges)?\s+on\s+(?:table\s+)?public\.report_versions\s+to\s+(?:anon|authenticated)/i
-if (dangerousReportVersionGrant.test(migrationCorpus)) {
-  fail('Datenintegrität: report_versions darf keine Browser-Schreibrechte erhalten.')
-}
+if (dangerousReportVersionGrant.test(migrationCorpus)) fail('Datenintegrität: report_versions darf keine Browser-Schreibrechte erhalten.')
 
-// Security-definer functions must not be left callable by PUBLIC when they protect privileged writes.
 for (const fn of ['snapshot_final_report()', 'guard_customer_document_registration()']) {
   const revokePattern = new RegExp(`revoke\\s+all\\s+on\\s+function\\s+(?:private\\.)?${fn.replace(/[()]/g, '\\$&')}\\s+from\\s+[^;]*public`, 'i')
-  if (!revokePattern.test(migrationCorpus)) {
-    fail(`Datenintegrität: privilegierte Funktion ${fn} muss explizit von PUBLIC entzogen sein.`)
-  }
+  if (!revokePattern.test(migrationCorpus)) fail(`Datenintegrität: privilegierte Funktion ${fn} muss explizit von PUBLIC entzogen sein.`)
 }
 
 if (failures.length) {
@@ -160,12 +141,10 @@ if (failures.length) {
 console.log(`SYMMEDIS Release Guard: OK (${sourceFiles.length} Browser-Quelldateien, ${migrationFiles.length} Migrationen geprüft)`)
 console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
-console.log('✓ Demo-Fallback ist explizites Opt-in')
-console.log('✓ Öffentliche Demo besitzt einen isolierten lokalen Workspace')
-console.log('✓ Homepage-Kontrast und mobile Diagnosis-Graph-Verträge bleiben geschützt')
-console.log('✓ Öffentliches Diagnoseformular nutzt den echten Lead-Ingress')
+console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
+console.log('✓ Homepage-/Mobile- und öffentliches Lead-Formular bleiben geschützt')
+console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
+console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
 console.log('✓ Kunden- und Staff-Routen bleiben geschützt')
-console.log('✓ Öffentliche Indexierung bleibt explizites Opt-in')
-console.log('✓ Customer-Task- und Dokument-Guards bleiben versioniert')
-console.log('✓ Report-Versionierung und Audit bleiben geschützt')
-console.log('✓ Storage-Tenantgrenzen und Least-Privilege-Grants bleiben versioniert')
+console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
+console.log('✓ Least-Privilege-Grants bleiben versioniert')
