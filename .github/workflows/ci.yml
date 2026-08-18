@@ -31,6 +31,24 @@ jobs:
         run: npm run security:audit
       - name: Build application
         run: npm run build
+      - name: Route smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT=4173 HOST=127.0.0.1 npm run preview > /tmp/symmedis-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl --silent --fail http://127.0.0.1:4173/ > /tmp/symmedis-home.html; then
+              break
+            fi
+            sleep 0.25
+          done
+          grep -q 'id="root"' /tmp/symmedis-home.html
+          for route in /demo /termin /login /portal /intern; do
+            body="$(curl --silent --show-error --fail "http://127.0.0.1:4173${route}")"
+            printf '%s' "$body" | grep -q 'id="root"'
+          done
       - name: Build static hash version
         env:
           VITE_ROUTER: hash
