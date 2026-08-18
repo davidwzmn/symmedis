@@ -64,12 +64,20 @@ for (const [path, content] of source) {
 }
 
 const app = await text('src/App.jsx')
-for (const routeGuard of [
-  '<Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />',
-  '<Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />',
-  '<Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />',
+const routeGuards = [
+  ['Demo', '<Route path="/demo/*" element={<DemoWorkspaceProvider><Deferred><DemoApp /></Deferred></DemoWorkspaceProvider>} />'],
+  ['Customer', '<Route path="/portal/*" element={<WorkspaceGate><Deferred><CustomerApp /></Deferred></WorkspaceGate>} />'],
+  ['Staff', '<Route path="/intern/*" element={<WorkspaceGate><Deferred><StaffApp /></Deferred></WorkspaceGate>} />'],
+]
+for (const [label, routeGuard] of routeGuards) {
+  if (!app.includes(routeGuard)) fail(`src/App.jsx: ${label}-Routing-Grenze fehlt oder wurde verändert: ${routeGuard}`)
+}
+for (const signature of [
+  "const DemoApp = lazyNamed(() => import('./pages/demo/DemoApp.jsx'), 'DemoApp')",
+  "const CustomerApp = lazyNamed(() => import('./pages/customer/CustomerApp.jsx'), 'CustomerApp')",
+  "const StaffApp = lazyNamed(() => import('./pages/staff/StaffApp.jsx'), 'StaffApp')",
 ]) {
-  if (!app.includes(routeGuard)) fail(`src/App.jsx: geschützte Routing-Grenze fehlt oder wurde verändert: ${routeGuard}`)
+  if (!app.includes(signature)) fail(`src/App.jsx: erwartete sichere Route-Code-Splitting-Signatur fehlt: ${signature}`)
 }
 if (!app.includes('<AppErrorBoundary>')) fail('Recovery: Die Anwendung muss von einem globalen Render-Error-Boundary geschützt bleiben.')
 
@@ -92,7 +100,6 @@ for (const signature of ['submitWebsiteLead', "source: 'website-diagnosegespraec
 }
 if (marketingParts.includes('Demo-Formular:') || marketingParts.includes('es wurde nichts versendet')) fail('Öffentliche Anfrage: Das Terminformular darf keinen Demo-Schein-Erfolg mehr anzeigen.')
 
-// Auch der optionale Node-/Preview-Server darf Kosten niemals allein durch das Vorhandensein eines Keys aktivieren.
 const serverApi = await text('server/api.mjs')
 for (const signature of [
   "process.env.SYMMEDIS_AI_ENABLED === 'true'",
@@ -142,9 +149,9 @@ console.log(`SYMMEDIS Release Guard: OK (${sourceFiles.length} Browser-Quelldate
 console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
+console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-/Mobile- und öffentliches Lead-Formular bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
-console.log('✓ Kunden- und Staff-Routen bleiben geschützt')
 console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
 console.log('✓ Least-Privilege-Grants bleiben versioniert')
