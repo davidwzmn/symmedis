@@ -71,3 +71,20 @@ jobs:
           git add index.html .nojekyll
           git commit -m "Deploy SYMMEDIS staging ${GITHUB_SHA::7}"
           git push --force origin HEAD:gh-pages
+      - name: Verify exact live staging release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://davidwzmn.github.io/symmedis/?build=${GITHUB_SHA}"
+          for attempt in {1..60}; do
+            if page="$(curl --silent --show-error --fail --max-time 10 "$url")"; then
+              if printf '%s' "$page" | grep -q "name=\"symmedis-build\" content=\"${GITHUB_SHA}\""; then
+                echo "Live staging serves ${GITHUB_SHA}"
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          echo "Live staging did not serve expected build ${GITHUB_SHA} within 5 minutes." >&2
+          exit 1
