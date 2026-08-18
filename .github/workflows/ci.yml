@@ -167,7 +167,15 @@ jobs:
         run: npm run build -- --outDir dist-hash
       - name: Build standalone Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
-        run: node scripts/build-standalone.mjs pages-index.html
+        env:
+          VITE_ROUTER: hash
+          SYMMEDIS_STANDALONE: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build -- --outDir dist-pages
+          node scripts/build-standalone.mjs pages-index.html dist-pages
+          grep -q "name=\"symmedis-build\" content=\"${GITHUB_SHA}\"" pages-index.html
       - name: Publish live staging to gh-pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
         shell: bash
