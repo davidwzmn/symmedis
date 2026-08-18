@@ -8,7 +8,7 @@ const nowIso = () => new Date().toISOString()
 
 export function DemoWorkspaceProvider({ children }) {
   const [kunden, setKunden] = useState(() => createWorkspace())
-  const [gelesen, setGelesen] = useState(() => new Set())
+  const [, setGelesen] = useState(() => new Set())
 
   const getKunde = useCallback((id) => kunden.find((kunde) => kunde.id === id) ?? null, [kunden])
   const patchKunde = useCallback((kundeId, updater) => {
