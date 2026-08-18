@@ -71,9 +71,11 @@ jobs:
             ! grep -q 'Etwas ist schiefgelaufen' "$target"
           }
           render / /tmp/symmedis-browser-home.html
-          grep -q 'Wir finden heraus, warum Ihr Wachstum stockt.' /tmp/symmedis-browser-home.html
-          grep -q 'Mehrere Quellen bestätigt' /tmp/symmedis-browser-home.html
+          grep -q 'Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.' /tmp/symmedis-browser-home.html
           grep -q 'Diagnosegespräch anfragen' /tmp/symmedis-browser-home.html
+          grep -q 'Plattform ansehen' /tmp/symmedis-browser-home.html
+          grep -q 'Menschliche Freigabe statt Blackbox' /tmp/symmedis-browser-home.html
+          grep -q 'Die Menschen hinter SYMMEDIS' /tmp/symmedis-browser-home.html
           render /demo /tmp/symmedis-browser-demo.html
           grep -q 'Sichere, interaktive Produktdemo' /tmp/symmedis-browser-demo.html
           grep -q '5-Minuten-Produkttour' /tmp/symmedis-browser-demo.html
@@ -181,7 +183,7 @@ jobs:
           set -euo pipefail
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
           test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
-          CHROME_BIN="$chrome" LIVE_BASE_URL="https://davidwzmn.github.io/symmedis" node scripts/live-browser-smoke.mjs 2>&1 | tee /tmp/symmedis-live-smoke.log
+          CHROME_BIN="$chrome" LIVE_BASE_URL="https://davidwzmn.github.io/symmedis" LIVE_EXPECTED_BUILD="$GITHUB_SHA" node scripts/live-browser-smoke.mjs 2>&1 | tee /tmp/symmedis-live-smoke.log
       - name: Record live verification failure
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && (steps.exact_live.outcome != 'success' || steps.live_smoke.outcome != 'success')
         shell: bash
