@@ -1,30 +1,34 @@
 /**
  * Erzeugt eine eigenständige Single-File-Ausspielung der Plattform.
  *
- * Voraussetzung: vorher `VITE_ROUTER=hash npm run build -- --outDir dist-hash`.
- * Dieses Skript inlined CSS, JS und die Schriftdatei (als data-URI) aus
- * dist-hash in eine einzige HTML-Datei ohne externe Requests.
+ * Voraussetzung: vorher einen Hash-Router-Build mit SYMMEDIS_STANDALONE=true
+ * erzeugen. In diesem Spezialbuild werden dynamische Imports bewusst wieder
+ * zu einem JS-Bundle zusammengeführt; der normale Produktionsbuild bleibt
+ * weiterhin route-basiert code-gesplittet.
  */
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const DIST = 'dist-hash'
-const ASSETS = join(DIST, 'assets')
 const ziel = process.argv[2] || 'symmedis-plattform.html'
+const DIST = process.argv[3] || 'dist-hash'
+const ASSETS = join(DIST, 'assets')
 const buildSha = (process.env.GITHUB_SHA || process.env.SYMMEDIS_BUILD_SHA || 'local').trim()
 
 let html = readFileSync(join(DIST, 'index.html'), 'utf8')
 const dateien = readdirSync(ASSETS)
 
-const cssName = dateien.find((f) => f.endsWith('.css'))
-const jsName = dateien.find((f) => f.endsWith('.js'))
-const fontName = dateien.find((f) => f.endsWith('.woff2'))
+const cssFiles = dateien.filter((file) => file.endsWith('.css'))
+const jsFiles = dateien.filter((file) => file.endsWith('.js'))
+const fontName = dateien.find((file) => file.endsWith('.woff2'))
 
-if (!cssName || !jsName) {
-  console.error('FEHLER: CSS- oder JavaScript-Bundle fehlt im Hash-Build.')
+if (cssFiles.length !== 1 || jsFiles.length !== 1) {
+  console.error(`FEHLER: Standalone-Build erwartet exakt ein CSS- und ein JS-Bundle, gefunden: CSS=${cssFiles.length}, JS=${jsFiles.length}.`)
+  console.error('Hinweis: Vite muss dafür mit SYMMEDIS_STANDALONE=true gebaut werden.')
   process.exit(1)
 }
 
+const [cssName] = cssFiles
+const [jsName] = jsFiles
 let css = readFileSync(join(ASSETS, cssName), 'utf8')
 const js = readFileSync(join(ASSETS, jsName), 'utf8')
 
@@ -42,11 +46,10 @@ html = html.replace(
   () => `<script type="module">${js}</script>`,
 )
 
-// Maschinenlesbarer Marker für den Live-Smoke-Test. Enthält keine Secrets.
 html = html.replace('<head>', `<head>\n    <meta name="symmedis-build" content="${buildSha}">`)
 
-if (/(?:href|src)="\/assets\//.test(html)) {
-  console.error('FEHLER: Es verbleiben externe Asset-Verweise im HTML.')
+if (/(?:href|src)="\/assets\//.test(html) || /import\(["']\.\/[^"']+\.js["']\)/.test(html)) {
+  console.error('FEHLER: Standalone-HTML enthält noch externe oder dynamische JS-Asset-Verweise.')
   process.exit(1)
 }
 if (!html.includes(`name="symmedis-build" content="${buildSha}"`)) {
