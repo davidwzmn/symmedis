@@ -7,8 +7,8 @@ const CHROME = process.env.CHROME_BIN || ''
 const BASE = (process.env.LIVE_BASE_URL || 'https://davidwzmn.github.io/symmedis/').replace(/\/$/, '')
 
 const scenarios = [
-  { name: 'home-light', hash: '#/', expected: ['Wachstum ist ein System'], theme: 'light' },
-  { name: 'home-dark', hash: '#/', expected: ['Wachstum ist ein System'], theme: 'dark' },
+  { name: 'home-light', hash: '#/', expected: ['Wir finden heraus, warum Ihr Wachstum stockt.', 'Diagnosegespräch anfragen', 'Mehrere Quellen bestätigt'], theme: 'light' },
+  { name: 'home-dark', hash: '#/', expected: ['Wir finden heraus, warum Ihr Wachstum stockt.', 'Diagnosegespräch anfragen', 'Mehrere Quellen bestätigt'], theme: 'dark' },
   { name: 'demo', hash: '#/demo', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
   { name: 'termin', hash: '#/termin', expected: ['Bringen Sie die Wachstumsfrage', 'Diagnosegespräch anfragen'], theme: 'light' },
   { name: 'login', hash: '#/login', expected: ['Geschützter SYMMEDIS-Zugang', 'Kundenportal', 'Mitarbeiterportal'], theme: 'light' },
@@ -107,6 +107,15 @@ async function runScenario(scenario, index) {
     const state = await waitFor(async () => {
       const value = await cdp.evaluate(`(async () => {
         if (document.fonts?.ready) await document.fonts.ready;
+        const tinyVisibleText = [...document.querySelectorAll('body *')]
+          .filter((el) => {
+            const style = getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const text = (el.childElementCount === 0 ? el.textContent : '').trim();
+            return text && rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none' && parseFloat(style.fontSize) < 10.5;
+          })
+          .slice(0, 8)
+          .map((el) => ({ text: (el.textContent || '').trim().slice(0, 80), size: getComputedStyle(el).fontSize }));
         return {
           ready: document.readyState,
           body: document.body?.innerText || '',
@@ -114,7 +123,8 @@ async function runScenario(scenario, index) {
           dark: document.documentElement.classList.contains('dark'),
           width: window.innerWidth,
           scrollWidth: document.documentElement.scrollWidth,
-          href: location.href
+          href: location.href,
+          tinyVisibleText
         };
       })()`)
       if (!value.root || value.ready !== 'complete') return null
@@ -131,6 +141,7 @@ async function runScenario(scenario, index) {
       throw new Error(`${scenario.name}: horizontaler Mobile-Overflow ${state.scrollWidth}px > ${state.width}px. Kandidaten: ${JSON.stringify(offenders)}`)
     }
     if (state.body.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
+    if (scenario.name.startsWith('home-') && state.tinyVisibleText.length) throw new Error(`${scenario.name}: sichtbarer Text unter 10.5px gefunden: ${JSON.stringify(state.tinyVisibleText)}`)
 
     console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}`)
     cdp.close()
