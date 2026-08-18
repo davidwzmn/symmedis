@@ -88,11 +88,23 @@ for (const signature of ['createWorkspace()', 'echteDaten: false', "workspaceFue
 if (/fetchWorkspace|accessToken|persist[A-Z]|supabase/i.test(demoWorkspace)) fail('Demo-Isolation: Der öffentliche DemoWorkspaceProvider darf keine produktive Persistenz oder Supabase-Session verwenden.')
 
 const homePage = await text('src/pages/marketing/HomePage.jsx')
-if (homePage.includes('bg-[#f2f5fa]')) fail('Homepage: fest heller Hintergrund #f2f5fa kollidiert mit Dark-Mode-Texttokens.')
-const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
-for (const signature of ['aspect-square', 'sm:aspect-[1.05]', "mobile: 'Aktivierung'", 'shrink-0']) {
-  if (!growthVisual.includes(signature)) fail(`Homepage-Mobile: Diagnosis Graph Guard fehlt: ${signature}`)
+for (const signature of [
+  'Wir finden heraus, warum Ihr Wachstum stockt.',
+  'variant="cta"',
+  'Mehr Aktivität löst kein strategisches Systemproblem.',
+  '<TeamSection />',
+]) {
+  if (!homePage.includes(signature)) fail(`Homepage: erwartete Premium-Hierarchie fehlt: ${signature}`)
 }
+if (/bg-\[#[0-9a-fA-F]{3,8}\]/.test(homePage)) fail('Homepage: rohe Hex-Hintergründe dürfen die Design-Tokens nicht umgehen.')
+if (homePage.includes('Strategic Growth Intelligence')) fail('Homepage: redundante englische Hero-Metaebene darf nicht zurückkehren.')
+
+const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
+for (const signature of ['BEISPIEL · DIAGNOSE', 'Mehrere Quellen bestätigt', 'Nächster Schritt']) {
+  if (!growthVisual.includes(signature)) fail(`Homepage-Visual: erwartete reduzierte Diagnose-Darstellung fehlt: ${signature}`)
+}
+if (/text-\[0\.(?:[0-5][0-9])rem\]/.test(growthVisual)) fail('Homepage-Visual: Mikroschrift unter ca. 10px darf nicht zurückkehren.')
+if (/bg-\[#[0-9a-fA-F]{3,8}\]/.test(growthVisual)) fail('Homepage-Visual: rohe Hex-Hintergründe dürfen die Design-Tokens nicht umgehen.')
 
 const marketingParts = await text('src/pages/marketing/parts.jsx')
 for (const signature of ['submitWebsiteLead', "source: 'website-diagnosegespraech'", 'website: form.website']) {
@@ -150,7 +162,7 @@ console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
-console.log('✓ Homepage-/Mobile- und öffentliches Lead-Formular bleiben geschützt')
+console.log('✓ Homepage-Hierarchie, CTA-Logik und reduzierte Diagnose-Darstellung bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
 console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
