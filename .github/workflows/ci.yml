@@ -116,6 +116,26 @@ jobs:
             echo "Unauthenticated staff route exposed project content." >&2
             exit 1
           fi
+      - name: Public lead ingress smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          publishable_key="$(node - <<'NODE'
+          const fs = require('fs')
+          const source = fs.readFileSync('src/lib/supabase.js', 'utf8')
+          const match = source.match(/DEFAULT_SUPABASE_PUBLISHABLE_KEY = '([^']+)'/)
+          if (!match) process.exit(1)
+          process.stdout.write(match[1])
+          NODE
+          )"
+          body="$(curl --silent --show-error --fail \
+            --request POST \
+            --header "apikey: ${publishable_key}" \
+            --header 'Content-Type: application/json' \
+            --header 'Origin: https://davidwzmn.github.io' \
+            --data '{"website":"release-smoke-honeypot"}' \
+            'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/submit-lead')"
+          printf '%s' "$body" | grep -q '"ok":true'
       - name: Build static hash version
         env:
           VITE_ROUTER: hash
