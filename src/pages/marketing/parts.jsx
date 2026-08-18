@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/cn.js'
+import { submitWebsiteLead } from '../../lib/supabase.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card } from '../../components/ui/layout.jsx'
 import { BRANCHEN, TERMIN, TRUST } from '../../content/marketing.js'
@@ -13,8 +14,8 @@ import {
 
 /**
  * Optionale externe Terminbuchung. Ist VITE_BOOKING_URL gesetzt, erscheint ein
- * bewusst anzuklickender externer Button; ohne die Variable bleibt das
- * Demo-Formular aktiv – es wird keine echte Übertragung vorgetäuscht.
+ * bewusst anzuklickender externer Button; ohne die Variable wird die Anfrage
+ * sicher über die öffentliche submit-lead Edge Function übermittelt.
  */
 const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || ''
 
@@ -184,7 +185,7 @@ export function CtaBand({
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button as={Link} to={primaer.to} variant="on-dark" size="lg">
                 {primaer.label}
-                <IconArrowRight className="size-4" />
+                <IconArrowRight className="size-4 shrink-0" />
               </Button>
               {sekundaer ? (
                 <Button
@@ -209,14 +210,41 @@ export function CtaBand({
 /** Ablauf-Karte und Anfrageformular – auf der Terminseite und als Baustein. */
 export function TerminFormular() {
   const [gesendet, setGesendet] = useState(false)
-  const [form, setForm] = useState({ name: '', unternehmen: '', email: '', situation: '' })
-  const setzen = (feld) => (event) => setForm((alt) => ({ ...alt, [feld]: event.target.value }))
+  const [sending, setSending] = useState(false)
+  const [fehler, setFehler] = useState('')
+  const [form, setForm] = useState({ name: '', unternehmen: '', email: '', situation: '', website: '' })
+  const setzen = (feld) => (event) => {
+    setFehler('')
+    setForm((alt) => ({ ...alt, [feld]: event.target.value }))
+  }
+
+  const senden = async (event) => {
+    event.preventDefault()
+    if (sending) return
+    setSending(true)
+    setFehler('')
+    try {
+      await submitWebsiteLead({
+        name: form.name,
+        company: form.unternehmen,
+        email: form.email,
+        situation: form.situation,
+        website: form.website,
+        source: 'website-diagnosegespraech',
+      })
+      setGesendet(true)
+    } catch (error) {
+      setFehler(error instanceof Error ? error.message : 'Die Anfrage konnte gerade nicht gesendet werden. Bitte versuchen Sie es erneut.')
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
       <Card className="p-5 sm:p-6">
         <h2 className="flex items-center gap-2.5 text-[0.9375rem] font-semibold text-ink">
-          <IconCalendar className="size-4 text-brand-ink" />
+          <IconCalendar className="size-4 shrink-0 text-brand-ink" />
           Ablauf des Gesprächs
         </h2>
         <ol className="mt-4 space-y-3">
@@ -250,9 +278,9 @@ export function TerminFormular() {
             size="lg"
             className="mt-5 self-start"
           >
-            <IconCalendar className="size-4" />
+            <IconCalendar className="size-4 shrink-0" />
             15-Minuten-Gespräch buchen
-            <IconArrowUpRight className="size-4" />
+            <IconArrowUpRight className="size-4 shrink-0" />
           </Button>
           <div className="mt-5 border-t border-line pt-4">
             <DatenschutzHinweis>
@@ -262,37 +290,34 @@ export function TerminFormular() {
           </div>
         </Card>
       ) : (
-      <Card className="p-5 sm:p-6">
+      <Card className="p-5 sm:p-6" aria-busy={sending || undefined}>
         {gesendet ? (
-          <div className="py-6 text-center">
+          <div className="py-6 text-center" role="status" aria-live="polite">
             <span className="inline-flex size-11 items-center justify-center rounded-xl bg-ok-soft text-ok-ink">
-              <IconCheck className="size-5" />
+              <IconCheck className="size-5 shrink-0" />
             </span>
-            <h2 className="mt-4 text-[0.9375rem] font-semibold text-ink">Anfrage vorgemerkt</h2>
+            <h2 className="mt-4 text-[0.9375rem] font-semibold text-ink">Anfrage ist eingegangen</h2>
             <p className="mx-auto mt-2 max-w-sm text-[0.8125rem] leading-relaxed text-ink-2">
-              Dies ist eine Demo – es wurde nichts versendet und nichts gespeichert. In der echten
-              Anwendung würde sich das SYMMEDIS-Team innerhalb eines Werktags melden.
+              Vielen Dank. Ihre geschäftliche Anfrage wurde sicher übermittelt. Das SYMMEDIS-Team kann sie jetzt im geschützten Anfragebereich bearbeiten.
             </p>
-            <Button variant="secondary" size="sm" className="mt-5" onClick={() => setGesendet(false)}>
-              Formular zurücksetzen
+            <Button variant="secondary" size="sm" className="mt-5" onClick={() => {
+              setGesendet(false)
+              setForm({ name: '', unternehmen: '', email: '', situation: '', website: '' })
+            }}>
+              Weitere Anfrage
             </Button>
           </div>
         ) : (
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setGesendet(true)
-            }}
-          >
+          <form className="space-y-4" onSubmit={senden}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Feld label="Name" value={form.name} onChange={setzen('name')} autoComplete="name" required />
+              <Feld label="Name" value={form.name} onChange={setzen('name')} autoComplete="name" required disabled={sending} />
               <Feld
                 label="Unternehmen"
                 value={form.unternehmen}
                 onChange={setzen('unternehmen')}
                 autoComplete="organization"
                 required
+                disabled={sending}
               />
             </div>
             <Feld
@@ -302,6 +327,7 @@ export function TerminFormular() {
               onChange={setzen('email')}
               autoComplete="email"
               required
+              disabled={sending}
             />
             <div>
               <label htmlFor="situation" className="mb-1.5 block text-[0.8125rem] font-medium text-ink">
@@ -313,18 +339,25 @@ export function TerminFormular() {
                 rows={4}
                 value={form.situation}
                 onChange={setzen('situation')}
+                disabled={sending}
                 placeholder="Zwei, drei Sätze genügen."
-                className="w-full resize-y rounded-lg border border-line-strong bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-3/80 hover:border-line-strong focus:border-brand focus:outline-none"
+                className="w-full resize-y rounded-lg border border-line-strong bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-3/80 hover:border-line-strong focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
 
-            <Button type="submit" size="lg" fullWidth>
-              Diagnosegespräch anfragen
+            <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+              <label htmlFor="website">Website</label>
+              <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" value={form.website} onChange={setzen('website')} />
+            </div>
+
+            {fehler ? <p className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2.5 text-xs leading-relaxed text-danger-ink" role="alert">{fehler}</p> : null}
+
+            <Button type="submit" size="lg" fullWidth disabled={sending}>
+              {sending ? 'Anfrage wird gesendet …' : 'Diagnosegespräch anfragen'}
             </Button>
 
             <p className="text-xs leading-relaxed text-ink-3">
-              Demo-Formular: Es werden keine Daten übertragen oder gespeichert. Bitte keine
-              Patienten- oder Gesundheitsdaten eingeben.
+              Bitte keine Patienten-, Gesundheits- oder anderen besonders sensiblen personenbezogenen Daten eingeben.
             </p>
             <DatenschutzHinweis>
               Wie wir geschäftliche Anfragen verarbeiten, erklären wir in unserer
@@ -337,7 +370,7 @@ export function TerminFormular() {
   )
 }
 
-function Feld({ label, value, onChange, type = 'text', required, autoComplete }) {
+function Feld({ label, value, onChange, type = 'text', required, autoComplete, disabled = false }) {
   const id = `feld-${label.toLowerCase().replace(/[^a-z]/g, '')}`
   return (
     <div>
@@ -355,8 +388,9 @@ function Feld({ label, value, onChange, type = 'text', required, autoComplete })
         value={value}
         onChange={onChange}
         required={required}
+        disabled={disabled}
         autoComplete={autoComplete}
-        className="h-9.5 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-ink-3/80 focus:border-brand focus:outline-none"
+        className="h-9.5 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-ink-3/80 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       />
     </div>
   )

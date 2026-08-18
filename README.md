@@ -1,304 +1,213 @@
-# SYMMEDIS Diagnosis OS – Interaktive Beta-Demo
+# SYMMEDIS Diagnosis OS
 
-Plattform für strategische Ursachenanalyse in Gesundheit und MedTech:
-öffentliche Website, Produktdemo, Kundenportal und Mitarbeiterportal in einer
-Anwendung. React + Vite + Tailwind CSS v4, mit einem schlanken Node-Server, der
-die Anthropic-API kapselt.
+SYMMEDIS ist eine Plattform für strategische Ursachenanalyse, Evidenz, Priorisierung und Umsetzung. Die Anwendung verbindet öffentliche Website, geführte Produktdemo, geschütztes Kundenportal und Mitarbeiterportal in einer gemeinsamen React-/Vite-Codebasis mit Supabase als produktivem Auth-, Datenbank-, Storage- und Edge-Function-Backend.
 
-> **Beta-Demo.** Alle Unternehmen, Zahlen, Dokumente und Gesprächsverläufe sind
-> fiktiv. Es werden keine echten Patienten- oder Gesundheitsdaten verarbeitet
-> und nichts dauerhaft gespeichert.
+> **Produktdemo und echte Portale sind strikt getrennt.** `/demo` arbeitet ausschließlich mit fiktiven lokalen Daten. `/portal` und `/intern` nutzen echte Supabase-Authentifizierung, mandantengetrennte Daten und serverseitig erzwungene Zugriffsregeln.
 
----
+## Produktbereiche
+
+| Route | Bereich | Zugang |
+| --- | --- | --- |
+| `/` | Öffentliche Website | frei |
+| `/demo` | Geführte Produktdemo | frei, fiktive Daten, keine Backend-Writes |
+| `/login` | Geschützter Zugang | Supabase Auth, Kennwort oder Magic Link |
+| `/portal` | Kundenportal | Rolle `kunde`, eigener Mandant/Projektzugang |
+| `/intern` | Mitarbeiterportal | Rolle `intern` oder `admin`, organisationsbezogener Zugriff |
+
+### Kundenportal
+
+Das Kundenportal zeigt ausschließlich Inhalte, die für den jeweiligen Mandanten und das Projekt freigegeben sind. Dazu gehören unter anderem Analyseergebnisse, Umsatzbremsen, 90-Tage-Plan, Aufgaben, Dokumente, Berichte, Termine und Nachrichten.
+
+Interne Notizen und nicht freigegebene Findings werden weder über die Oberfläche noch über die Datenbank-RLS an Kunden ausgeliefert.
+
+### Mitarbeiterportal
+
+Das Mitarbeiterportal bündelt Kunden- und Projektsteuerung, Analyse-Editor, Freigabezentrum, Aufgaben, Dokumente, Reports, Teamfunktionen, interne Notizen, Audit-/Aktivitätsinformationen und die projektweite Evidenzsuche.
+
+Kritische Mutationen werden nicht als erfolgreich dargestellt, bevor die Persistenz bestätigt ist. Wo die Oberfläche optimistisch aktualisiert, wird bei Backendfehlern auf den zuletzt bestätigten Stand zurückgerollt.
+
+## Sicherheits- und Vertrauensmodell
+
+SYMMEDIS nutzt mehrere Schutzebenen:
+
+- Supabase Auth mit rollenbasiertem Profilmodell
+- Row Level Security auf den fachlichen Tabellen
+- private Storage-RLS für Projektdateien
+- getrennte Kunden-/Mitarbeiter-Sichten
+- serverseitige Kanonisierung sensibler Felder
+- Human-in-the-loop-Freigabe für Analyseergebnisse
+- append-only Audit-Infrastruktur für relevante Vorgänge
+- Publishable Key im Browser; kein `service_role`-Secret im Frontend
+
+Die Plattform behandelt Kundenfreigabe als expliziten Prozess. Analyseergebnisse, KI-generierte Vorschläge oder interne Notizen werden nicht automatisch kundensichtbar.
+
+## Authentifizierung
+
+Der Login verwendet Supabase Auth. Unterstützt werden Kennwort-Login und einmalige Magic Links. Nach erfolgreicher Authentifizierung wird das zugehörige Profil geladen und der Nutzer ausschließlich in das freigegebene Portal geleitet.
+
+Die produktive Staging-URL ist in Supabase Auth als Site-/Redirect-Ziel hinterlegt. Magic-Link-Redirects werden am App-Root verarbeitet, bevor der Hash-Router übernimmt.
+
+## Dokumente und Evidenzsuche
+
+Projektdateien werden in einem privaten Supabase-Storage-Bucket gespeichert. Unterstützt werden PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG und JPG.
+
+- Allgemeines Upload-Limit im Frontend: 50 MB pro Datei
+- DOCX/XLSX/PPTX: maximal 25 MB für die lokale Office-Extraktion
+- CSV/TXT: lokale textbasierte Indexierung
+- Office-Dateien: lokale, kostenfreie Extraktion für die Evidenzsuche
+- PDFs: kontrollierter interner Extraktionspfad; bezahlte KI ist derzeit nicht aktiviert
+- Bilder: sichere Ablage, keine automatische Inhaltsinterpretation
+
+Die projektweite Evidenzsuche kombiniert freigegebene Findings und indexierte Knowledge-Chunks und respektiert dieselben Projekt-/Tenant-Grenzen wie der restliche Workspace.
+
+## Analyse und Human-in-the-loop
+
+Der echte Analysepfad verwendet die geschützte Supabase Edge Function `analyze-project`. Die lokale Demo-Analyse ist auf `/demo` beschränkt und wird im Produkt nicht stillschweigend als echte Analyse verwendet.
+
+Analysefelder werden lokal bearbeitet und gezielt gespeichert. Freigaben warten auf bestätigte Persistenz. Unbekannte Kategorie-, Prioritäts- oder Statuswerte werden defensiv dargestellt, damit Schema-Drift nicht zu UI-Crashes führt.
+
+## 90-Tage-Plan und Aufgaben
+
+Der 90-Tage-Plan kann aus priorisierten Analyseempfehlungen erzeugt bzw. synchronisiert werden. Die zugehörige Backend-Logik aktualisiert bestehende Maßnahmen idempotent statt bei wiederholtem Ausführen Duplikate anzulegen.
+
+Aufgabenstatus wird optimistisch aktualisiert und bei Persistenzfehlern zurückgerollt. Kunden können nur die für sie vorgesehenen Statusänderungen durchführen; zusätzliche Felder werden serverseitig geschützt.
+
+## Reports
+
+Reports unterscheiden klar zwischen Entwurf und final freigegebenem Bericht. Kunden sehen ausschließlich finale Berichte. Die Finalisierung erzeugt unveränderliche Versions-/Auditinformationen im Backend.
+
+Management-Auswertungen enthalten nur dafür vorgesehene Inhalte; interne Notizen werden nicht in Kundenexporte aufgenommen.
+
+## Demo
+
+`/demo` ist eine eigenständige geführte Produktdemo mit fiktivem Beispielunternehmen. Sie schreibt nicht in Supabase und verwendet keine echten Kundendaten. Demo-Assistent und lokale Fallback-Logik sind ausdrücklich als Demo gekennzeichnet.
+
+Die Demo soll Interessenten den Produktfluss zeigen, ohne einen gemeinsamen Echt-Account, Registrierungszwang oder echte Backend-Daten zu benötigen.
 
 ## Setup
 
 ```bash
 npm install
-npm run dev          # Entwicklung → http://localhost:5173
+npm run dev
 ```
 
-Produktionsbetrieb:
+Produktionsbuild:
 
 ```bash
-npm run build        # erzeugt dist/
-npm run preview      # Node-Server auf http://localhost:4173 (liefert dist/ + /api)
+npm run build
+npm run preview
 ```
 
-| Befehl                          | Zweck                                                          |
-| ------------------------------- | -------------------------------------------------------------- |
-| `npm run dev`                   | Vite-Dev-Server inkl. `/api`-Routen (identisch zur Produktion)  |
-| `npm run build`                 | Produktionsbuild nach `dist/`                                   |
-| `npm run preview` / `npm start` | Node-Server für `dist/` + `/api`                                |
-| `npm run lint`                  | ESLint (läuft fehler- und warnungsfrei durch)                   |
+Wichtige Befehle:
 
----
+| Befehl | Zweck |
+| --- | --- |
+| `npm run dev` | Vite-Entwicklung |
+| `npm run build` | Produktionsbuild |
+| `npm run preview` / `npm start` | lokaler Produktionsserver |
+| `npm run lint` | ESLint |
 
-## Bereiche
+## GitHub Pages / Staging
 
-| Route     | Bereich             | Zugang                                          |
-| --------- | ------------------- | ----------------------------------------------- |
-| `/`       | Öffentliche Website | frei                                            |
-| `/demo`   | Produktdemo         | frei, ohne Anmeldung, gekennzeichnete Demo-Daten |
-| `/login`  | Demo-Anmeldung      | jede Eingabe wird akzeptiert                     |
-| `/portal` | Kundenportal        | Rolle „Kunde“                                    |
-| `/intern` | Mitarbeiterportal   | Rolle „Mitarbeiter“                              |
+Für GitHub Pages wird zusätzlich ein Hash-Router-Build erzeugt. Die CI prüft:
 
-**Produktdemo** (8 Bereiche): Übersicht, Analyse, Social Media, Dokumente,
-90-Tage-Plan, Aufgaben, Chat, Bericht. Läuft vollständig ohne Backend.
+1. Dependency-Installation
+2. Lint
+3. normalen Vite-Build
+4. statischen Hash-Build
+5. bei freigegebenen Branches die Staging-Ausspielung auf `gh-pages`
 
-**Kundenportal** (11 Bereiche): Übersicht, Analyse, Umsatzbremsen,
-90-Tage-Plan, Aufgaben, Social Media, Wettbewerb, Dokumente, Berichte, Termine,
-Nachrichten. Sichtbar sind ausschließlich freigegebene Inhalte des eigenen
-Projekts.
+Staging: `https://davidwzmn.github.io/symmedis/`
 
-**Mitarbeiterportal** (13 Bereiche): Übersicht, Kunden, Analysen, Freigaben,
-Aufgaben, Dokumente, Social Media, Berichte, Termine, Posteingang, Team,
-Aktivitäten, Einstellungen. Dazu die Kundenakte mit zwölf Registern, der
-Analyse-Editor, das Freigabezentrum, interne Notizen und der Prüfpfad.
+Der aktuelle Entwicklungs-PR bleibt bewusst Draft, bis echte Staff-/Customer-End-to-End-Tests vollständig abgeschlossen sind. Es erfolgt kein automatischer Merge in den Basisbranch.
 
-### Anmeldung
+## Supabase
 
-Die Anmeldung ist bewusst ohne Authentifizierung: jede Adresse und jedes
-Kennwort werden akzeptiert, geprüft wird nichts. Die Sitzung lebt **nur im
-React-State** – ein Neuladen der Seite meldet ab. Persistiert wird
-ausschließlich die Auswahl zwischen hellem und dunklem Modus.
+Produktives Projekt: SYMMEDIS, Region EU.
 
----
+Die Datenbank enthält unter anderem:
 
-## Trennung von Kunden- und Mitarbeitersicht
+- Organisationen und Profile
+- Kunden und Projekte
+- Analyse-Runs und Findings
+- Wachstumsbremsen und Aufgaben
+- Dokumente und Knowledge-Chunks
+- Termine, Nachrichten und interne Notizen
+- Reports und unveränderliche Report-Versionen
+- Audit Events
+- Website Leads
+- Integrations-/Sync-Grundstruktur
 
-Zwei Regeln sind in den Komponenten verankert und werden im Oberflächentest
-geprüft:
+Schemaänderungen werden als Migrationen unter `supabase/migrations/` versioniert. Nach sicherheitsrelevanten DDL-Änderungen werden Supabase Security- und Performance-Advisors erneut geprüft.
 
-1. **Interne Notizen erscheinen nie im Kundenportal** – weder in der Analyse
-   noch in Berichten oder Exporten. Der Analyse-Editor kennzeichnet das Feld
-   entsprechend.
-2. **Mandantentrennung** – Kundenportal, globale Suche und
-   Benachrichtigungszentrum sind auf den eigenen Mandanten begrenzt; fremde
-   Projekte sind dort nicht erreichbar.
+## Edge Functions
 
-Bewertungen durchlaufen fünf Freigabestufen: *automatisch vorgeschlagen → in
-Prüfung → bearbeitet → intern freigegeben → für Kunden freigegeben*. Kein
-Ergebnis und keine KI-Antwort wird automatisch veröffentlicht oder versendet;
-KI-Antwortvorschläge landen ausschließlich im Eingabefeld der Mitarbeitenden.
+Aktiv sind derzeit:
 
----
+- `analyze-project`
+- `invite-user`
+- `index-document`
+- `submit-lead`
+- `manage-leads`
+- `invite-staff`
 
-## Anthropic-API konfigurieren (optional)
+Authentifizierte Funktionen validieren JWT und Profil/Rolle serverseitig. `submit-lead` ist absichtlich öffentlich, verwendet dafür eigene Validierung, Rate-Limits und Bot-/Honeypot-Schutz.
 
-Der API-Key steht **ausschließlich in der Umgebung** und wird nie an den
-Browser ausgeliefert. Alle Modellaufrufe laufen serverseitig über `/api/*`.
+## KI / Anthropic
 
-```bash
-cp .env.example .env      # nur als Referenz – Werte als echte Env-Variablen setzen
-export ANTHROPIC_API_KEY=…
-npm run build && npm run preview
-```
+Die produktive KI-Analyse ist derzeit bewusst deaktiviert. Es werden keine bezahlten Modellaufrufe vorausgesetzt, um den Workspace, Office-Indexierung, Dokumentverwaltung oder die Demo zu verwenden.
 
-| Variable               | Standard                    | Bedeutung                           |
-| ---------------------- | --------------------------- | ----------------------------------- |
-| `ANTHROPIC_API_KEY`    | –                           | aktiviert die KI-Auswertung         |
-| `ANTHROPIC_AUTH_TOKEN` | –                           | Alternative: OAuth-Token            |
-| `ANTHROPIC_MODEL`      | `claude-sonnet-4-6`         | Modell laut Briefing                |
-| `ANTHROPIC_BASE_URL`   | `https://api.anthropic.com` | abweichender Endpunkt (z. B. Proxy) |
-| `PORT`                 | `4173`                      | Port des Produktions-Servers        |
+Eine Aktivierung erfolgt erst in der finalen Produktionsphase nach expliziter Kostenfreigabe und kontrolliertem End-to-End-Test. API-Secrets gehören ausschließlich in Server-/Supabase-Secrets und niemals in den Browser oder das Repository.
 
-Feste Vorgaben je Modellaufruf: `model: claude-sonnet-4-6`, `max_tokens: 1000`,
-vollständige Conversation-History bei jedem Chat-Request.
+## Design und Barrierefreiheit
 
-**Ohne Key läuft die Demo vollständig weiter.** Der Server antwortet dann mit
-einem lokalen, eingabeabhängigen Demo-Modell; ist auch der Server nicht
-erreichbar (statisches Hosting), greift dasselbe Modell im Browser. Die
-Herkunft der Antwort wird in der Oberfläche ausgewiesen.
+Das Designsystem basiert auf CSS-Tokens und Tailwind CSS. Statusinformation wird nie ausschließlich über Farbe vermittelt.
 
-`src/lib/analysis.js` wird bewusst von Server **und** Client importiert –
-dieselbe Logik erzeugt die Ergebnisse, egal wo der Fallback greift.
+Barrierefreiheitsgrundlagen:
 
----
+- sichtbare Fokuszustände
+- Skip-Link zum Hauptinhalt
+- vollständige Tastaturbedienung für Dialoge und Drawer
+- Fokusfalle und Fokus-Rückgabe
+- `aria-live` für relevante Lade-/Speicherzustände
+- Mobile-Karten statt unkontrolliertem Tabellen-Overflow
+- `prefers-reduced-motion`
+- Safe-Area-Unterstützung auf mobilen Geräten
+- WCAG-orientierte Kontraste
 
-## Demo-Daten und Connectoren
+## Fehler- und Offline-Verhalten
 
-Alle Projektdaten werden aus wenigen Kennwerten je Beispielkunde erzeugt
-(`src/data/workspace.js`) und sind an jeder Stelle als Demo-Daten
-gekennzeichnet. Es wird **keine Live-Integration vorgetäuscht**: Social-Kanäle
-sind in den Einstellungen sichtbar als „nicht verbunden“ ausgewiesen, die
-Connector-Schnittstelle ist vorbereitet, aber nicht belegt. Für Kanäle ohne
-Daten werden keine Werte geschätzt.
+Ein fataler Workspace-Ladefehler erhält einen eigenen Retry-Zustand. Einzelne fehlgeschlagene Saves bleiben dagegen nicht-fatal: Der Nutzer bleibt im Arbeitskontext, erhält eine klare Meldung und die UI fällt auf den zuletzt bestätigten Datenstand zurück.
 
-Der Datei-Upload legt nur einen Eintrag im Sitzungszustand an – es wird nichts
-übertragen und nichts gespeichert. Der CSV-Export entsteht im Browser aus dem
-aktuellen Projektstand und enthält nie interne Notizen.
+Bei fehlender Internetverbindung bleiben bereits geladene Inhalte sichtbar; die Oberfläche weist darauf hin, dass Änderungen und Uploads erst nach Wiederherstellung der Verbindung sicher gespeichert werden können.
 
----
+## Repository-Struktur
 
-## Design-System
-
-Alle Farben, Schatten, Radien und Bewegungsangaben liegen als CSS-Variablen in
-`src/styles/tokens.css` und werden in `src/index.css` über `@theme inline` an
-Tailwind gebunden – so wirkt der Themenwechsel zur Laufzeit.
-
-Jede Semantik hat drei Rollen:
-
-| Rolle    | Verwendung                                  |
-| -------- | ------------------------------------------- |
-| `…`      | Flächen- und Markenfarbe (Chips, Diagramme) |
-| `…-ink`  | abgedunkelte Variante für Text (WCAG AA)    |
-| `…-soft` | sehr helle Tönung für Hintergründe          |
-
-Grund für die `-ink`-Stufe: die Signalfarben erreichen als Text auf Weiß nur
-2,8–4,2:1. Als Fläche sind sie richtig, als Text nicht. Für Text auf gefüllten
-Flächen existieren zusätzlich `--c-on-brand`, `--c-on-accent` und
-`--c-on-solid` – Weiß ist z. B. auf `#14B8A6` nur 2,3:1 und auf dem
-Dunkelmodus-Blau `#7C9BFF` nur 2,6:1.
-
-Farbverteilung: rund 75–80 % Weiß und Neutraltöne, 10–12 % Blau (`#2F5BEA`),
-4–6 % Teal (`#14B8A6`), 3–5 % Schiefer (`#172033`), Koralle (`#F0645A`)
-ausschließlich für dringende Hinweise. **Information wird nie allein über Farbe
-vermittelt** – jeder Status trägt zusätzlich Text und, wo nötig, ein Icon.
-
-Typografie: Inter Variable, selbst gehostet (Latin-Subset, 48 kB), keine
-Anfragen an fremde CDNs. Diagramme sind handgeschriebenes SVG ohne
-Chart-Bibliothek; Größenvergleiche nutzen einen Farbton und sortierte Länge,
-jede Marke ist direkt beschriftet.
-
----
-
-## Corporate Design (Navy / Lime)
-
-Das Markenbild ist Navy als Primärfarbe (`#173A5E`) mit Lime als Akzent für
-Handlungsaufrufe (`#B8E85A`). Beide sind additiv über das bestehende
-Token-System eingebunden:
-
-- `--c-brand*` führt das Navy in hell; im Dunkelmodus bleibt der bewährte helle
-  Blauton als Akzent auf tiefem Navy erhalten.
-- `--c-cta*` / `--c-on-cta` ist der neue Lime-CTA – **nur als Fläche mit dunklem
-  Navy-Text**, nie als Fließtext. Dazu die Button-Variante `variant="cta"`.
-- Die **semantischen Statusfarben** (ok/warn/danger/urgent) und die
-  Diagramm-Töne (`--c-viz-*`) bleiben bewusst unverändert, damit Plattform-
-  Kontraste und CVD-Prüfung stabil bleiben.
-
-## Öffentliche Website: Bereiche & Bilder
-
-Ergänzte, weiterhin additive Bereiche: prominenter Buchungs-CTA in Kopfzeile und
-mobiler Sticky-Leiste, neuer Hero, Zielgruppen- und Team-Abschnitt
-(Einzelporträts mit LinkedIn-Link, `target="_blank"` + `rel="noopener
-noreferrer"`), Investitionsrahmen auf der Angebotsseite sowie eine mobile
-Kurzzusammenfassung im Dashboard.
-
-Freigegebene Bilddateien gehören nach `src/assets/marketing/` – siehe die dortige
-`README.md`. Fehlt eine Datei, greift eine gestaltete Fallback-Darstellung; die
-Seite bleibt fehlerfrei. Das gemeinsame Porträt
-`ChatGPT Image 30. Juli 2026, 18_50_41 (3).png` wird ausdrücklich **nicht**
-verwendet.
-
-## Rechtsseiten
-
-Impressum, Datenschutzerklärung und AGB liegen als direkt erreichbare Routen
-(`/impressum`, `/datenschutz`, `/agb`, im statischen Hosting `/#/impressum` usw.)
-mit verbindlichem Wortlaut in `src/content/legal.js`. Die bestehenden
-Rechtstext-Modale bleiben erhalten (Footer „Barrierefreiheit“).
-
-> **AGB-Hinweis:** Die AGB gelten ausschließlich im B2B-Bereich. Die reine
-> Verfügbarkeit der AGB-Seite bewirkt **keine** Einbeziehung in einen Vertrag.
-> Vor einem verbindlichen Auftrag sind ein deutlicher AGB-Hinweis und eine
-> zumutbare Möglichkeit der Kenntnisnahme erforderlich. Für den redaktionell
-> Verantwortlichen wird die aktuelle Formulierung „§ 18 Abs. 2 MStV“ verwendet.
-
-Es ist **kein Cookie-Banner** eingebaut, solange keine einwilligungspflichtigen
-Technologien zum Einsatz kommen. Die Theme-Speicherung wird als technisch
-erforderliche Funktion behandelt. Werden künftig externe Booking-Iframes,
-Analytics, Social-Plugins oder Tracking aktiviert, sind vorher Datenschutz- und
-Consent-Logik zu ergänzen.
-
-## Terminbuchung & SEO (Umgebungsvariablen)
-
-Build-Zeit-Variablen (Vite, Präfix `VITE_`):
-
-| Variable             | Standard | Wirkung                                                                 |
-| -------------------- | -------- | ----------------------------------------------------------------------- |
-| `VITE_BOOKING_URL`   | –        | Ist sie gesetzt, zeigt die Terminseite einen externen Buchungsbutton (neuer Tab, `rel="noopener noreferrer"`). Ohne sie bleibt das Demo-Formular mit Demo-Hinweis aktiv – es wird **keine** Übertragung vorgetäuscht. |
-| `VITE_SITE_URL`      | –        | Basis-URL für kanonische Links und `og:url`.                            |
-| `VITE_PUBLIC_LAUNCH` | –        | Nur bei exakt `"true"` wird `index, follow` gesetzt; sonst bleibt es bei `noindex, nofollow`. |
-
-Am Terminformular gibt es **keinen erzwungenen Datenschutz- oder AGB-Checkbox-
-Zwang**, sondern einen klaren Hinweis mit Link zur Datenschutzerklärung. Es
-werden keine Patienten- oder Gesundheitsdaten abgefragt.
-
-## Statisches Hosting & GitHub Pages
-
-Für Hosting ohne Server-Rewrite gibt es den Hash-Router-Build und eine
-eigenständige Single-File-Ausspielung:
-
-```bash
-VITE_ROUTER=hash npm run build -- --outDir dist-hash
-node scripts/build-standalone.mjs            # → symmedis-plattform.html (alles inline)
-```
-
-`scripts/build-standalone.mjs` inlined CSS, JS und die Schrift als data-URI in
-eine einzige HTML-Datei ohne externe Requests. Der `gh-pages`-Branch enthält
-diese Datei als `index.html` plus `.nojekyll`; öffentliche URL:
-`https://davidwzmn.github.io/symmedis/#/`. Der `gh-pages`-Branch wird erst nach
-vollständigen Tests aktualisiert, ausschließlich per regulärem Push (kein
-Force-Push).
-
----
-
-## Barrierefreiheit
-
-- Kontraste in hellem und dunklem Modus programmatisch geprüft, mindestens
-  WCAG AA – auch auf getönten Flächen wie `surface-muted` und `…-soft`.
-- Vollständige Tastaturbedienung: Sprungmarke zum Inhalt, sichtbarer Fokus,
-  Fokusfalle in Dialogen und Panels, Fokusrückgabe beim Schließen.
-- Globale Suche über `⌘K` / `Strg+K`, Pfeiltasten und Enter.
-- Bewegung ist zurückhaltend und respektiert `prefers-reduced-motion`.
-- Tabellen erscheinen auf Mobilgeräten als Kartenliste, Register als
-  Auswahlfeld – kein horizontaler Scrollbereich für Inhalte.
-
----
-
-## Projektstruktur
-
-```
-index.html                 Einstiegspunkt, SEO-Meta, Favicon (inline SVG)
-server/
-  api.mjs                  /api/analyze, /api/chat, /api/status + Fallback-Logik
-  index.mjs                Statischer Server für dist/ (ohne Fremd-Abhängigkeiten)
-vite.config.js             Vite + Tailwind + dieselben /api-Routen im Dev-Server
+```text
 src/
-  main.jsx                 Einstiegspunkt
-  App.jsx                  Router und Provider-Baum
-  index.css                Tokens → Tailwind, Basisstile, wiederkehrende Muster
-  styles/tokens.css        Einzige Quelle für Farbe, Schatten, Motion
   components/
-    brand/                 Wortmarke
-    shell/                 App-Rahmen, Topbar, Navigation, Suche, Hinweise
-    ui/                    Primitive, Layout, Formulare, Overlays, Tabellen, Icons
-    viz/                   Diagramme (SVG, keine Chart-Bibliothek)
-    modules/               Analyse, Social, Plan, Aufgaben, Dokumente, Berichte,
-                           Termine, Chat, Wettbewerb, interne Notizen, Cockpit
-  data/                    Katalog der Analysedimensionen, Erzeugung der Demo-Daten
-  state/                   Sitzungs- und Arbeitsbereichs-Kontext (ohne Persistenz)
-  pages/                   marketing/, demo/, customer/, staff/, Login, 404
-  lib/                     Formatierung, Farbtöne, API-Zugriff, Analyse-Logik
-  content/marketing.js     Sämtliche Website-Texte an einer Stelle
+    modules/       Fachmodule
+    shell/         Navigation, Topbar, globale UI
+    ui/            Primitives, Formulare, Overlays, Tabellen
+    viz/           Visualisierungen
+  data/            Kataloge und Demo-Daten
+  lib/             Supabase/API-/Formatierungslogik
+  pages/           Marketing, Demo, Customer, Staff, Login
+  state/           Session- und Workspace-State
+supabase/
+  functions/       Edge Functions
+  migrations/      versionierte Datenbankmigrationen
+.github/workflows/  CI und Staging-Publishing
 ```
 
----
+## Production-Readiness
 
-## Geprüft
+Vor einem endgültigen Produktions-Switch bleiben bewusst einige kontrollierte Schritte offen:
 
-- `npm run build` und `npm run lint` laufen ohne Fehler und ohne Warnungen durch.
-- Oberflächentest über alle Bereiche: Website, Demo, Kundenportal,
-  Mitarbeiterportal, 404 – Browser-Konsole frei von Fehlern, keine
-  fehlgeschlagenen Requests.
-- Kein horizontales Overflow bei 320, 375, 768, 1024 und 1440 px; mobile
-  Bottom-Navigation und Drawer durchgespielt.
-- Kontrastprüfung aller Textknoten in hellem **und** dunklem Modus über alle
-  Bereiche: keine Unterschreitung von WCAG AA.
-- Rollen- und Mandantentrennung im Test verifiziert: keine internen Inhalte und
-  keine fremden Projekte im Kundenportal.
-- Durchgespielt: Anmeldung beider Rollen, Zugriffsschutz ohne Sitzung,
-  Analyse-Editor mit Freigabe, Freigabezentrum inkl. Bestätigung, Aufgaben-
-  Statuswechsel, CSV-Export, Chat mit vollständiger History, KI-Antwortvorschlag
-  (landet im Entwurf, wird nicht gesendet), globale Suche, Abmelden.
+- echter Staff-Browser-E2E
+- echter Customer-Browser-E2E mit sicherer Testadresse
+- Invite → Magic Link → Session → Portal → Upload/Download → Task-Update → Report-Freigabe
+- finaler SMTP-/Branding-Entscheid, falls erforderlich
+- KI-Aktivierung ausschließlich nach Kostenfreigabe
+
+Bis dahin bleibt der Entwicklungs-PR Draft. Diese Grenze ist Absicht: SYMMEDIS soll nicht nur „bauen“, sondern vor einem finalen Release nachvollziehbar **funktionieren, sicher sein und belastbar getestet sein**.

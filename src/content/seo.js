@@ -1,15 +1,10 @@
 import { RECHTSSEITEN } from './legal.js'
 
-/**
- * Route-spezifische SEO-Angaben, adressiert über den Pfad (ohne Hash).
- * Die Rechtsseiten übernehmen ihre Angaben aus legal.js, damit Wortlaut und
- * Meta-Daten aus einer Quelle stammen.
- */
 export const SEO_ROUTES = {
   '/': {
-    title: 'Strategische Ursachenanalyse für Gesundheits- & MedTech-Produkte | SYMMEDIS',
+    title: 'Strategische Ursachenanalyse für Wachstum | SYMMEDIS Diagnosis OS',
     description:
-      'Umsatz stagniert trotz guter Produkte? SYMMEDIS identifiziert in 10–14 Tagen die größten Wachstumsbremsen und entwickelt einen konkreten 90-Tage-Plan.',
+      'SYMMEDIS identifiziert die Ursachen, die Wachstum tatsächlich begrenzen, strukturiert die Evidenz und übersetzt die wichtigsten Erkenntnisse in klare Prioritäten und konkrete nächste Schritte.',
   },
   '/problem': {
     title: 'Warum gute Gesundheitsprodukte nicht wachsen | SYMMEDIS',
@@ -17,34 +12,34 @@ export const SEO_ROUTES = {
       'Erklärungsbedürftige Gesundheits- und MedTech-Produkte scheitern selten an der Qualität. Wir setzen eine Ebene früher an: bei der Ursache.',
   },
   '/analysebereiche': {
-    title: 'Analysebereiche der Ursachenanalyse | SYMMEDIS',
+    title: '10 Analysebereiche für strategisches Wachstum | SYMMEDIS',
     description:
-      'Zehn Bereiche, ein zusammenhängendes Bild: Wie SYMMEDIS Positionierung, Kommunikation, Vertrieb und Marktaktivierung untersucht.',
+      'Positionierung, Verständlichkeit, Differenzierung, Marktaktivierung, Website, Vertrieb, Social, Zielgruppen, Nutzenargumentation und Wettbewerb als zusammenhängendes System.',
   },
   '/funktionsweise': {
-    title: 'So funktioniert die Ursachenanalyse | SYMMEDIS',
+    title: 'Von Evidenz zur Wachstumsdiagnose | SYMMEDIS',
     description:
-      'Ein strukturierter Weg von der Vermutung zur Klarheit. Unsere Software strukturiert den Prozess, die Bewertung nimmt unser Team vor.',
+      'Unterlagen und Kontext strukturieren, Ursachen priorisieren, menschlich prüfen und in einen konkreten 90-Tage-Plan übersetzen.',
   },
   '/plattform': {
-    title: 'SYMMEDIS Diagnosis OS – Analyse, Prüfung, Umsetzung | SYMMEDIS',
+    title: 'SYMMEDIS Diagnosis OS – Analyse, Evidenz, Freigabe & Umsetzung',
     description:
-      'Analyse, Freigabeprozess, Aufgaben und Zusammenarbeit in einer Anwendung. Die Software strukturiert, Menschen bewerten und geben frei.',
+      'Ein sicherer Arbeitsraum für Ursachenanalyse, Evidenz, menschliche Freigaben, Dokumente, Reports, Aufgaben und Kundenkommunikation.',
   },
   '/angebot': {
-    title: 'SYMMEDIS Ursachenanalyse – Leistungen & Investition | SYMMEDIS',
+    title: 'Strategische Ursachenanalyse – Leistungen & Investition | SYMMEDIS',
     description:
-      'Eine strategische Ursachenanalyse in 10–14 Tagen. Typischer Investitionsrahmen 7.500–10.000 € netto – strukturiert durch Software, geprüft durch unser Team.',
+      'Eine strategische Ursachenanalyse in 10–14 Tagen mit Management-Report, drei priorisierten Wachstumsbremsen und einem konkreten 90-Tage-Plan.',
   },
   '/faq': {
-    title: 'Häufige Fragen zur Ursachenanalyse | SYMMEDIS',
+    title: 'Häufige Fragen zu SYMMEDIS Diagnosis OS',
     description:
-      'Von der Dauer über die Datentrennung bis zur Frage, für wen SYMMEDIS nicht geeignet ist – Antworten offen und ohne Verkaufston.',
+      'Dauer, Datensicherheit, menschliche Prüfung, Vorgehen und Zusammenarbeit – die wichtigsten Antworten zur SYMMEDIS Ursachenanalyse.',
   },
   '/termin': {
-    title: '15-Minuten-Diagnosegespräch buchen | SYMMEDIS',
+    title: '15-Minuten-Diagnosegespräch anfragen | SYMMEDIS',
     description:
-      'Beginnen Sie mit einem 15-minütigen Diagnosegespräch. Wir klären, ob eine Ursachenanalyse in Ihrer Situation sinnvoll ist – und sagen es auch, wenn nicht.',
+      'Schildern Sie kurz Ihre aktuelle Wachstumsfrage. Wir prüfen persönlich, ob eine strategische Ursachenanalyse in Ihrer Situation sinnvoll ist.',
   },
   '/impressum': { ...RECHTSSEITEN.impressum.seo, path: '/impressum' },
   '/datenschutz': { ...RECHTSSEITEN.datenschutz.seo, path: '/datenschutz' },

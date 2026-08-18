@@ -26,10 +26,20 @@ function apiDevServer() {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), apiDevServer()],
-  server: {
-    host: true,
-    port: 5173,
-  },
+export default defineConfig(() => {
+  const standalone = process.env.SYMMEDIS_STANDALONE === 'true'
+  return {
+    plugins: [react(), tailwindcss(), apiDevServer()],
+    server: {
+      host: true,
+      port: 5173,
+    },
+    build: standalone ? {
+      rollupOptions: {
+        output: {
+          inlineDynamicImports: true,
+        },
+      },
+    } : undefined,
+  }
 })

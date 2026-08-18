@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { Card } from '../../components/ui/layout.jsx'
 import { initialen } from '../../lib/format.js'
 import { ZIELGRUPPE, TEAM } from '../../content/marketing.js'
+import alfredPortrait from '../../assets/marketing/alfred.webp?inline'
+import davidPortrait from '../../assets/marketing/david.webp?inline'
 import { IconArrowUpRight, IconCheck, IconClose } from '../../components/ui/Icons.jsx'
 
 /* ------------------------------------------------------------- Zielgruppe */
@@ -50,24 +53,35 @@ export function ZielgruppeSection() {
 
 /* -------------------------------------------------------- Team & Vertrauen */
 
-/** Porträt: Bild, falls vorhanden – sonst gestalteter Initialen-Platzhalter. */
+const PORTRAITS = {
+  'Alfred Michael Waizmann': alfredPortrait,
+  'David Constantin Waizmann': davidPortrait,
+}
+
+/** Porträt: direkt in den Build eingebettet, mit Initialen als sauberem Fallback. */
 function Portrait({ person }) {
-  if (person.bild) {
+  const [bildFehlt, setBildFehlt] = useState(false)
+  const src = PORTRAITS[person.name] || null
+
+  if (src && !bildFehlt) {
     return (
       <img
-        src={person.bild}
+        src={src}
         alt={person.alt}
-        width={112}
-        height={112}
+        width={640}
+        height={640}
         loading="lazy"
-        className="size-16 shrink-0 rounded-2xl object-cover [object-position:50%_20%] sm:size-20"
+        data-team-portrait={person.name}
+        onError={() => setBildFehlt(true)}
+        className="aspect-square w-full rounded-2xl object-cover [object-position:50%_20%]"
       />
     )
   }
+
   return (
     <span
       aria-hidden="true"
-      className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-semibold text-on-brand sm:size-20 sm:text-xl"
+      className="inline-flex aspect-square w-full items-center justify-center rounded-2xl bg-brand text-4xl font-semibold text-on-brand sm:text-5xl"
     >
       {initialen(person.name)}
     </span>
@@ -76,25 +90,27 @@ function Portrait({ person }) {
 
 function PersonCard({ person }) {
   return (
-    <Card className="flex flex-col p-5 sm:p-6">
-      <div className="flex items-center gap-4">
+    <Card className="grid overflow-hidden p-0 sm:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+      <div className="bg-surface-muted p-4 sm:p-5">
         <Portrait person={person} />
-        <div className="min-w-0">
-          <h3 className="text-[1rem] font-semibold text-ink">{person.name}</h3>
-          <p className="mt-0.5 text-[0.8125rem] font-medium text-brand-ink">{person.rolle}</p>
-        </div>
       </div>
-      <p className="mt-4 flex-1 text-[0.875rem] leading-relaxed text-ink-2">{person.text}</p>
-      <a
-        href={person.linkedin}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`LinkedIn-Profil von ${person.name} (öffnet in neuem Tab)`}
-        className="mt-5 inline-flex items-center gap-1.5 self-start rounded-lg border border-line-strong px-3 py-1.5 text-[0.8125rem] font-medium text-ink transition-colors hover:border-brand hover:text-brand-ink"
-      >
-        LinkedIn-Profil
-        <IconArrowUpRight className="size-4" />
-      </a>
+      <div className="flex flex-col p-5 sm:p-6">
+        <div>
+          <h3 className="text-[1.05rem] font-semibold text-ink">{person.name}</h3>
+          <p className="mt-1 text-[0.8125rem] font-medium text-brand-ink">{person.rolle}</p>
+        </div>
+        <p className="mt-4 flex-1 text-[0.875rem] leading-relaxed text-ink-2">{person.text}</p>
+        <a
+          href={person.linkedin}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`LinkedIn-Profil von ${person.name} (öffnet in neuem Tab)`}
+          className="mt-5 inline-flex items-center gap-1.5 self-start rounded-lg border border-line-strong px-3 py-1.5 text-[0.8125rem] font-medium text-ink transition-colors hover:border-brand hover:text-brand-ink"
+        >
+          LinkedIn-Profil
+          <IconArrowUpRight className="size-4" />
+        </a>
+      </div>
     </Card>
   )
 }
@@ -102,16 +118,18 @@ function PersonCard({ person }) {
 export function TeamSection() {
   return (
     <section className="border-b border-line bg-surface">
-      <div className="shell-container py-14 lg:py-18">
+      <div className="shell-container py-16 lg:py-22">
         <div className="max-w-3xl">
-          <p className="eyebrow">{TEAM.label}</p>
-          <h2 className="mt-2.5 text-[1.5rem] font-semibold tracking-tight text-ink sm:text-[1.75rem]">
-            {TEAM.headline}
+          <p className="eyebrow">TEAM & VERTRAUEN</p>
+          <h2 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.55rem]">
+            Die Menschen hinter SYMMEDIS
           </h2>
-          <p className="mt-4 text-[0.9375rem] leading-relaxed text-ink-2">{TEAM.einleitung}</p>
+          <p className="mt-4 text-[0.95rem] leading-7 text-ink-2">
+            Strategische Erfahrung im Gesundheitsmarkt trifft auf digitale Produktentwicklung, Software und KI. Die Analyse wird durch Technologie strukturiert – die Verantwortung für Bewertung, Priorisierung und Freigabe bleibt bei uns.
+          </p>
         </div>
 
-        <div className="mt-9 grid gap-4 md:grid-cols-2">
+        <div className="mt-10 grid gap-5 xl:grid-cols-2">
           {TEAM.personen.map((person) => (
             <PersonCard key={person.name} person={person} />
           ))}

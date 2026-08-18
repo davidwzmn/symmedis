@@ -1,7 +1,18 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WorkspaceContext } from './WorkspaceContext.js'
 import { createWorkspace, TEAM_MAP } from '../data/workspace.js'
 import { HEUTE, tageBis } from '../lib/format.js'
+import { useSession } from '../hooks/useSession.js'
+import {
+  fetchWorkspace,
+  persistActivity,
+  persistAnalysisPatch,
+  persistBlockerStatus,
+  persistDocument,
+  persistInternalNote,
+  persistMessage,
+  persistTaskStatus,
+} from '../lib/workspaceApi.js'
 
 let laufendeId = 0
 const naechsteId = (prefix) => `${prefix}-${(laufendeId += 1)}`
@@ -10,201 +21,257 @@ function jetztIso() {
   return new Date().toISOString()
 }
 
-export function WorkspaceProvider({ children }) {
-  const [kunden, setKunden] = useState(createWorkspace)
-  const [gelesen, setGelesen] = useState(() => new Set())
+const ANALYSE_DB_KEYS = {
+  beobachtung: 'observation', ursache: 'cause', auswirkung: 'impact', empfehlung: 'recommendation',
+  beleg: 'evidence', prioritaet: 'priority', freigabe: 'approval_status', sichtbarKunde: 'customer_visible',
+  internNotiz: 'internal_note', kommentar: 'comment',
+}
 
+function analysePatchFuerDb(patch) {
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => ANALYSE_DB_KEYS[key]).map(([key, value]) => [ANALYSE_DB_KEYS[key], value]))
+}
+
+export function WorkspaceProvider({ children }) {
+  const { session, accessToken, echteAuthentifizierung, authBereit } = useSession()
+  const [kunden, setKunden] = useState(() => (echteAuthentifizierung ? [] : createWorkspace()))
+  const [gelesen, setGelesen] = useState(() => new Set())
+  const [workspaceBereit, setWorkspaceBereit] = useState(!echteAuthentifizierung)
+  const [workspaceFehler, setWorkspaceFehler] = useState(null)
+  const [workspaceAktionsfehler, setWorkspaceAktionsfehler] = useState(null)
+  const [workspaceFuerUser, setWorkspaceFuerUser] = useState(echteAuthentifizierung ? null : 'demo')
+
+  const ladeWorkspace = useCallback(async () => {
+    setWorkspaceAktionsfehler(null)
+    if (!echteAuthentifizierung) {
+      setKunden(createWorkspace())
+      setWorkspaceBereit(true)
+      setWorkspaceFehler(null)
+      setWorkspaceFuerUser('demo')
+      return
+    }
+    if (!session || !accessToken) {
+      setKunden([])
+      setWorkspaceBereit(authBereit)
+      setWorkspaceFehler(null)
+      setWorkspaceFuerUser(null)
+      return
+    }
+
+    const zielUser = session.userId
+    setWorkspaceBereit(false)
+    setWorkspaceFehler(null)
+    setWorkspaceFuerUser(null)
+    try {
+      const data = await fetchWorkspace(accessToken)
+      setKunden(data)
+    } catch (error) {
+      setKunden([])
+      setWorkspaceFehler(error instanceof Error ? error.message : 'Workspace konnte nicht geladen werden.')
+    } finally {
+      setWorkspaceFuerUser(zielUser)
+      setWorkspaceBereit(true)
+    }
+  }, [accessToken, authBereit, echteAuthentifizierung, session])
+
+  useEffect(() => { ladeWorkspace() }, [ladeWorkspace])
+
+  const meldePersistenzfehler = useCallback((error) => {
+    setWorkspaceAktionsfehler(error instanceof Error ? error.message : 'Änderung konnte nicht gespeichert werden.')
+  }, [])
+  const aktionsfehlerLeeren = useCallback(() => setWorkspaceAktionsfehler(null), [])
+  const getKunde = useCallback((id) => kunden.find((k) => k.id === id) ?? null, [kunden])
   const patchKunde = useCallback((kundeId, updater) => {
     setKunden((liste) => liste.map((k) => (k.id === kundeId ? updater(k) : k)))
   }, [])
 
-  /* ------------------------------------------------------------ Aufgaben */
+  const setAufgabeStatus = useCallback(async (kundeId, aufgabeId, status) => {
+    const kunde = getKunde(kundeId)
+    const vorher = kunde?.aufgaben.find((a) => a.id === aufgabeId)?.status
+    patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status } : a)) }))
 
-  const setAufgabeStatus = useCallback(
-    (kundeId, aufgabeId, status) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        aufgaben: kunde.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status } : a)),
-      }))
-    },
-    [patchKunde],
-  )
+    if (echteAuthentifizierung && accessToken) {
+      try {
+        await persistTaskStatus(accessToken, aufgabeId, status)
+      } catch (error) {
+        if (vorher) patchKunde(kundeId, (entry) => ({ ...entry, aufgaben: entry.aufgaben.map((a) => (a.id === aufgabeId ? { ...a, status: vorher } : a)) }))
+        throw error
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde])
 
-  /* ------------------------------------------- Analyse-Editor & Freigaben */
+  const setAnalyseFeld = useCallback(async (kundeId, kategorieId, patch) => {
+    const kunde = getKunde(kundeId)
+    const eintrag = kunde?.analyse.find((item) => item.kategorieId === kategorieId)
+    if (!kunde || !eintrag) return false
 
-  const setAnalyseFeld = useCallback(
-    (kundeId, kategorieId, patch) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        analyse: kunde.analyse.map((eintrag) =>
-          eintrag.kategorieId === kategorieId ? { ...eintrag, ...patch } : eintrag,
-        ),
-      }))
-    },
-    [patchKunde],
-  )
+    const vorher = Object.fromEntries(Object.keys(patch).map((key) => [key, eintrag[key]]))
+    patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...patch } : item) }))
 
-  const setFreigabe = useCallback(
-    (kundeId, kategorieId, freigabe) => {
-      setAnalyseFeld(kundeId, kategorieId, { freigabe, sichtbarKunde: freigabe === 'kunde' })
-    },
-    [setAnalyseFeld],
-  )
+    if (echteAuthentifizierung && accessToken && kunde.projectId) {
+      try {
+        await persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...vorher } : item) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
-  /** Alle geprüften Punkte auf einmal für den Kunden freigeben. */
-  const freigebenAlle = useCallback(
-    (kundeId) => {
-      let anzahl = 0
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        analyse: kunde.analyse.map((eintrag) => {
-          if (eintrag.freigabe === 'intern' || eintrag.freigabe === 'bearbeitet') {
-            anzahl += 1
-            return { ...eintrag, freigabe: 'kunde', sichtbarKunde: true }
-          }
-          return eintrag
-        }),
-      }))
-      return anzahl
-    },
-    [patchKunde],
-  )
+  const setFreigabe = useCallback(async (kundeId, kategorieId, freigabe) => {
+    const kunde = getKunde(kundeId)
+    const eintrag = kunde?.analyse.find((item) => item.kategorieId === kategorieId)
+    if (!kunde || !eintrag) return false
 
-  /* ---------------------------------------------------------------- Chat */
+    const vorher = { freigabe: eintrag.freigabe, sichtbarKunde: eintrag.sichtbarKunde }
+    const patch = { freigabe, sichtbarKunde: freigabe === 'kunde' }
+    patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...patch } : item) }))
 
-  const addNachricht = useCallback(
-    (kundeId, nachricht) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        chat: [...kunde.chat, { id: naechsteId('msg'), zeit: jetztIso(), ...nachricht }],
-      }))
-    },
-    [patchKunde],
-  )
+    if (echteAuthentifizierung && accessToken && kunde.projectId) {
+      try {
+        await persistAnalysisPatch(accessToken, kunde.projectId, kategorieId, analysePatchFuerDb(patch))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => item.kategorieId === kategorieId ? { ...item, ...vorher } : item) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
-  /* -------------------------------------------------- Notizen & Dokumente */
+  const freigebenAlle = useCallback(async (kundeId) => {
+    const kunde = getKunde(kundeId)
+    if (!kunde) return 0
+    const aenderungen = kunde.analyse.filter((item) => item.freigabe === 'intern' || item.freigabe === 'bearbeitet')
+    if (!aenderungen.length) return 0
+    const vorher = new Map(aenderungen.map((item) => [item.kategorieId, { freigabe: item.freigabe, sichtbarKunde: item.sichtbarKunde }]))
 
-  const addNotiz = useCallback(
-    (kundeId, text, autor) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        notizenIntern: [
-          { id: naechsteId('note'), autor, zeit: jetztIso(), text },
-          ...kunde.notizenIntern,
-        ],
-      }))
-    },
-    [patchKunde],
-  )
+    patchKunde(kundeId, (entry) => ({
+      ...entry,
+      analyse: entry.analyse.map((item) => aenderungen.some((change) => change.kategorieId === item.kategorieId) ? { ...item, freigabe: 'kunde', sichtbarKunde: true } : item),
+    }))
 
-  const addDokument = useCallback(
-    (kundeId, dokument) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        dokumente: [
-          {
-            id: naechsteId('doc'),
-            version: 1,
-            status: 'neu',
-            hochgeladen: jetztIso().slice(0, 10),
-            ...dokument,
-          },
-          ...kunde.dokumente,
-        ],
-        aktivitaet: [
-          {
-            id: naechsteId('akt'),
-            titel: `Dokument hochgeladen: ${dokument.name}`,
-            actor: dokument.von === 'kunde' ? kunde.ansprechpartner.name : 'SYMMEDIS',
-            tone: 'info',
-            zeit: jetztIso(),
-          },
-          ...kunde.aktivitaet,
-        ],
-      }))
-    },
-    [patchKunde],
-  )
+    if (echteAuthentifizierung && accessToken && kunde.projectId) {
+      try {
+        await Promise.all(aenderungen.map((item) => persistAnalysisPatch(accessToken, kunde.projectId, item.kategorieId, { approval_status: 'kunde', customer_visible: true })))
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, analyse: entry.analyse.map((item) => vorher.has(item.kategorieId) ? { ...item, ...vorher.get(item.kategorieId) } : item) }))
+        meldePersistenzfehler(error)
+        return 0
+      }
+    }
+    return aenderungen.length
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
-  const addAktivitaet = useCallback(
-    (kundeId, eintrag) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        aktivitaet: [{ id: naechsteId('akt'), zeit: jetztIso(), ...eintrag }, ...kunde.aktivitaet],
-      }))
-    },
-    [patchKunde],
-  )
+  const addNachricht = useCallback(async (kundeId, nachricht) => {
+    const kunde = getKunde(kundeId)
+    const local = { id: naechsteId('msg'), zeit: jetztIso(), ...nachricht }
+    patchKunde(kundeId, (entry) => ({ ...entry, chat: [...entry.chat, local] }))
 
-  const setBremseStatus = useCallback(
-    (kundeId, bremseId, status) => {
-      patchKunde(kundeId, (kunde) => ({
-        ...kunde,
-        bremsen: kunde.bremsen.map((b) => (b.id === bremseId ? { ...b, status } : b)),
-      }))
-    },
-    [patchKunde],
-  )
+    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) {
+      try {
+        await persistMessage(accessToken, kunde.projectId, session.userId, nachricht)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, chat: entry.chat.filter((item) => item.id !== local.id) }))
+        throw error
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, patchKunde, session?.userId])
 
-  /* ------------------------------------------------------ Abgeleitete Daten */
+  const addNotiz = useCallback(async (kundeId, text, autor) => {
+    const kunde = getKunde(kundeId)
+    const local = { id: naechsteId('note'), autor, zeit: jetztIso(), text }
+    patchKunde(kundeId, (entry) => ({ ...entry, notizenIntern: [local, ...entry.notizenIntern] }))
+
+    if (echteAuthentifizierung && accessToken && kunde?.projectId && session?.userId) {
+      try {
+        await persistInternalNote(accessToken, kunde.projectId, session.userId, text, autor)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, notizenIntern: entry.notizenIntern.filter((item) => item.id !== local.id) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde, session?.userId])
+
+  const addDokument = useCallback(async (kundeId, dokument, file = null) => {
+    const kunde = getKunde(kundeId)
+    if (echteAuthentifizierung && accessToken && kunde?.projectId && file) {
+      try {
+        await persistDocument(accessToken, kunde.id, kunde.projectId, file, dokument)
+        await ladeWorkspace()
+        return true
+      } catch (error) {
+        meldePersistenzfehler(error)
+        throw error
+      }
+    }
+    patchKunde(kundeId, (entry) => ({
+      ...entry,
+      dokumente: [{ id: naechsteId('doc'), version: 1, status: 'neu', hochgeladen: jetztIso().slice(0, 10), ...dokument }, ...entry.dokumente],
+      aktivitaet: [{ id: naechsteId('akt'), titel: `Dokument hochgeladen: ${dokument.name}`, actor: dokument.von === 'kunde' ? entry.ansprechpartner.name : 'SYMMEDIS', tone: 'info', zeit: jetztIso() }, ...entry.aktivitaet],
+    }))
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, ladeWorkspace, meldePersistenzfehler, patchKunde])
+
+  const addAktivitaet = useCallback(async (kundeId, eintrag) => {
+    const kunde = getKunde(kundeId)
+    const local = { id: naechsteId('akt'), zeit: jetztIso(), ...eintrag }
+    patchKunde(kundeId, (entry) => ({ ...entry, aktivitaet: [local, ...entry.aktivitaet] }))
+
+    if (echteAuthentifizierung && accessToken && kunde?.projectId) {
+      try {
+        await persistActivity(accessToken, kunde.projectId, local)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, aktivitaet: entry.aktivitaet.filter((item) => item.id !== local.id) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
+
+  const setBremseStatus = useCallback(async (kundeId, bremseId, status) => {
+    const kunde = getKunde(kundeId)
+    const vorher = kunde?.bremsen.find((b) => b.id === bremseId)?.status
+    if (!kunde || vorher === undefined) return false
+
+    patchKunde(kundeId, (entry) => ({ ...entry, bremsen: entry.bremsen.map((b) => (b.id === bremseId ? { ...b, status } : b)) }))
+    if (echteAuthentifizierung && accessToken) {
+      try {
+        await persistBlockerStatus(accessToken, bremseId, status)
+      } catch (error) {
+        patchKunde(kundeId, (entry) => ({ ...entry, bremsen: entry.bremsen.map((b) => (b.id === bremseId ? { ...b, status: vorher } : b)) }))
+        meldePersistenzfehler(error)
+        return false
+      }
+    }
+    return true
+  }, [accessToken, echteAuthentifizierung, getKunde, meldePersistenzfehler, patchKunde])
 
   const benachrichtigungen = useMemo(() => {
     const liste = []
     for (const kunde of kunden) {
-      const ueberfaellig = kunde.aufgaben.filter(
-        (a) => a.status !== 'erledigt' && tageBis(a.faellig) < 0,
-      )
-      if (ueberfaellig.length > 0) {
-        liste.push({
-          id: `n-${kunde.id}-faellig`,
-          kundeId: kunde.id,
-          tone: 'urgent',
-          titel: `${ueberfaellig.length} überfällige Aufgabe${ueberfaellig.length > 1 ? 'n' : ''}`,
-          text: `${kunde.unternehmen} · ${ueberfaellig[0].titel}`,
-          zeit: ueberfaellig[0].faellig,
-        })
-      }
-
-      const offeneFreigaben = kunde.analyse.filter(
-        (a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern',
-      ).length
-      if (offeneFreigaben > 0) {
-        liste.push({
-          id: `n-${kunde.id}-freigabe`,
-          kundeId: kunde.id,
-          tone: 'warn',
-          titel: `${offeneFreigaben} Analysepunkte warten auf Freigabe`,
-          text: kunde.unternehmen,
-          zeit: kunde.ergebnis,
-        })
-      }
-
+      const ueberfaellig = kunde.aufgaben.filter((a) => a.status !== 'erledigt' && a.faellig && tageBis(a.faellig) < 0)
+      if (ueberfaellig.length > 0) liste.push({ id: `n-${kunde.id}-faellig`, kundeId: kunde.id, tone: 'urgent', titel: `${ueberfaellig.length} überfällige Aufgabe${ueberfaellig.length > 1 ? 'n' : ''}`, text: `${kunde.unternehmen} · ${ueberfaellig[0].titel}`, zeit: ueberfaellig[0].faellig })
+      const offeneFreigaben = kunde.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length
+      if (offeneFreigaben > 0) liste.push({ id: `n-${kunde.id}-freigabe`, kundeId: kunde.id, tone: 'warn', titel: `${offeneFreigaben} Analysepunkte warten auf Freigabe`, text: kunde.unternehmen, zeit: kunde.ergebnis })
       const neueDokumente = kunde.dokumente.filter((d) => d.status === 'neu').length
-      if (neueDokumente > 0) {
-        liste.push({
-          id: `n-${kunde.id}-doks`,
-          kundeId: kunde.id,
-          tone: 'info',
-          titel: `${neueDokumente} neue Dokumente`,
-          text: kunde.unternehmen,
-          zeit: kunde.dokumente[0]?.hochgeladen,
-        })
-      }
+      if (neueDokumente > 0) liste.push({ id: `n-${kunde.id}-doks`, kundeId: kunde.id, tone: 'info', titel: `${neueDokumente} neue Dokumente`, text: kunde.unternehmen, zeit: kunde.dokumente[0]?.hochgeladen })
     }
     return liste.map((n) => ({ ...n, gelesen: gelesen.has(n.id) }))
   }, [kunden, gelesen])
 
-  const markiereGelesen = useCallback((id) => {
-    setGelesen((menge) => new Set(menge).add(id))
-  }, [])
-
-  const alleGelesen = useCallback(() => {
-    setKunden((liste) => liste)
-    setGelesen((menge) => {
-      const neu = new Set(menge)
-      return neu
-    })
-  }, [])
+  const markiereGelesen = useCallback((id) => setGelesen((menge) => new Set(menge).add(id)), [])
+  const alleGelesen = useCallback(() => setGelesen((menge) => {
+    const neu = new Set(menge)
+    benachrichtigungen.forEach((item) => neu.add(item.id))
+    return neu
+  }), [benachrichtigungen])
 
   const kennzahlen = useMemo(() => {
     const aktive = kunden.filter((k) => k.status !== 'abgeschlossen')
@@ -212,65 +279,28 @@ export function WorkspaceProvider({ children }) {
     return {
       aktiveKunden: aktive.length,
       laufendeAnalysen: kunden.filter((k) => k.status === 'analyse' || k.status === 'pruefung').length,
-      offeneFreigaben: kunden.reduce(
-        (sum, k) => sum + k.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length,
-        0,
-      ),
+      offeneFreigaben: kunden.reduce((sum, k) => sum + k.analyse.filter((a) => a.freigabe === 'bearbeitet' || a.freigabe === 'intern').length, 0),
       neueDokumente: kunden.reduce((sum, k) => sum + k.dokumente.filter((d) => d.status === 'neu').length, 0),
       offeneAufgaben: alleAufgaben.filter((a) => a.status !== 'erledigt').length,
-      ueberfaellig: alleAufgaben.filter((a) => a.status !== 'erledigt' && tageBis(a.faellig) < 0).length,
-      berichteInArbeit: kunden.reduce(
-        (sum, k) => sum + k.berichte.filter((b) => b.stand === 'entwurf').length,
-        0,
-      ),
-      termine: kunden
-        .flatMap((k) => k.termine.map((t) => ({ ...t, kundeId: k.id, unternehmen: k.unternehmen })))
-        .filter((t) => new Date(t.datum) >= HEUTE)
-        .sort((a, b) => new Date(a.datum) - new Date(b.datum)),
-      teamAuslastung: Math.round(
-        Object.values(TEAM_MAP).reduce((s, m) => s + m.auslastung, 0) / Object.keys(TEAM_MAP).length,
-      ),
+      ueberfaellig: alleAufgaben.filter((a) => a.status !== 'erledigt' && a.faellig && tageBis(a.faellig) < 0).length,
+      berichteInArbeit: kunden.reduce((sum, k) => sum + k.berichte.filter((b) => b.stand === 'entwurf').length, 0),
+      termine: kunden.flatMap((k) => k.termine.map((t) => ({ ...t, kundeId: k.id, unternehmen: k.unternehmen }))).filter((t) => new Date(t.datum) >= HEUTE).sort((a, b) => new Date(a.datum) - new Date(b.datum)),
+      teamAuslastung: Math.round(Object.values(TEAM_MAP).reduce((s, m) => s + m.auslastung, 0) / Object.keys(TEAM_MAP).length),
     }
   }, [kunden])
 
-  const getKunde = useCallback((id) => kunden.find((k) => k.id === id) ?? null, [kunden])
-
-  const value = useMemo(
-    () => ({
-      kunden,
-      getKunde,
-      kennzahlen,
-      benachrichtigungen,
-      markiereGelesen,
-      alleGelesen,
-      setAufgabeStatus,
-      setAnalyseFeld,
-      setFreigabe,
-      freigebenAlle,
-      addNachricht,
-      addNotiz,
-      addDokument,
-      addAktivitaet,
-      setBremseStatus,
-    }),
-    [
-      kunden,
-      getKunde,
-      kennzahlen,
-      benachrichtigungen,
-      markiereGelesen,
-      alleGelesen,
-      setAufgabeStatus,
-      setAnalyseFeld,
-      setFreigabe,
-      freigebenAlle,
-      addNachricht,
-      addNotiz,
-      addDokument,
-      addAktivitaet,
-      setBremseStatus,
-    ],
-  )
+  const value = useMemo(() => ({
+    kunden, getKunde, kennzahlen, benachrichtigungen, markiereGelesen, alleGelesen,
+    setAufgabeStatus, setAnalyseFeld, setFreigabe, freigebenAlle, addNachricht, addNotiz,
+    addDokument, addAktivitaet, setBremseStatus,
+    workspaceBereit, workspaceFehler, workspaceAktionsfehler, aktionsfehlerLeeren,
+    workspaceFuerUser, neuLaden: ladeWorkspace, echteDaten: echteAuthentifizierung,
+  }), [
+    kunden, getKunde, kennzahlen, benachrichtigungen, markiereGelesen, alleGelesen,
+    setAufgabeStatus, setAnalyseFeld, setFreigabe, freigebenAlle, addNachricht, addNotiz,
+    addDokument, addAktivitaet, setBremseStatus, workspaceBereit, workspaceFehler,
+    workspaceAktionsfehler, aktionsfehlerLeeren, workspaceFuerUser, ladeWorkspace, echteAuthentifizierung,
+  ])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
