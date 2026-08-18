@@ -8,6 +8,7 @@ import { useSession } from './hooks/useSession.js'
 import { consumeAuthRedirectSession } from './lib/supabase.js'
 import { ToastProvider } from './components/ui/ToastProvider.jsx'
 import { Skeleton } from './components/ui/layout.jsx'
+import { AppErrorBoundary } from './components/system/AppErrorBoundary.jsx'
 import { MarketingLayout } from './pages/marketing/MarketingLayout.jsx'
 import { HomePage } from './pages/marketing/HomePage.jsx'
 import { ProblemPage } from './pages/marketing/ProblemPage.jsx'
@@ -132,34 +133,36 @@ export default function App() {
   consumeAuthRedirectSession()
   return (
     <Router>
-      <ToastProvider>
-        <SessionProvider>
-          <WorkspaceProvider>
-            <ScrollToTop />
-            <Routes>
-              <Route element={<MarketingLayout />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/problem" element={<ProblemPage />} />
-                <Route path="/analysebereiche" element={<AnalysebereichePage />} />
-                <Route path="/funktionsweise" element={<FunktionsweisePage />} />
-                <Route path="/plattform" element={<PlattformPage />} />
-                <Route path="/angebot" element={<AngebotPage />} />
-                <Route path="/faq" element={<FaqPage />} />
-                <Route path="/termin" element={<TerminPage />} />
-                <Route path="/impressum" element={<LegalPage dokument={IMPRESSUM} />} />
-                <Route path="/datenschutz" element={<LegalPage dokument={DATENSCHUTZ} />} />
-                <Route path="/agb" element={<LegalPage dokument={AGB} />} />
-              </Route>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />
-              <Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />
-              <Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />
-              <Route path="/404" element={<NotFoundPage />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
-            </Routes>
-          </WorkspaceProvider>
-        </SessionProvider>
-      </ToastProvider>
+      <AppErrorBoundary>
+        <ToastProvider>
+          <SessionProvider>
+            <WorkspaceProvider>
+              <ScrollToTop />
+              <Routes>
+                <Route element={<MarketingLayout />}>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/problem" element={<ProblemPage />} />
+                  <Route path="/analysebereiche" element={<AnalysebereichePage />} />
+                  <Route path="/funktionsweise" element={<FunktionsweisePage />} />
+                  <Route path="/plattform" element={<PlattformPage />} />
+                  <Route path="/angebot" element={<AngebotPage />} />
+                  <Route path="/faq" element={<FaqPage />} />
+                  <Route path="/termin" element={<TerminPage />} />
+                  <Route path="/impressum" element={<LegalPage dokument={IMPRESSUM} />} />
+                  <Route path="/datenschutz" element={<LegalPage dokument={DATENSCHUTZ} />} />
+                  <Route path="/agb" element={<LegalPage dokument={AGB} />} />
+                </Route>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />
+                <Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />
+                <Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />
+                <Route path="/404" element={<NotFoundPage />} />
+                <Route path="*" element={<Navigate to="/404" replace />} />
+              </Routes>
+            </WorkspaceProvider>
+          </SessionProvider>
+        </ToastProvider>
+      </AppErrorBoundary>
     </Router>
   )
 }
