@@ -82,6 +82,26 @@ async function pageSocket(port) {
   }, 12000)
 }
 
+async function verifyTeamPortraits(cdp, scenarioName) {
+  await cdp.evaluate(`document.querySelector('[data-team-portrait="David Constantin Waizmann"]')?.scrollIntoView({ block: 'center' }); true`)
+
+  const portraits = await waitFor(() => cdp.evaluate(`(() => {
+    const expected = ['Alfred Michael Waizmann', 'David Constantin Waizmann'];
+    const result = expected.map((name) => {
+      const img = document.querySelector('[data-team-portrait="' + name + '"]');
+      return img ? { name, complete: img.complete, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight } : { name, missing: true };
+    });
+    return result.every((item) => !item.missing && item.complete && item.naturalWidth > 0 && item.naturalHeight > 0) ? result : null;
+  })()`), 15000)
+
+  const david = portraits.find((portrait) => portrait.name === 'David Constantin Waizmann')
+  if (!david || david.naturalWidth <= 0 || david.naturalHeight <= 0) {
+    throw new Error(`${scenarioName}: David-Porträt wurde nicht erfolgreich decodiert.`)
+  }
+
+  console.log(`✓ live ${scenarioName}: Team-Porträts geladen (${portraits.map((portrait) => `${portrait.name} ${portrait.naturalWidth}x${portrait.naturalHeight}`).join(', ')})`)
+}
+
 async function runScenario(scenario, index) {
   const port = 9340 + index
   const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-`))
@@ -145,6 +165,7 @@ async function runScenario(scenario, index) {
     }
     if (state.body.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
     if (scenario.name.startsWith('home-') && state.tinyVisibleText.length) throw new Error(`${scenario.name}: sichtbarer Text unter 10.5px gefunden: ${JSON.stringify(state.tinyVisibleText)}`)
+    if (scenario.name.startsWith('home-')) await verifyTeamPortraits(cdp, scenario.name)
 
     console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}, build ${state.build.slice(0, 7) || 'n/a'}`)
     cdp.close()
