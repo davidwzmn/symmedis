@@ -1,7 +1,6 @@
 /**
- * Minimaler Produktions-Server (ohne Fremd-Abhängigkeiten):
- * liefert den Build aus /dist und bedient dieselben /api-Routen wie der
- * Vite-Dev-Server.
+ * Minimaler Produktions-/Preview-Server ohne Fremd-Abhängigkeiten.
+ * Liefert den Build aus /dist und bedient die optionalen lokalen Demo-API-Routen.
  *
  *   npm run build && npm run preview
  */
@@ -80,9 +79,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Single-Page-Anwendung: alle übrigen Pfade an den Client-Router geben.
-  // Bewusst mit Status 200 – /demo, /portal und /intern sind echte Routen,
-  // ein 404 würde Deep-Links fälschlich als Fehler ausweisen. Unbekannte
-  // Adressen beantwortet der Router selbst mit seiner 404-Seite.
+  // /demo, /portal und /intern sind echte Routen; unbekannte Adressen
+  // beantwortet der React-Router mit der eigenen 404-Seite.
   const indexFile = path.join(DIST, 'index.html')
   if (!fs.existsSync(indexFile)) {
     res.statusCode = 500
@@ -94,8 +92,6 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(PORT, HOST, () => {
-  console.log(`\n  SYMMEDIS Diagnosis OS – Demo läuft auf http://localhost:${PORT}`)
-  console.log(
-    `  Anthropic-API: ${aiConfigured ? 'konfiguriert' : 'nicht konfiguriert (lokales Demo-Modell aktiv)'}\n`,
-  )
+  console.log(`\n  SYMMEDIS Diagnosis OS – App erreichbar unter http://localhost:${PORT}`)
+  console.log(`  Optionale Demo-KI: ${aiConfigured ? 'explizit aktiviert' : 'deaktiviert · lokaler Demo-Assistent'}\n`)
 })
