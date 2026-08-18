@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/layout.jsx'
 import { initialen } from '../../lib/format.js'
 import { ZIELGRUPPE, TEAM } from '../../content/marketing.js'
 import alfredPortrait from '../../assets/marketing/alfred.webp?inline'
-import davidPortrait from '../../assets/marketing/david.webp?inline'
+import davidPortrait from '../../assets/marketing/davidPortrait.js'
 import { IconArrowUpRight, IconCheck, IconClose } from '../../components/ui/Icons.jsx'
 
 /* ------------------------------------------------------------- Zielgruppe */
