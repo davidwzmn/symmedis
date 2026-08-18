@@ -49,6 +49,54 @@ jobs:
             body="$(curl --silent --show-error --fail "http://127.0.0.1:4173${route}")"
             printf '%s' "$body" | grep -q 'id="root"'
           done
+      - name: Mobile browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$chrome" ]; then
+            echo "No Chrome/Chromium binary available on runner." >&2
+            exit 1
+          fi
+
+          PORT=4174 HOST=127.0.0.1 npm run preview > /tmp/symmedis-browser-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl --silent --fail http://127.0.0.1:4174/ > /dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+
+          render() {
+            route="$1"
+            target="$2"
+            timeout 25s "$chrome" \
+              --headless=new \
+              --no-sandbox \
+              --disable-gpu \
+              --hide-scrollbars \
+              --window-size=390,844 \
+              --virtual-time-budget=3500 \
+              --dump-dom "http://127.0.0.1:4174${route}" > "$target" 2>/tmp/symmedis-chrome.log
+            grep -q '<div id="root">' "$target"
+            if grep -q 'Etwas ist schiefgelaufen' "$target"; then
+              echo "React error boundary rendered for ${route}." >&2
+              exit 1
+            fi
+          }
+
+          render / /tmp/symmedis-browser-home.html
+          grep -q 'Wachstum ist ein System' /tmp/symmedis-browser-home.html
+
+          render /demo /tmp/symmedis-browser-demo.html
+          grep -q 'Sichere, interaktive Produktdemo' /tmp/symmedis-browser-demo.html
+          grep -q '5-Minuten-Produkttour' /tmp/symmedis-browser-demo.html
+
+          render /termin /tmp/symmedis-browser-termin.html
+          grep -q 'Bringen Sie die Wachstumsfrage' /tmp/symmedis-browser-termin.html
+          grep -q 'Diagnosegespräch anfragen' /tmp/symmedis-browser-termin.html
       - name: Build static hash version
         env:
           VITE_ROUTER: hash
