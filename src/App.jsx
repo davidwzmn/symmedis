@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './state/SessionProvider.jsx'
 import { WorkspaceProvider } from './state/WorkspaceProvider.jsx'
+import { DemoWorkspaceProvider } from './state/DemoWorkspaceProvider.jsx'
 import { useWorkspace } from './hooks/useWorkspace.js'
 import { useSession } from './hooks/useSession.js'
 import { consumeAuthRedirectSession } from './lib/supabase.js'
@@ -150,7 +151,7 @@ export default function App() {
                 <Route path="/agb" element={<LegalPage dokument={AGB} />} />
               </Route>
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/demo/*" element={<DemoApp />} />
+              <Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />
               <Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />
               <Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />
               <Route path="/404" element={<NotFoundPage />} />
