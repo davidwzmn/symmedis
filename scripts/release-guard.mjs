@@ -73,14 +73,40 @@ for (const [path, content] of source) {
   }
 }
 
-// Portal routes must remain behind the authenticated workspace gate and demo must stay separate.
+// Portal routes must remain behind the authenticated workspace gate. Public demo must own an isolated local workspace.
 const app = await text('src/App.jsx')
 for (const routeGuard of [
-  '<Route path="/demo/*" element={<DemoApp />} />',
+  '<Route path="/demo/*" element={<DemoWorkspaceProvider><DemoApp /></DemoWorkspaceProvider>} />',
   '<Route path="/portal/*" element={<WorkspaceGate><CustomerApp /></WorkspaceGate>} />',
   '<Route path="/intern/*" element={<WorkspaceGate><StaffApp /></WorkspaceGate>} />',
 ]) {
   if (!app.includes(routeGuard)) fail(`src/App.jsx: geschützte Routing-Grenze fehlt oder wurde verändert: ${routeGuard}`)
+}
+const demoWorkspace = await text('src/state/DemoWorkspaceProvider.jsx')
+for (const signature of ['createWorkspace()', 'echteDaten: false', "workspaceFuerUser: 'demo'"]) {
+  if (!demoWorkspace.includes(signature)) fail(`Demo-Isolation: erwartete lokale Workspace-Signatur fehlt: ${signature}`)
+}
+if (/fetchWorkspace|accessToken|persist[A-Z]|supabase/i.test(demoWorkspace)) {
+  fail('Demo-Isolation: Der öffentliche DemoWorkspaceProvider darf keine produktive Persistenz oder Supabase-Session verwenden.')
+}
+
+// Homepage must stay theme-safe and its main visualization must remain mobile-safe.
+const homePage = await text('src/pages/marketing/HomePage.jsx')
+if (homePage.includes('bg-[#f2f5fa]')) {
+  fail('Homepage: fest heller Hintergrund #f2f5fa kollidiert mit Dark-Mode-Texttokens.')
+}
+const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
+for (const signature of ['aspect-square', 'sm:aspect-[1.05]', "mobile: 'Aktivierung'", 'shrink-0']) {
+  if (!growthVisual.includes(signature)) fail(`Homepage-Mobile: Diagnosis Graph Guard fehlt: ${signature}`)
+}
+
+// Public diagnosis request must use the real protected lead ingress, never a fake success state.
+const marketingParts = await text('src/pages/marketing/parts.jsx')
+for (const signature of ['submitWebsiteLead', "source: 'website-diagnosegespraech'", 'website: form.website']) {
+  if (!marketingParts.includes(signature)) fail(`Öffentliche Anfrage: produktiver Lead-Vertrag fehlt: ${signature}`)
+}
+if (marketingParts.includes('Demo-Formular:') || marketingParts.includes('es wurde nichts versendet')) {
+  fail('Öffentliche Anfrage: Das Terminformular darf keinen Demo-Schein-Erfolg mehr anzeigen.')
 }
 
 // Public launch must remain explicit opt-in in the documented environment template.
@@ -135,7 +161,10 @@ console.log(`SYMMEDIS Release Guard: OK (${sourceFiles.length} Browser-Quelldate
 console.log('✓ Keine privilegierten Server-Secrets im Browser-Code')
 console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in')
-console.log('✓ Demo-, Kunden- und Staff-Routen bleiben getrennt')
+console.log('✓ Öffentliche Demo besitzt einen isolierten lokalen Workspace')
+console.log('✓ Homepage-Kontrast und mobile Diagnosis-Graph-Verträge bleiben geschützt')
+console.log('✓ Öffentliches Diagnoseformular nutzt den echten Lead-Ingress')
+console.log('✓ Kunden- und Staff-Routen bleiben geschützt')
 console.log('✓ Öffentliche Indexierung bleibt explizites Opt-in')
 console.log('✓ Customer-Task- und Dokument-Guards bleiben versioniert')
 console.log('✓ Report-Versionierung und Audit bleiben geschützt')
