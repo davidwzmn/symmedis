@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Card } from '../../components/ui/layout.jsx'
 import { initialen } from '../../lib/format.js'
 import { ZIELGRUPPE, TEAM } from '../../content/marketing.js'
+import alfredPortrait from '../../assets/marketing/alfred.webp?inline'
+import davidPortrait from '../../assets/marketing/david.webp?inline'
 import { IconArrowUpRight, IconCheck, IconClose } from '../../components/ui/Icons.jsx'
 
 /* ------------------------------------------------------------- Zielgruppe */
@@ -51,28 +53,15 @@ export function ZielgruppeSection() {
 
 /* -------------------------------------------------------- Team & Vertrauen */
 
-const portraitAssets = import.meta.glob('../../assets/marketing/*.{png,jpg,jpeg,webp}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-})
-
-const PORTRAIT_FILES = {
-  'Alfred Michael Waizmann': 'alfred.webp',
-  'David Constantin Waizmann': 'david.webp',
+const PORTRAITS = {
+  'Alfred Michael Waizmann': alfredPortrait,
+  'David Constantin Waizmann': davidPortrait,
 }
 
-function portraitUrl(person) {
-  const datei = PORTRAIT_FILES[person.name]
-  if (!datei) return null
-  const eintrag = Object.entries(portraitAssets).find(([pfad]) => pfad.endsWith(`/${datei}`))
-  return eintrag?.[1] || null
-}
-
-/** Porträt: Drop-in-Datei aus src/assets/marketing, mit Initialen als sauberem Fallback. */
+/** Porträt: direkt in den Build eingebettet, mit Initialen als sauberem Fallback. */
 function Portrait({ person }) {
   const [bildFehlt, setBildFehlt] = useState(false)
-  const src = portraitUrl(person)
+  const src = PORTRAITS[person.name] || null
 
   if (src && !bildFehlt) {
     return (
@@ -82,6 +71,7 @@ function Portrait({ person }) {
         width={640}
         height={640}
         loading="lazy"
+        data-team-portrait={person.name}
         onError={() => setBildFehlt(true)}
         className="aspect-square w-full rounded-2xl object-cover [object-position:50%_20%]"
       />
