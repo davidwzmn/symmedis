@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -150,7 +154,9 @@ jobs:
           git -C /tmp/symmedis-pages commit -m "Deploy SYMMEDIS staging ${GITHUB_SHA::7}"
           git -C /tmp/symmedis-pages push --force origin HEAD:gh-pages
       - name: Verify exact live staging release
+        id: exact_live
         if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -166,7 +172,8 @@ jobs:
           exit 1
       - name: Live mobile browser release smoke
         id: live_smoke
-        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && steps.exact_live.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -174,25 +181,39 @@ jobs:
           test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           CHROME_BIN="$chrome" LIVE_BASE_URL="https://davidwzmn.github.io/symmedis" node scripts/live-browser-smoke.mjs 2>&1 | tee /tmp/symmedis-live-smoke.log
       - name: Record live verification failure
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && steps.live_smoke.outcome == 'failure'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && (steps.exact_live.outcome != 'success' || steps.live_smoke.outcome != 'success')
         shell: bash
         run: |
           set -euo pipefail
           {
             echo "build=${GITHUB_SHA}"
             echo "status=failed"
+            echo "exact_release=${{ steps.exact_live.outcome }}"
+            echo "live_browser=${{ steps.live_smoke.outcome }}"
             echo "---"
-            sed -n '1,120p' /tmp/symmedis-live-smoke.log 2>/dev/null || echo "no live smoke log available"
+            sed -n '1,120p' /tmp/symmedis-live-smoke.log 2>/dev/null || echo "no live smoke log available (not run or no log)"
           } > /tmp/symmedis-pages/verification-failed.txt
-          git -C /tmp/symmedis-pages add verification-failed.txt
+          rm -f /tmp/symmedis-pages/verified.txt
+          git -C /tmp/symmedis-pages add -A
           git -C /tmp/symmedis-pages commit -m "Record failed staging verification ${GITHUB_SHA::7}"
           git -C /tmp/symmedis-pages push origin HEAD:gh-pages
       - name: Mark live staging verified
-        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && steps.live_smoke.outcome == 'success'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation' && steps.exact_live.outcome == 'success' && steps.live_smoke.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
           printf '%s\n' "$GITHUB_SHA" > /tmp/symmedis-pages/verified.txt
-          git -C /tmp/symmedis-pages add verified.txt
+          rm -f /tmp/symmedis-pages/verification-failed.txt
+          git -C /tmp/symmedis-pages add -A
           git -C /tmp/symmedis-pages commit -m "Verify SYMMEDIS staging ${GITHUB_SHA::7}"
           git -C /tmp/symmedis-pages push origin HEAD:gh-pages
+      - name: Enforce live staging verification
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.exact_live.outcome }}" != "success" || "${{ steps.live_smoke.outcome }}" != "success" ]]; then
+            echo "Live staging verification failed: exact=${{ steps.exact_live.outcome }}, browser=${{ steps.live_smoke.outcome }}" >&2
+            exit 1
+          fi
+          echo "Live staging verification fully passed for ${GITHUB_SHA}."
