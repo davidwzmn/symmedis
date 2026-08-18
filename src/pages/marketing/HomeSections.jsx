@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Card } from '../../components/ui/layout.jsx'
 import { initialen } from '../../lib/format.js'
 import { ZIELGRUPPE, TEAM } from '../../content/marketing.js'
@@ -50,20 +51,31 @@ export function ZielgruppeSection() {
 
 /* -------------------------------------------------------- Team & Vertrauen */
 
-/** Porträt: Bild, falls vorhanden – sonst gestalteter Initialen-Platzhalter. */
+const PORTRAIT_FILES = {
+  'Alfred Michael Waizmann': 'team/alfred.webp',
+  'David Constantin Waizmann': 'team/david.webp',
+}
+
+/** Porträt: feste Drop-in-Datei aus public/team, mit Initialen als sauberem Fallback. */
 function Portrait({ person }) {
-  if (person.bild) {
+  const [bildFehlt, setBildFehlt] = useState(false)
+  const datei = PORTRAIT_FILES[person.name]
+  const src = datei ? `${import.meta.env.BASE_URL}${datei}` : null
+
+  if (src && !bildFehlt) {
     return (
       <img
-        src={person.bild}
+        src={src}
         alt={person.alt}
-        width={320}
-        height={320}
+        width={640}
+        height={640}
         loading="lazy"
+        onError={() => setBildFehlt(true)}
         className="aspect-square w-full rounded-2xl object-cover [object-position:50%_20%]"
       />
     )
   }
+
   return (
     <span
       aria-hidden="true"
