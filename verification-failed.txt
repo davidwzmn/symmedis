@@ -1,6 +1,0 @@
-build=aeecc84cc9495f7ce091ae9d345ca031e52451c3
-status=failed
-exact_release=failure
-live_browser=skipped
----
-no live smoke log available (not run or no log)
