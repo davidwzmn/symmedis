@@ -39,9 +39,7 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for attempt in {1..20}; do
-            if curl --silent --fail http://127.0.0.1:4173/ > /tmp/symmedis-home.html; then
-              break
-            fi
+            if curl --silent --fail http://127.0.0.1:4173/ > /tmp/symmedis-home.html; then break; fi
             sleep 0.25
           done
           grep -q 'id="root"' /tmp/symmedis-home.html
@@ -54,28 +52,19 @@ jobs:
         run: |
           set -euo pipefail
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$chrome" ]; then
-            echo "No Chrome/Chromium binary available on runner." >&2
-            exit 1
-          fi
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           PORT=4174 HOST=127.0.0.1 npm run preview > /tmp/symmedis-browser-preview.log 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for attempt in {1..20}; do
-            if curl --silent --fail http://127.0.0.1:4174/ > /dev/null; then
-              break
-            fi
+            if curl --silent --fail http://127.0.0.1:4174/ > /dev/null; then break; fi
             sleep 0.25
           done
           render() {
-            route="$1"
-            target="$2"
+            route="$1"; target="$2"
             timeout 25s "$chrome" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,844 --virtual-time-budget=3500 --dump-dom "http://127.0.0.1:4174${route}" > "$target" 2>/tmp/symmedis-chrome.log
             grep -q '<div id="root">' "$target"
-            if grep -q 'Etwas ist schiefgelaufen' "$target"; then
-              echo "React error boundary rendered for ${route}." >&2
-              exit 1
-            fi
+            ! grep -q 'Etwas ist schiefgelaufen' "$target"
           }
           render / /tmp/symmedis-browser-home.html
           grep -q 'Wachstum ist ein System' /tmp/symmedis-browser-home.html
@@ -91,16 +80,10 @@ jobs:
           grep -q 'Mitarbeiterportal' /tmp/symmedis-browser-login.html
           render /portal /tmp/symmedis-browser-portal.html
           grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-portal.html
-          if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-portal.html; then
-            echo "Unauthenticated customer route exposed project content." >&2
-            exit 1
-          fi
+          ! grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-portal.html
           render /intern /tmp/symmedis-browser-intern.html
           grep -q 'Geschützter SYMMEDIS-Zugang' /tmp/symmedis-browser-intern.html
-          if grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-intern.html; then
-            echo "Unauthenticated staff route exposed project content." >&2
-            exit 1
-          fi
+          ! grep -q 'SYMMEDIS Staging Lab' /tmp/symmedis-browser-intern.html
       - name: Public lead ingress smoke
         shell: bash
         run: |
@@ -126,17 +109,12 @@ jobs:
         run: |
           set -euo pipefail
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$chrome" ]; then
-            echo "No Chrome/Chromium binary available on runner." >&2
-            exit 1
-          fi
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           PORT=4176 HOST=127.0.0.1 npm run preview > /tmp/symmedis-auth-preview.log 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for attempt in {1..20}; do
-            if curl --silent --fail http://127.0.0.1:4176/login > /dev/null; then
-              break
-            fi
+            if curl --silent --fail http://127.0.0.1:4176/login > /dev/null; then break; fi
             sleep 0.25
           done
           CHROME_BIN="$chrome" E2E_BASE_URL="http://127.0.0.1:4176" node scripts/auth-browser-e2e.mjs
@@ -163,13 +141,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin gh-pages
-          git checkout --orphan pages-publish
-          git rm -rf .
-          cp pages-index.html index.html
-          touch .nojekyll
-          git add index.html .nojekyll
-          git commit -m "Deploy SYMMEDIS staging ${GITHUB_SHA::7}"
-          git push --force origin HEAD:gh-pages
+          rm -rf /tmp/symmedis-pages
+          git worktree add --detach /tmp/symmedis-pages origin/gh-pages
+          cp pages-index.html /tmp/symmedis-pages/index.html
+          touch /tmp/symmedis-pages/.nojekyll
+          rm -f /tmp/symmedis-pages/verified.txt
+          git -C /tmp/symmedis-pages add -A
+          git -C /tmp/symmedis-pages commit -m "Deploy SYMMEDIS staging ${GITHUB_SHA::7}"
+          git -C /tmp/symmedis-pages push --force origin HEAD:gh-pages
       - name: Verify exact live staging release
         if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
         shell: bash
@@ -177,11 +156,9 @@ jobs:
           set -euo pipefail
           url="https://davidwzmn.github.io/symmedis/?build=${GITHUB_SHA}"
           for attempt in {1..60}; do
-            if page="$(curl --silent --show-error --fail --max-time 10 "$url")"; then
-              if printf '%s' "$page" | grep -q "name=\"symmedis-build\" content=\"${GITHUB_SHA}\""; then
-                echo "Live staging serves ${GITHUB_SHA}"
-                exit 0
-              fi
+            if page="$(curl --silent --show-error --fail --max-time 10 "$url")" && printf '%s' "$page" | grep -q "name=\"symmedis-build\" content=\"${GITHUB_SHA}\""; then
+              echo "Live staging serves ${GITHUB_SHA}"
+              exit 0
             fi
             sleep 5
           done
@@ -193,8 +170,14 @@ jobs:
         run: |
           set -euo pipefail
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$chrome" ]; then
-            echo "No Chrome/Chromium binary available on runner." >&2
-            exit 1
-          fi
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           CHROME_BIN="$chrome" LIVE_BASE_URL="https://davidwzmn.github.io/symmedis" node scripts/live-browser-smoke.mjs
+      - name: Mark live staging verified
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$GITHUB_SHA" > /tmp/symmedis-pages/verified.txt
+          git -C /tmp/symmedis-pages add verified.txt
+          git -C /tmp/symmedis-pages commit -m "Verify SYMMEDIS staging ${GITHUB_SHA::7}"
+          git -C /tmp/symmedis-pages push origin HEAD:gh-pages
