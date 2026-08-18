@@ -2,9 +2,9 @@ import { RECHTSSEITEN } from './legal.js'
 
 export const SEO_ROUTES = {
   '/': {
-    title: 'Diagnosis OS für strategisches Wachstum in Health & MedTech | SYMMEDIS',
+    title: 'Strategische Ursachenanalyse für Wachstum | SYMMEDIS Diagnosis OS',
     description:
-      'SYMMEDIS identifiziert die Ursachen hinter stagnierendem Wachstum, verbindet Evidenz mit menschlicher Freigabe und übersetzt die drei wichtigsten Hebel in einen 90-Tage-Plan.',
+      'SYMMEDIS identifiziert die Ursachen, die Wachstum tatsächlich begrenzen, strukturiert die Evidenz und übersetzt die wichtigsten Erkenntnisse in klare Prioritäten und konkrete nächste Schritte.',
   },
   '/problem': {
     title: 'Warum gute Gesundheitsprodukte nicht wachsen | SYMMEDIS',
@@ -22,9 +22,9 @@ export const SEO_ROUTES = {
       'Unterlagen und Kontext strukturieren, Ursachen priorisieren, menschlich prüfen und in einen konkreten 90-Tage-Plan übersetzen.',
   },
   '/plattform': {
-    title: 'SYMMEDIS Diagnosis OS – Analyse, Evidenz, Impact & Umsetzung',
+    title: 'SYMMEDIS Diagnosis OS – Analyse, Evidenz, Freigabe & Umsetzung',
     description:
-      'Ein sicherer Arbeitsraum für Ursachenanalyse, Evidenz, Freigaben, ROI, Dokumente, Reports, Aufgaben und Kundenkommunikation.',
+      'Ein sicherer Arbeitsraum für Ursachenanalyse, Evidenz, menschliche Freigaben, Dokumente, Reports, Aufgaben und Kundenkommunikation.',
   },
   '/angebot': {
     title: 'Strategische Ursachenanalyse – Leistungen & Investition | SYMMEDIS',
