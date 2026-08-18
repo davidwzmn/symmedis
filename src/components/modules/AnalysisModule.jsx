@@ -111,7 +111,7 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
   useEffect(() => {
     if (!eintrag) return
     setEntwurf({ beobachtung: eintrag.beobachtung ?? '', ursache: eintrag.ursache ?? '', auswirkung: eintrag.auswirkung ?? '', beleg: eintrag.beleg ?? '', empfehlung: eintrag.empfehlung ?? '', internNotiz: eintrag.internNotiz ?? '' })
-  }, [eintrag?.beobachtung, eintrag?.ursache, eintrag?.auswirkung, eintrag?.beleg, eintrag?.empfehlung, eintrag?.internNotiz, kategorieId])
+  }, [eintrag])
 
   if (!eintrag || !kategorie) return <Drawer open={false} onClose={onClose} title="" />
 
