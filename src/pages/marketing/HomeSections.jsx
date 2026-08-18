@@ -51,16 +51,28 @@ export function ZielgruppeSection() {
 
 /* -------------------------------------------------------- Team & Vertrauen */
 
+const portraitAssets = import.meta.glob('../../assets/marketing/*.{png,jpg,jpeg,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
 const PORTRAIT_FILES = {
-  'Alfred Michael Waizmann': 'team/alfred.webp',
-  'David Constantin Waizmann': 'team/david.webp',
+  'Alfred Michael Waizmann': 'alfred.webp',
+  'David Constantin Waizmann': 'david.webp',
 }
 
-/** Porträt: feste Drop-in-Datei aus public/team, mit Initialen als sauberem Fallback. */
+function portraitUrl(person) {
+  const datei = PORTRAIT_FILES[person.name]
+  if (!datei) return null
+  const eintrag = Object.entries(portraitAssets).find(([pfad]) => pfad.endsWith(`/${datei}`))
+  return eintrag?.[1] || null
+}
+
+/** Porträt: Drop-in-Datei aus src/assets/marketing, mit Initialen als sauberem Fallback. */
 function Portrait({ person }) {
   const [bildFehlt, setBildFehlt] = useState(false)
-  const datei = PORTRAIT_FILES[person.name]
-  const src = datei ? `${import.meta.env.BASE_URL}${datei}` : null
+  const src = portraitUrl(person)
 
   if (src && !bildFehlt) {
     return (
