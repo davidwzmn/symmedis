@@ -33,17 +33,17 @@ import {
 } from '../../components/ui/Icons.jsx'
 
 const NAV = [
-  { id: 'uebersicht', label: 'Übersicht', to: '/portal/uebersicht', icon: IconGrid },
-  { id: 'analyse', label: 'Analyse', to: '/portal/analyse', icon: IconChart },
-  { id: 'bremsen', label: 'Umsatzbremsen', to: '/portal/bremsen', icon: IconAlert },
-  { id: 'plan', label: '90-Tage-Plan', to: '/portal/plan', icon: IconRoute },
-  { id: 'aufgaben', label: 'Aufgaben', to: '/portal/aufgaben', icon: IconCheckSquare },
-  { id: 'social', label: 'Social Media', to: '/portal/social', icon: IconShare },
-  { id: 'wettbewerb', label: 'Wettbewerb', to: '/portal/wettbewerb', icon: IconLayers },
-  { id: 'dokumente', label: 'Dokumente', to: '/portal/dokumente', icon: IconFolder },
-  { id: 'berichte', label: 'Berichte', to: '/portal/berichte', icon: IconDocument },
-  { id: 'termine', label: 'Termine', to: '/portal/termine', icon: IconCalendar },
-  { id: 'nachrichten', label: 'Nachrichten', to: '/portal/nachrichten', icon: IconChat },
+  { id: 'uebersicht', label: 'Übersicht', to: '/portal/uebersicht', icon: IconGrid, section: 'Mein Projekt' },
+  { id: 'bremsen', label: 'Umsatzbremsen', mobileLabel: 'Bremsen', to: '/portal/bremsen', icon: IconAlert, section: 'Mein Projekt' },
+  { id: 'plan', label: '90-Tage-Plan', mobileLabel: 'Plan', to: '/portal/plan', icon: IconRoute, section: 'Mein Projekt' },
+  { id: 'aufgaben', label: 'Aufgaben', to: '/portal/aufgaben', icon: IconCheckSquare, section: 'Mein Projekt' },
+  { id: 'analyse', label: 'Analyse', to: '/portal/analyse', icon: IconChart, section: 'Analyse & Ergebnisse' },
+  { id: 'social', label: 'Social Media', to: '/portal/social', icon: IconShare, section: 'Analyse & Ergebnisse' },
+  { id: 'wettbewerb', label: 'Wettbewerb', to: '/portal/wettbewerb', icon: IconLayers, section: 'Analyse & Ergebnisse' },
+  { id: 'berichte', label: 'Berichte', to: '/portal/berichte', icon: IconDocument, section: 'Analyse & Ergebnisse' },
+  { id: 'dokumente', label: 'Dokumente', to: '/portal/dokumente', icon: IconFolder, section: 'Zusammenarbeit' },
+  { id: 'termine', label: 'Termine', to: '/portal/termine', icon: IconCalendar, section: 'Zusammenarbeit' },
+  { id: 'nachrichten', label: 'Nachrichten', to: '/portal/nachrichten', icon: IconChat, section: 'Zusammenarbeit' },
 ]
 
 export function CustomerApp() {
