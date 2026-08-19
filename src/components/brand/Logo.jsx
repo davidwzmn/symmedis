@@ -18,7 +18,7 @@ export function Logo({ compact = false, bereich, className }) {
 
       <span className={cn('flex min-w-0 flex-col leading-none', compact && 'hidden lg:flex')}>
         <span className="truncate text-sm font-semibold tracking-tight text-ink">SYMMEDIS</span>
-        <span className="mt-0.5 truncate text-[0.625rem] font-medium text-ink-3">
+        <span className="mt-0.5 truncate text-[0.6875rem] font-medium text-ink-3">
           {bereich ?? 'Diagnosis OS'}
         </span>
       </span>
