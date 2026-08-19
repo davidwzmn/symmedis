@@ -8,6 +8,9 @@ const APP_ORIGIN = "https://davidwzmn.github.io";
 const FIXTURE_PROJECT_ID = "a551b1c8-55d0-4a90-8897-1408e7a08bac";
 const FIXTURE_NAME = "Ursachenanalyse – Staging E2E";
 const FIXTURE_VERSION = 1;
+const STAFF_TASK_ID = "72e4af65-806c-44ad-9e03-4f5393a97d19";
+const CUSTOMER_TASK_ID = "9d0d9f33-0ce2-4b8c-9d67-4f27791913c5";
+const REPORT_ID = "51cb3d63-abc3-47ab-9e62-f316cb678d75";
 const RESET_CONFIRMATION = "RESET_SYMMEDIS_E2E";
 const STAFF_ROLES = new Set(["intern", "admin"]);
 
@@ -90,9 +93,9 @@ Deno.serve(async (req: Request) => {
 
     const inspect = async () => {
       const [{ data: tasks, error: tasksError }, { data: reports, error: reportsError }, { data: documents, error: documentsError }, { data: versions, error: versionsError }] = await Promise.all([
-        admin.from("tasks").select("id,title,status").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("tasks").select("id,title,status,responsible_party").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
-        admin.from("documents").select("id,name,storage_path,status").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("documents").select("id,name,storage_path,status,source,customer_visible").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("report_versions").select("id,report_id,version_number,state").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
       ]);
       assertAdminResult(tasksError, "tasks inspect");
@@ -132,17 +135,53 @@ Deno.serve(async (req: Request) => {
       assertAdminResult(versionsDeleteError, "report versions reset");
     }
 
-    const { error: reportResetError } = await admin
-      .from("reports")
-      .update({ state: "entwurf", report_date: null })
-      .eq("project_id", FIXTURE_PROJECT_ID);
-    assertAdminResult(reportResetError, "reports reset");
+    const { error: tasksBaselineError } = await admin.from("tasks").upsert([
+      {
+        id: STAFF_TASK_ID,
+        project_id: FIXTURE_PROJECT_ID,
+        phase_id: "30",
+        category_id: null,
+        title: "Staging: Onboarding-Flow vollständig prüfen",
+        responsible_party: "symmedis",
+        assignee_name: "SYMMEDIS",
+        priority: "mittel",
+        status: "offen",
+        due_date: "2026-08-20",
+        kpi: "E2E Staff Flow",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: CUSTOMER_TASK_ID,
+        project_id: FIXTURE_PROJECT_ID,
+        phase_id: "30",
+        category_id: null,
+        title: "Staging: Kunden-Aufgabe vollständig prüfen",
+        responsible_party: "kunde",
+        assignee_name: "E2E Customer",
+        priority: "mittel",
+        status: "offen",
+        due_date: "2026-08-21",
+        kpi: "E2E Statuswechsel",
+        updated_at: new Date().toISOString(),
+      },
+    ], { onConflict: "id" });
+    assertAdminResult(tasksBaselineError, "tasks baseline reset");
 
-    const { error: taskResetError } = await admin
-      .from("tasks")
-      .update({ status: "offen" })
-      .eq("project_id", FIXTURE_PROJECT_ID);
-    assertAdminResult(taskResetError, "tasks reset");
+    const { error: reportBaselineError } = await admin.from("reports").upsert({
+      id: REPORT_ID,
+      project_id: FIXTURE_PROJECT_ID,
+      title: "Staging Report – nicht freigeben",
+      report_type: "Executive Diagnosis",
+      pages: 0,
+      state: "entwurf",
+      report_date: "2026-08-17",
+      author: "SYMMEDIS Team",
+      storage_path: null,
+      generated_from_analysis_run_id: null,
+      executive_summary: "Interner Testdatensatz. Keine Kundenfreigabe.",
+      content: { staging: true, customer_release: false },
+    }, { onConflict: "id" });
+    assertAdminResult(reportBaselineError, "report baseline reset");
 
     const { error: auditResetError } = await admin
       .from("audit_events")
@@ -152,8 +191,17 @@ Deno.serve(async (req: Request) => {
     assertAdminResult(auditResetError, "audit reset");
 
     const fixture = await inspect();
-    const resetValid = fixture.tasks.every((task: { status: string }) => task.status === "offen")
-      && fixture.reports.every((report: { state: string }) => report.state === "entwurf")
+    const baselineTasks = new Map(fixture.tasks.map((task: { id: string; status: string; responsible_party: string }) => [task.id, task]));
+    const staffTask = baselineTasks.get(STAFF_TASK_ID);
+    const customerTask = baselineTasks.get(CUSTOMER_TASK_ID);
+    const report = fixture.reports.find((item: { id: string }) => item.id === REPORT_ID);
+    const resetValid = fixture.tasks.length === 2
+      && staffTask?.status === "offen"
+      && staffTask?.responsible_party === "symmedis"
+      && customerTask?.status === "offen"
+      && customerTask?.responsible_party === "kunde"
+      && fixture.reports.length === 1
+      && report?.state === "entwurf"
       && fixture.documents.length === 0
       && fixture.reportVersions.length === 0;
     if (!resetValid) return json(req, 500, { error: "fixture_reset_incomplete", fixture });
