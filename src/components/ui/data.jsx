@@ -9,12 +9,22 @@ import { IconChevronDown, IconChevronRight } from './Icons.jsx'
  * Register.
  *
  * Ab `md` als klassische Reiterleiste. Darunter als Auswahlfeld: eine Leiste
- * mit zwölf Registern würde auf dem Telefon zu einem horizontalen Scrollbereich
+ * mit vielen Registern würde auf dem Telefon zu einem horizontalen Scrollbereich
  * werden, in dem die hinteren Register praktisch unauffindbar sind.
+ * Optional können Einträge über `section` mental gruppiert werden.
  */
 export function Tabs({ items, value, onChange, className, size = 'md', label = 'Ansicht wählen' }) {
   const sizes = { sm: 'py-2 text-[0.8125rem]', md: 'py-2.5 text-sm' }
   const feldId = useId()
+  const sections = [...new Set(items.map((item) => item.section).filter(Boolean))]
+  const grouped = sections.length > 0
+
+  const renderOption = (item) => (
+    <option key={item.id} value={item.id}>
+      {item.label}
+      {item.count !== undefined ? ` (${item.count})` : ''}
+    </option>
+  )
 
   return (
     <div className={cn('min-w-0', className)}>
@@ -30,12 +40,11 @@ export function Tabs({ items, value, onChange, className, size = 'md', label = '
             onChange={(event) => onChange(event.target.value)}
             className="h-9.5 w-full appearance-none rounded-lg border border-line-strong bg-surface pr-9 pl-3 text-sm font-medium text-ink focus:border-brand focus:outline-none"
           >
-            {items.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-                {item.count !== undefined ? ` (${item.count})` : ''}
-              </option>
-            ))}
+            {grouped ? sections.map((section) => (
+              <optgroup key={section} label={section}>
+                {items.filter((item) => item.section === section).map(renderOption)}
+              </optgroup>
+            )) : items.map(renderOption)}
           </select>
           <IconChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-3" />
         </div>
@@ -43,40 +52,46 @@ export function Tabs({ items, value, onChange, className, size = 'md', label = '
 
       {/* Ab Tablet */}
       <div className="scroll-area -mb-px hidden overflow-x-auto border-b border-line md:block">
-        <div role="tablist" aria-label={label} className="flex min-w-max gap-1">
-          {items.map((item) => {
+        <div role="tablist" aria-label={label} className="flex min-w-max items-end gap-1">
+          {items.map((item, index) => {
             const aktiv = item.id === value
+            const sectionStart = grouped && item.section && item.section !== items[index - 1]?.section
             return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={aktiv}
-                onClick={() => onChange(item.id)}
-                className={cn(
-                  'inline-flex items-center gap-2 border-b-2 px-3 font-medium whitespace-nowrap transition-colors duration-150',
-                  sizes[size] ?? sizes.md,
-                  aktiv
-                    ? 'border-brand text-brand-ink'
-                    : 'border-transparent text-ink-3 hover:border-line-strong hover:text-ink',
-                )}
-              >
-                {item.icon ? <item.icon className="size-4" /> : null}
-                {item.label}
-                {item.count !== undefined ? (
-                  <span
-                    className={cn(
-                      'tabular rounded px-1.5 py-0.5 text-[0.6875rem]',
-                      aktiv ? 'bg-brand-soft text-brand-ink' : 'bg-surface-muted text-ink-3',
-                    )}
-                  >
-                    {item.count}
-                  </span>
-                ) : null}
-              </button>
+              <div key={item.id} className={cn('flex items-end', sectionStart && index > 0 && 'ml-2 border-l border-line pl-2')}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={aktiv}
+                  aria-label={item.section ? `${item.section}: ${item.label}` : item.label}
+                  onClick={() => onChange(item.id)}
+                  className={cn(
+                    'inline-flex items-center gap-2 border-b-2 px-3 font-medium whitespace-nowrap transition-colors duration-150',
+                    sizes[size] ?? sizes.md,
+                    aktiv
+                      ? 'border-brand text-brand-ink'
+                      : 'border-transparent text-ink-3 hover:border-line-strong hover:text-ink',
+                  )}
+                >
+                  {item.icon ? <item.icon className="size-4" /> : null}
+                  {item.label}
+                  {item.count !== undefined ? (
+                    <span
+                      className={cn(
+                        'tabular rounded px-1.5 py-0.5 text-[0.6875rem]',
+                        aktiv ? 'bg-brand-soft text-brand-ink' : 'bg-surface-muted text-ink-3',
+                      )}
+                    >
+                      {item.count}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
             )
           })}
         </div>
+        {grouped ? (
+          <p className="sr-only">Bereiche: {sections.join(', ')}</p>
+        ) : null}
       </div>
     </div>
   )
