@@ -20,7 +20,23 @@ jobs:
     permissions:
       contents: read
       pages: read
+      statuses: write
     steps:
+      - name: Record pending CI quality status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(node -e 'process.stdout.write(JSON.stringify({state:"pending",context:"symmedis/ci-quality",description:"CI quality, audit and build checks are running",target_url:process.argv[1]}))' "$target_url")"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" > /dev/null
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Node
@@ -136,6 +152,29 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: pages-site
+      - name: Record CI quality status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="failure"
+          description="CI quality, audit or build checks failed"
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            state="success"
+            description="CI quality, runtime audit, build and local smokes passed"
+          fi
+          target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(node -e 'process.stdout.write(JSON.stringify({state:process.argv[1],context:"symmedis/ci-quality",description:process.argv[2],target_url:process.argv[3]}))' "$state" "$description" "$target_url")"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" > /dev/null
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/agent/supabase-auth-foundation'
