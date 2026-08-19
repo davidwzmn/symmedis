@@ -49,7 +49,7 @@ for (const value of [
   'scripts/auth-browser-e2e.mjs', 'E2E_REQUIRE_AUTH="true"', 'symmedis-auth-e2e.log',
   'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'audience=symmedis-e2e-bootstrap',
   'functions/v1/e2e-auth-bootstrap', '\\"action\\":\\"bootstrap\\"', '\\"action\\":\\"cleanup\\"',
-  'GITHUB_RUN_ID', 'cancel-in-progress: false', 'Record cross-role pending status', 'Record cross-role release status',
+  'GITHUB_RUN_ID', 'cancel-in-progress: false', 'Record pending cross-role release status', 'Record cross-role release status',
   'state:"pending"', 'symmedis/cross-role-e2e', 'actions/runs/${GITHUB_RUN_ID}', 'statuses/${GITHUB_SHA}',
 ]) {
   requireText(crossRoleWorkflow, value, 'cross-role E2E workflow')
