@@ -55,17 +55,21 @@ for (const value of [
 if (authE2e.includes('PLACEHOLDER')) failures.push('Auth Browser E2E: Platzhalter darf nicht committed sein.')
 
 for (const value of [
+  'const pagesMode = process.env.SYMMEDIS_STANDALONE === \'true\'',
   'const assetUrlPattern = (file)',
+  "html.includes('/symmedis/assets/')",
   'CSS-/JS-Bundle konnte im Standalone-HTML nicht base-path-neutral gefunden werden.',
-  '/(?:href|src)="[^\"]*\\/assets\\//',
+  'Standalone-HTML enthält noch externe oder dynamische JS-Asset-Verweise.',
 ]) requireText(standaloneBuilder, value, 'Standalone Pages Builder')
 
 for (const value of [
-  "VITE_ROUTER: hash",
+  'VITE_ROUTER: hash',
   "SYMMEDIS_STANDALONE: 'true'",
   'node scripts/build-standalone.mjs pages-index.html dist-pages',
   'https://davidwzmn.github.io/symmedis/',
 ]) requireText(ci, value, 'GitHub Pages CI')
+
+if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(ci)) failures.push('GitHub Pages CI: langlebige E2E-Passwort-Secrets dürfen nicht zurückkehren.')
 
 if (failures.length) {
   console.error('\nSYMMEDIS Pages Routing Guard: FEHLGESCHLAGEN\n')
@@ -79,4 +83,5 @@ console.log('✓ Portal-Rückkehr und Logout bleiben innerhalb der deployten App
 console.log('✓ Lokale Session wird vor Best-Effort-Remote-Sign-out gelöscht')
 console.log('✓ Breadcrumbs nutzen React-Router statt dokumentweiter Root-Navigation')
 console.log('✓ Standalone-Builder inlined Assets unabhängig vom Vite-Base-Prefix')
+console.log('✓ Haupt-CI bleibt frei von langlebigen E2E-Passwort-Secrets')
 console.log('✓ Browser-E2E prüft den tatsächlichen Basis-Pfad statt hart / zu erwarten')
