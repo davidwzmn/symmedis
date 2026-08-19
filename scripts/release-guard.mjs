@@ -94,12 +94,38 @@ for (const signature of [
   'Mehr Aktivität löst kein strukturelles Wachstumsproblem.',
   'Menschliche Freigabe statt Blackbox',
   'Plattform ansehen',
+  'Portal-Login',
+  '15 Minuten · keine Verkaufsrunde · klare Einschätzung',
+  'variant="on-dark-secondary"',
   '<TeamSection />',
 ]) {
   if (!homePage.includes(signature)) fail(`Homepage: erwartete Premium-Hierarchie fehlt: ${signature}`)
 }
 if (/bg-\[#[0-9a-fA-F]{3,8}\]/.test(homePage)) fail('Homepage: rohe Hex-Hintergründe dürfen die Design-Tokens nicht umgehen.')
 if (homePage.includes('Strategic Growth Intelligence')) fail('Homepage: redundante englische Hero-Metaebene darf nicht zurückkehren.')
+
+const marketingContent = await text('src/content/marketing.js')
+if (!marketingContent.includes("frage: 'Was brauchen wir von Ihnen?'")) fail('FAQ: die kundenorientierte Formulierung „Was brauchen wir von Ihnen?“ muss erhalten bleiben.')
+
+const primitives = await text('src/components/ui/primitives.jsx')
+for (const signature of ["'on-dark':", "'on-dark-secondary':", 'bg-cta text-on-cta', 'bg-transparent text-canvas border border-canvas/30']) {
+  if (!primitives.includes(signature)) fail(`CTA-Kontrast: erwartete Dark-CTA-Hierarchie fehlt: ${signature}`)
+}
+
+const topbar = await text('src/components/shell/Topbar.jsx')
+for (const signature of ['Zur Website', 'Abmelden', "window.location.assign('/')"]) {
+  if (!topbar.includes(signature)) fail(`Portal-Navigation: erwartete sichere Rückkehr-/Logout-Signatur fehlt: ${signature}`)
+}
+
+const staffDashboard = await text('src/pages/staff/StaffDashboard.jsx')
+for (const signature of ['Heute wichtig', 'Arbeitsfokus', 'Freigaben prüfen', 'Überfällige Aufgaben', 'Kundenanfragen', 'Neue Dokumente']) {
+  if (!staffDashboard.includes(signature)) fail(`Mitarbeiterportal: Arbeitsfokus darf nicht regressieren: ${signature}`)
+}
+
+const projectDashboard = await text('src/components/modules/ProjectDashboard.jsx')
+for (const signature of ['Auf einen Blick', 'Wo stehen wir, was bremst, was jetzt?', 'Wo stehen wir?', 'Was bremst?', 'Was jetzt?']) {
+  if (!projectDashboard.includes(signature)) fail(`Kundenportal: Executive Snapshot darf nicht regressieren: ${signature}`)
+}
 
 const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
 for (const signature of ['BEISPIEL · DIAGNOSE', 'Mehrere Quellen bestätigt', 'Nächster Schritt']) {
@@ -165,6 +191,7 @@ console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
+console.log('✓ Portal-Rückkehr, Logout, Staff-Arbeitsfokus und Customer-Executive-Snapshot bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
 console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
