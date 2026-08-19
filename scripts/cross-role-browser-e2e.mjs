@@ -14,11 +14,14 @@ const PROJECT_ID = 'a551b1c8-55d0-4a90-8897-1408e7a08bac'
 const CLIENT_ID = 'cd269a65-a9d0-4d2a-90cd-026706133e57'
 const STAFF_TASK_ID = '72e4af65-806c-44ad-9e03-4f5393a97d19'
 const CUSTOMER_TASK_ID = '9d0d9f33-0ce2-4b8c-9d67-4f27791913c5'
+const ANALYSIS_ITEM_ID = '63e6f8df-c28b-4cc2-9a72-dc9750746f0e'
 const STAFF_TASK_TITLE = 'Staging: Onboarding-Flow vollständig prüfen'
 const CUSTOMER_TASK_TITLE = 'Staging: Kunden-Aufgabe vollständig prüfen'
+const FINDING_TEXT = 'E2E: Positionierungs-Finding wartet auf Kundenfreigabe.'
 const REPORT_TITLE = 'Staging Report – nicht freigeben'
 const FIXTURE_CONFIRM = 'RESET_SYMMEDIS_E2E'
-const UPLOAD_NAME = 'symmedis-cross-role-e2e.txt'
+const CUSTOMER_UPLOAD_NAME = 'symmedis-cross-role-e2e.txt'
+const STAFF_UPLOAD_NAME = 'symmedis-staff-internal-e2e.txt'
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)) }
 
@@ -29,9 +32,7 @@ async function waitFor(fn, timeoutMs = 25000, intervalMs = 200) {
     try {
       const value = await fn()
       if (value) return value
-    } catch (error) {
-      lastError = error
-    }
+    } catch (error) { lastError = error }
     await sleep(intervalMs)
   }
   throw lastError || new Error(`Zeitüberschreitung nach ${timeoutMs} ms`)
@@ -43,7 +44,6 @@ class Cdp {
     this.nextId = 1
     this.pending = new Map()
   }
-
   async ready() {
     if (this.ws.readyState === WebSocket.OPEN) return
     await new Promise((resolve, reject) => {
@@ -60,7 +60,6 @@ class Cdp {
       })
     })
   }
-
   send(method, params = {}) {
     const id = this.nextId++
     return new Promise((resolve, reject) => {
@@ -68,13 +67,11 @@ class Cdp {
       this.ws.send(JSON.stringify({ id, method, params }))
     })
   }
-
   async evaluate(expression) {
     const result = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'Browser-Auswertung fehlgeschlagen.')
     return result.result?.value
   }
-
   close() { this.ws.close() }
 }
 
@@ -172,6 +169,11 @@ async function assertBody(cdp, text) {
   await waitFor(() => cdp.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`))
 }
 
+async function assertBodyMissing(cdp, text) {
+  const visible = await cdp.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)
+  if (visible) throw new Error(`Unerwartet sichtbar: ${text}`)
+}
+
 async function setDownloadDirectory(cdp, path) {
   try {
     await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: path, eventsEnabled: true })
@@ -180,14 +182,62 @@ async function setDownloadDirectory(cdp, path) {
   }
 }
 
-async function waitForDownloadedFile(dir, expectedName) {
+async function waitForDownloadedFile(dir, expectedName, marker) {
   return waitFor(async () => {
     const files = await readdir(dir).catch(() => [])
     const file = files.find((name) => name === expectedName || name.startsWith(expectedName))
     if (!file || file.endsWith('.crdownload')) return null
     const content = await readFile(join(dir, file), 'utf8').catch(() => '')
-    return content.includes('SYMMEDIS CROSS ROLE E2E') ? file : null
+    return content.includes(marker) ? file : null
   }, 30000)
+}
+
+async function setFileInput(cdp, path) {
+  const document = await cdp.send('DOM.getDocument', { depth: -1, pierce: true })
+  const input = await cdp.send('DOM.querySelector', { nodeId: document.root.nodeId, selector: 'input[type="file"]' })
+  if (!input.nodeId) throw new Error('Datei-Input fehlt.')
+  await cdp.send('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [path] })
+  await cdp.evaluate(`document.querySelector('input[type="file"]')?.dispatchEvent(new Event('change', { bubbles: true })); true`)
+}
+
+async function staffPrepareHandover(staffCdp, staffUploadPath, staffDownloadDir) {
+  await staffCdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/kunden/${CLIENT_ID}`)}); true`)
+  await assertBody(staffCdp, 'SYMMEDIS Staging Lab')
+
+  await clickText(staffCdp, 'Aufgaben')
+  await assertBody(staffCdp, STAFF_TASK_TITLE)
+  const taskClicked = await staffCdp.evaluate(`(() => {
+    const button = [...document.querySelectorAll('button[aria-label]')].find((item) => (item.getAttribute('aria-label') || '').includes(${JSON.stringify(STAFF_TASK_TITLE)}));
+    if (!button || button.disabled) return false;
+    button.click(); return true;
+  })()`)
+  if (!taskClicked) throw new Error('Staff-E2E: interne Aufgabe konnte nicht weitergeschaltet werden.')
+  await waitFor(async () => (await fixture(staffCdp, 'inspect')).fixture.tasks.find((task) => task.id === STAFF_TASK_ID)?.status === 'in-arbeit')
+  console.log('✓ Staff-Aufgabenstatus über echten autorisierten RPC persistiert')
+
+  await clickText(staffCdp, 'Analyse')
+  await assertBody(staffCdp, FINDING_TEXT)
+  await clickText(staffCdp, FINDING_TEXT)
+  await assertBody(staffCdp, 'Für Kunden freigeben')
+  await clickText(staffCdp, 'Für Kunden freigeben')
+  await waitFor(async () => {
+    const item = (await fixture(staffCdp, 'inspect')).fixture.analysis.find((entry) => entry.id === ANALYSIS_ITEM_ID)
+    return item?.approval_status === 'kunde' && item?.customer_visible === true
+  })
+  console.log('✓ Human-Review-Finding kontrolliert für den Kunden freigegeben')
+
+  await clickText(staffCdp, 'Dokumente')
+  await assertBody(staffCdp, 'Dokumente')
+  await setFileInput(staffCdp, staffUploadPath)
+  await assertBody(staffCdp, STAFF_UPLOAD_NAME)
+  await waitFor(async () => {
+    const doc = (await fixture(staffCdp, 'inspect')).fixture.documents.find((entry) => entry.name === STAFF_UPLOAD_NAME)
+    return doc?.source === 'symmedis' && doc?.customer_visible === false
+  }, 30000)
+  await setDownloadDirectory(staffCdp, staffDownloadDir)
+  await clickText(staffCdp, 'Laden', { scopeText: STAFF_UPLOAD_NAME })
+  await waitForDownloadedFile(staffDownloadDir, STAFF_UPLOAD_NAME, 'SYMMEDIS STAFF INTERNAL E2E')
+  console.log('✓ Internes Staff-Dokument hochgeladen und authentifiziert wieder heruntergeladen')
 }
 
 async function assertCustomerTaskOwnership(customerCdp) {
@@ -212,15 +262,12 @@ async function assertCustomerTaskOwnership(customerCdp) {
 async function customerUploadAndDownload(customerCdp, uploadPath, downloadDir) {
   await clickRoute(customerCdp, '/portal/dokumente')
   await assertBody(customerCdp, 'Unterlagen hinzufügen')
-  const document = await customerCdp.send('DOM.getDocument', { depth: -1, pierce: true })
-  const input = await customerCdp.send('DOM.querySelector', { nodeId: document.root.nodeId, selector: 'input[type="file"]' })
-  if (!input.nodeId) throw new Error('Customer-E2E: Datei-Input fehlt.')
-  await customerCdp.send('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [uploadPath] })
-  await customerCdp.evaluate(`document.querySelector('input[type="file"]')?.dispatchEvent(new Event('change', { bubbles: true })); true`)
-  await assertBody(customerCdp, UPLOAD_NAME)
+  await assertBodyMissing(customerCdp, STAFF_UPLOAD_NAME)
+  await setFileInput(customerCdp, uploadPath)
+  await assertBody(customerCdp, CUSTOMER_UPLOAD_NAME)
   await setDownloadDirectory(customerCdp, downloadDir)
-  await clickText(customerCdp, 'Laden', { scopeText: UPLOAD_NAME })
-  await waitForDownloadedFile(downloadDir, UPLOAD_NAME)
+  await clickText(customerCdp, 'Laden', { scopeText: CUSTOMER_UPLOAD_NAME })
+  await waitForDownloadedFile(downloadDir, CUSTOMER_UPLOAD_NAME, 'SYMMEDIS CUSTOMER CROSS ROLE E2E')
 }
 
 async function staffFinalizeReport(staffCdp) {
@@ -235,15 +282,21 @@ async function staffFinalizeReport(staffCdp) {
 
 async function run() {
   if (!CHROME) throw new Error('CHROME_BIN fehlt.')
-  if (!STAFF_EMAIL || !STAFF_PASSWORD || !CUSTOMER_EMAIL || !CUSTOMER_PASSWORD) throw new Error('Cross-Role-E2E benötigt E2E_STAFF_* und E2E_CUSTOMER_* vollständig.')
+  if (!STAFF_EMAIL || !STAFF_PASSWORD || !CUSTOMER_EMAIL || !CUSTOMER_PASSWORD) throw new Error('Cross-Role-E2E benötigt ephemere E2E_STAFF_* und E2E_CUSTOMER_* vollständig.')
 
   const rootDir = await mkdtemp(join(tmpdir(), 'symmedis-cross-role-'))
   const staffDir = join(rootDir, 'staff')
   const customerDir = join(rootDir, 'customer')
-  const downloadDir = join(rootDir, 'downloads')
-  const uploadPath = join(rootDir, UPLOAD_NAME)
-  await Promise.all([mkdir(staffDir, { recursive: true }), mkdir(customerDir, { recursive: true }), mkdir(downloadDir, { recursive: true })])
-  await writeFile(uploadPath, `SYMMEDIS CROSS ROLE E2E\n${new Date().toISOString()}\n`, 'utf8')
+  const staffDownloadDir = join(rootDir, 'staff-downloads')
+  const customerDownloadDir = join(rootDir, 'customer-downloads')
+  const staffUploadPath = join(rootDir, STAFF_UPLOAD_NAME)
+  const customerUploadPath = join(rootDir, CUSTOMER_UPLOAD_NAME)
+  await Promise.all([
+    mkdir(staffDir, { recursive: true }), mkdir(customerDir, { recursive: true }),
+    mkdir(staffDownloadDir, { recursive: true }), mkdir(customerDownloadDir, { recursive: true }),
+  ])
+  await writeFile(staffUploadPath, `SYMMEDIS STAFF INTERNAL E2E\n${new Date().toISOString()}\n`, 'utf8')
+  await writeFile(customerUploadPath, `SYMMEDIS CUSTOMER CROSS ROLE E2E\n${new Date().toISOString()}\n`, 'utf8')
 
   let staff
   let customer
@@ -254,9 +307,15 @@ async function run() {
     if (!reset.reset) throw new Error('Cross-Role-E2E: Preflight-Reset wurde nicht bestätigt.')
     console.log('✓ Fixture-Baseline vollständig hergestellt')
 
+    await staffPrepareHandover(staff.cdp, staffUploadPath, staffDownloadDir)
+
     customer = await startBrowser({ port: 9261, profileDir: customerDir, loginPath: '/login?rolle=kunde' })
     await login(customer.cdp, { email: CUSTOMER_EMAIL, password: CUSTOMER_PASSWORD, expectedPath: '/portal/', label: 'Customer' })
     await assertBody(customer.cdp, 'SYMMEDIS Staging Lab')
+
+    await clickRoute(customer.cdp, '/portal/analyse')
+    await assertBody(customer.cdp, FINDING_TEXT)
+    console.log('✓ Kunde sieht ausschließlich das durch Human Review freigegebene Finding')
 
     await clickRoute(customer.cdp, '/portal/aufgaben')
     await assertCustomerTaskOwnership(customer.cdp)
@@ -264,16 +323,18 @@ async function run() {
       const state = await fixture(staff.cdp, 'inspect')
       const customerTask = state.fixture.tasks.find((task) => task.id === CUSTOMER_TASK_ID)
       const staffTask = state.fixture.tasks.find((task) => task.id === STAFF_TASK_ID)
-      return customerTask?.status === 'in-arbeit' && staffTask?.status === 'offen'
+      return customerTask?.status === 'in-arbeit' && staffTask?.status === 'in-arbeit'
     })
-    console.log('✓ Kunde ändert nur die eigene Aufgabe; SYMMEDIS-Aufgabe bleibt unverändert')
+    console.log('✓ Kunde ändert nur die eigene Aufgabe; Staff-Status bleibt unverändert erhalten')
 
-    await customerUploadAndDownload(customer.cdp, uploadPath, downloadDir)
+    await customerUploadAndDownload(customer.cdp, customerUploadPath, customerDownloadDir)
     await waitFor(async () => {
       const state = await fixture(staff.cdp, 'inspect')
-      return state.fixture.documents.some((doc) => doc.name === UPLOAD_NAME && doc.source === 'kunde' && doc.customer_visible === true)
+      const customerDoc = state.fixture.documents.find((doc) => doc.name === CUSTOMER_UPLOAD_NAME)
+      const staffDoc = state.fixture.documents.find((doc) => doc.name === STAFF_UPLOAD_NAME)
+      return customerDoc?.source === 'kunde' && customerDoc?.customer_visible === true && staffDoc?.customer_visible === false
     }, 30000)
-    console.log('✓ Customer Upload + authentifizierter Download über echte UI erfolgreich')
+    console.log('✓ Customer Upload/Download funktioniert; internes Staff-Dokument bleibt für Kunden unsichtbar')
 
     await staffFinalizeReport(staff.cdp)
     await waitFor(async () => {
