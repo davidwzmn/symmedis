@@ -12,6 +12,7 @@ const CUSTOMER_PASSWORD = process.env.E2E_CUSTOMER_PASSWORD || ''
 const SUPABASE_URL = 'https://jmxxinrvszwggcxvlwfs.supabase.co'
 const PROJECT_ID = 'a551b1c8-55d0-4a90-8897-1408e7a08bac'
 const CLIENT_ID = 'cd269a65-a9d0-4d2a-90cd-026706133e57'
+const ANALYSIS_ITEM_ID = '63e6f8df-c28b-4cc2-9a72-dc9750746f0e'
 const FINDING_TEXT = 'E2E: Positionierungs-Finding wartet auf Kundenfreigabe.'
 const FIXTURE_CONFIRM = 'RESET_SYMMEDIS_E2E'
 const METRIC_LABEL = 'Wirkungskennzahl'
@@ -164,20 +165,15 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
-async function setSelectByLabel(cdp, labelText, value, scopeText = '') {
+async function setSelectByLabel(cdp, labelText, value) {
   const changed = await cdp.evaluate(`(() => {
     const wantedLabel = ${JSON.stringify(labelText)};
     const wantedValue = ${JSON.stringify(value)};
-    const scope = ${JSON.stringify(scopeText)};
-    const roots = scope
-      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope))
-      : [document.body];
-    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
-    const labels = [...root.querySelectorAll('label')];
+    const labels = [...document.querySelectorAll('label')];
     const label = labels.find((item) => (item.innerText || '').trim().includes(wantedLabel));
     let select = label?.htmlFor ? document.getElementById(label.htmlFor) : label?.querySelector('select');
     if (!select && label?.parentElement) select = label.parentElement.querySelector('select');
-    if (!select) select = [...root.querySelectorAll('select')].find((item) => [...item.options].some((option) => option.value === wantedValue));
+    if (!select) select = [...document.querySelectorAll('select')].find((item) => [...item.options].some((option) => option.value === wantedValue));
     if (!select) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
     setter.call(select, wantedValue);
@@ -188,16 +184,11 @@ async function setSelectByLabel(cdp, labelText, value, scopeText = '') {
   if (!changed) throw new Error(`Select konnte nicht gesetzt werden: ${labelText}=${value}`)
 }
 
-async function setCheckboxByText(cdp, text, checked, scopeText = '') {
+async function setCheckboxByText(cdp, text, checked) {
   const changed = await cdp.evaluate(`(() => {
     const wanted = ${JSON.stringify(text)};
     const checked = ${checked ? 'true' : 'false'};
-    const scope = ${JSON.stringify(scopeText)};
-    const roots = scope
-      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope))
-      : [document.body];
-    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
-    const label = [...root.querySelectorAll('label')].find((item) => (item.innerText || '').includes(wanted));
+    const label = [...document.querySelectorAll('label')].find((item) => (item.innerText || '').includes(wanted));
     const input = label?.querySelector('input[type="checkbox"]') || (label?.htmlFor ? document.getElementById(label.htmlFor) : null);
     if (!input) return false;
     if (input.checked !== checked) input.click();
@@ -209,7 +200,10 @@ async function setCheckboxByText(cdp, text, checked, scopeText = '') {
 async function qualitySectionText(cdp) {
   return cdp.evaluate(`(() => {
     const marker = 'Historische Diagnosequalität';
-    const roots = [...document.querySelectorAll('section,article,div')].filter((el) => (el.innerText || '').includes(marker));
+    const roots = [...document.querySelectorAll('section,article,div')].filter((el) => {
+      const text = el.innerText || '';
+      return text.includes(marker) && text.includes('Binäre Outcomes');
+    });
     return (roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0]?.innerText || '');
   })()`)
 }
@@ -246,18 +240,24 @@ async function run() {
     await clickText(staff.cdp, FINDING_TEXT)
     await assertBody(staff.cdp, 'Für Kunden freigeben')
     await clickText(staff.cdp, 'Für Kunden freigeben')
-    await sleep(500)
+    await waitFor(async () => {
+      const state = await fixture(staff.cdp, 'inspect')
+      const finding = state.fixture.analysis.find((item) => item.id === ANALYSIS_ITEM_ID)
+      return finding?.approval_status === 'kunde' && finding?.customer_visible === true
+    })
     console.log('✓ Finding für den Customer-Handover freigegeben')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/kunden/${CLIENT_ID}`)}); true`)
     await assertBody(staff.cdp, 'SYMMEDIS Staging Lab')
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
+    await assertBody(staff.cdp, 'Tag 30')
     await clickText(staff.cdp, 'Messpunkt +', 'Tag 30')
     await assertBody(staff.cdp, METRIC_LABEL)
-    await setSelectByLabel(staff.cdp, 'Bewertung', 'supports', 'Tag 30')
-    await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true, 'Tag 30')
-    await clickText(staff.cdp, 'Messpunkt speichern', 'Tag 30')
+    await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
+    await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
+    await clickText(staff.cdp, 'Messpunkt speichern')
+    await assertBody(staff.cdp, '30-Tage-Messpunkt gespeichert')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
     await clickText(staff.cdp, 'Outcome bewusst übernehmen')
     await assertBody(staff.cdp, 'Outcome und damaliger Diagnosezustand wurden durch den Human Review eingefroren.')
@@ -292,6 +292,7 @@ async function run() {
         await assertBody(staff.cdp, 'SYMMEDIS Staging Lab')
         await clickText(staff.cdp, 'Plan')
         await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
+        await assertBody(staff.cdp, 'Tag 30')
         await assertBodyMissing(staff.cdp, METRIC_LABEL)
         console.log('✓ Reset entfernt Outcome, Qualitätszählung und Messpunkt vollständig')
       } catch (error) {
