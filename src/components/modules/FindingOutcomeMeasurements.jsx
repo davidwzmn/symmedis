@@ -162,7 +162,7 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
     const draft = defaultMetric(finding, horizon)
     setAddingFindingId(`${finding.id}-${horizon}`)
     try {
-      const inserted = await restInsert('measurement_snapshots', accessToken, {
+      await restInsert('measurement_snapshots', accessToken, {
         project_id: kunde.projectId,
         analysis_item_id: finding.id,
         horizon_days: horizon,
@@ -174,7 +174,7 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
         assessment: 'pending',
         assessment_note: '',
       })
-      if (inserted?.[0]) setRows((current) => [...current, normalizeRow(inserted[0])])
+      await load()
       toast.show({ title: `${horizon}-Tage-Messpunkt angelegt`, description: 'Definieren Sie jetzt Kennzahl, Ziel und Beurteilung.', variant: 'success' })
     } catch (error) {
       toast.show({ title: 'Messpunkt konnte nicht angelegt werden', description: error instanceof Error ? error.message : 'Unbekannter Fehler', variant: 'danger' })
