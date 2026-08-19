@@ -103,6 +103,28 @@ function naechsteAktion(kunde) {
   }
 }
 
+function ExecutiveKarte({ eyebrow, titel, text, to, meta, icon: Icon }) {
+  return (
+    <Link
+      to={to}
+      className="group flex min-h-48 flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-ink-3">{eyebrow}</p>
+        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-ink">
+          <Icon className="size-4.5" />
+        </span>
+      </div>
+      <h3 className="mt-5 text-base font-semibold leading-snug text-ink">{titel}</h3>
+      <p className="mt-2 line-clamp-3 text-[0.8125rem] leading-relaxed text-ink-2">{text}</p>
+      <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+        <div className="min-w-0">{meta}</div>
+        <IconArrowRight className="size-4 shrink-0 text-brand-ink transition-transform group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  )
+}
+
 export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung }) {
   const status = PROJEKT_STATUS[kunde.status] || STANDARD_STATUS
   const aktion = naechsteAktion(kunde)
@@ -120,6 +142,8 @@ export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung })
   const letzteRueckmeldung = kunde.chat.filter((n) => n.from === 'symmedis').at(-1)
   const name = kunde.ansprechpartner?.name?.trim()
   const nachname = name ? name.split(' ').at(-1) : null
+  const bremsenTitel = bremse ? KATEGORIE_MAP[bremse.kategorieId]?.label || bremse.kategorieId || 'Wachstumsbremse' : 'Noch keine priorisierte Ursache'
+  const bremsenText = bremse?.beobachtung || 'Sobald eine Ursache menschlich geprüft ist, erscheint die wichtigste Wachstumsbremse hier.'
 
   return (
     <div className="space-y-6">
@@ -130,14 +154,41 @@ export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung })
         actions={<Button as={Link} to={`${basis}/nachrichten`} variant="secondary" size="sm"><IconChat className="size-4" />Nachricht an SYMMEDIS</Button>}
       />
 
-      <Card className="lg:hidden">
-        <CardBody className="space-y-3.5">
-          <div className="flex items-center justify-between gap-3"><span className="text-[0.8125rem] font-medium text-ink-2">Reifegrad</span><span className="flex items-baseline gap-1.5"><span className="text-lg font-semibold tabular text-ink">{analyseGesamt ? score : '–'}</span>{analyseGesamt ? <span className="text-xs text-ink-3">/ 100</span> : null}{analyseGesamt ? <Chip size="sm" toneName={stufe.tone} className="ml-1">{stufe.label}</Chip> : null}</span></div>
-          {bremse ? <div className="border-t border-line pt-3"><span className="text-[0.8125rem] font-medium text-ink-2">Größte Wachstumsbremse</span><p className="mt-1 text-[0.8125rem] font-semibold text-ink">{KATEGORIE_MAP[bremse.kategorieId]?.label || bremse.kategorieId || 'Noch nicht zugeordnet'}</p><p className="mt-0.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-ink-2">{bremse.beobachtung || 'Die Detailbewertung wird derzeit vorbereitet.'}</p></div> : null}
-          <div className="border-t border-line pt-3"><span className="text-[0.8125rem] font-medium text-ink-2">Nächster Schritt</span><p className="mt-1 text-[0.8125rem] font-semibold text-ink">{aktion.titel}</p></div>
-          <Button as={Link} to={`${basis}/analyse`} size="sm" fullWidth className="mt-1">Vollständige Analyse öffnen<IconArrowRight className="size-4" /></Button>
-        </CardBody>
-      </Card>
+      <section aria-labelledby="executive-snapshot-title">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-3">Auf einen Blick</p>
+            <h2 id="executive-snapshot-title" className="mt-1 text-lg font-semibold tracking-tight text-ink">Wo stehen wir, was bremst, was jetzt?</h2>
+          </div>
+          <p className="max-w-xl text-xs leading-relaxed text-ink-3">Die drei Informationen, die Sie für die nächste Entscheidung brauchen. Details bleiben jederzeit nachvollziehbar erreichbar.</p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <ExecutiveKarte
+            eyebrow="Wo stehen wir?"
+            titel={`${analyseFortschritt} % Analysefortschritt`}
+            text={analyseGesamt ? `${freigegeben} von ${analyseGesamt} Analysedimensionen sind bereits für Sie freigegeben.` : 'Die Ursachenanalyse wird vorbereitet. Mit den ersten geprüften Ergebnissen wächst dieser Fortschritt.'}
+            to={`${basis}/analyse`}
+            icon={IconCheckCircle}
+            meta={<Chip size="sm" toneName={status.tone} dot>{status.label}</Chip>}
+          />
+          <ExecutiveKarte
+            eyebrow="Was bremst?"
+            titel={bremsenTitel}
+            text={bremsenText}
+            to={`${basis}/analyse`}
+            icon={IconAlert}
+            meta={analyseGesamt ? <Chip size="sm" toneName={stufe.tone}>Reifegrad {score} / 100</Chip> : <Chip size="sm" toneName="neutral">In Analyse</Chip>}
+          />
+          <ExecutiveKarte
+            eyebrow="Was jetzt?"
+            titel={aktion.titel}
+            text={aktion.text}
+            to={`${basis}/${aktion.ziel}`}
+            icon={IconTarget}
+            meta={<Chip size="sm" toneName={aktion.tone}>{aktion.label}</Chip>}
+          />
+        </div>
+      </section>
 
       <Banner toneName={aktion.tone} icon={aktion.tone === 'urgent' ? IconAlert : IconTarget} title={`Nächster Schritt: ${aktion.titel}`} action={<Button as={Link} to={`${basis}/${aktion.ziel}`} size="sm" variant="secondary">{aktion.label}<IconArrowRight className="size-4" /></Button>}>{aktion.text}</Banner>
 
