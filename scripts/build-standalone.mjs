@@ -14,6 +14,9 @@ const DIST = process.argv[3] || 'dist-hash'
 const ASSETS = join(DIST, 'assets')
 const buildSha = (process.env.GITHUB_SHA || process.env.SYMMEDIS_BUILD_SHA || 'local').trim()
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const assetUrlPattern = (file) => `[^"']*/assets/${escapeRegExp(file)}`
+
 let html = readFileSync(join(DIST, 'index.html'), 'utf8')
 const dateien = readdirSync(ASSETS)
 
@@ -34,21 +37,23 @@ const js = readFileSync(join(ASSETS, jsName), 'utf8')
 
 if (fontName) {
   const font = readFileSync(join(ASSETS, fontName)).toString('base64')
-  css = css.replaceAll(`url(/assets/${fontName})`, `url(data:font/woff2;base64,${font})`)
+  const fontUrl = new RegExp(`url\\((?:["']?)${assetUrlPattern(fontName)}(?:["']?)\\)`, 'g')
+  css = css.replace(fontUrl, `url(data:font/woff2;base64,${font})`)
 }
 
-html = html.replace(
-  new RegExp(`<link[^>]+href="/assets/${cssName}"[^>]*>`),
-  () => `<style>${css}</style>`,
-)
-html = html.replace(
-  new RegExp(`<script[^>]+src="/assets/${jsName}"[^>]*></script>`),
-  () => `<script type="module">${js}</script>`,
-)
+const cssTag = new RegExp(`<link[^>]+href="${assetUrlPattern(cssName)}"[^>]*>`)
+const jsTag = new RegExp(`<script[^>]+src="${assetUrlPattern(jsName)}"[^>]*></script>`)
 
+if (!cssTag.test(html) || !jsTag.test(html)) {
+  console.error('FEHLER: CSS-/JS-Bundle konnte im Standalone-HTML nicht base-path-neutral gefunden werden.')
+  process.exit(1)
+}
+
+html = html.replace(cssTag, () => `<style>${css}</style>`)
+html = html.replace(jsTag, () => `<script type="module">${js}</script>`)
 html = html.replace('<head>', `<head>\n    <meta name="symmedis-build" content="${buildSha}">`)
 
-if (/(?:href|src)="\/assets\//.test(html) || /import\(["']\.\/[^"']+\.js["']\)/.test(html)) {
+if (/(?:href|src)="[^"]*\/assets\//.test(html) || /import\(["']\.\/[^"']+\.js["']\)/.test(html)) {
   console.error('FEHLER: Standalone-HTML enthält noch externe oder dynamische JS-Asset-Verweise.')
   process.exit(1)
 }
