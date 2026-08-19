@@ -30,6 +30,27 @@ import {
   IconUsers,
 } from '../../components/ui/Icons.jsx'
 
+function FokusLink({ to, icon: Icon, label, value, text, toneName = 'neutral' }) {
+  return (
+    <Link
+      to={to}
+      className="group rounded-xl border border-line bg-surface p-4 transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-ink-2 transition-colors group-hover:bg-brand-soft group-hover:text-brand-ink">
+          <Icon className="size-4.5" />
+        </span>
+        <Chip size="sm" toneName={toneName}>{value}</Chip>
+      </div>
+      <p className="mt-4 text-[0.875rem] font-semibold text-ink">{label}</p>
+      <p className="mt-1 text-xs leading-relaxed text-ink-3">{text}</p>
+      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-ink">
+        Öffnen <IconArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Link>
+  )
+}
+
 /** Internes Dashboard: Auslastung, Freigabestau, Fristen, Posteingang. */
 export function StaffDashboard() {
   const { kunden, kennzahlen } = useWorkspace()
@@ -82,6 +103,50 @@ export function StaffDashboard() {
           </>
         }
       />
+
+      <section aria-labelledby="arbeitsfokus-title">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-3">Heute wichtig</p>
+            <h2 id="arbeitsfokus-title" className="mt-1 text-lg font-semibold tracking-tight text-ink">Arbeitsfokus</h2>
+          </div>
+          <p className="max-w-xl text-xs leading-relaxed text-ink-3">Die vier Bereiche, die aktuell am ehesten Kundentermine, Freigaben oder Projektfortschritt blockieren.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FokusLink
+            to="/intern/freigaben"
+            icon={IconShield}
+            label="Freigaben prüfen"
+            value={kennzahlen.offeneFreigaben}
+            toneName={kennzahlen.offeneFreigaben > 0 ? 'warn' : 'ok'}
+            text="Analysepunkte, die auf menschliche Prüfung oder interne Freigabe warten."
+          />
+          <FokusLink
+            to="/intern/aufgaben"
+            icon={IconClock}
+            label="Überfällige Aufgaben"
+            value={kennzahlen.ueberfaellig}
+            toneName={kennzahlen.ueberfaellig > 0 ? 'urgent' : 'ok'}
+            text="Interne Schritte, die einen Kunden- oder Ergebnistermin gefährden können."
+          />
+          <FokusLink
+            to="/intern/posteingang"
+            icon={IconChat}
+            label="Kundenanfragen"
+            value={offeneFragen.length}
+            toneName={offeneFragen.length > 0 ? 'info' : 'ok'}
+            text="Projektverläufe, in denen die letzte Nachricht vom Kunden stammt."
+          />
+          <FokusLink
+            to="/intern/dokumente"
+            icon={IconDocument}
+            label="Neue Dokumente"
+            value={kennzahlen.neueDokumente}
+            toneName={kennzahlen.neueDokumente > 0 ? 'info' : 'ok'}
+            text="Neu eingegangene Unterlagen, die noch gesichtet oder eingeordnet werden müssen."
+          />
+        </div>
+      </section>
 
       {kennzahlen.ueberfaellig > 0 ? (
         <Banner
