@@ -21,6 +21,7 @@ const FINDING_TEXT = 'E2E: Positionierungs-Finding wartet auf Kundenfreigabe.'
 const REPORT_TITLE = 'Staging Report – nicht freigeben'
 const FIXTURE_CONFIRM = 'RESET_SYMMEDIS_E2E'
 const CUSTOMER_UPLOAD_NAME = 'symmedis-cross-role-e2e.txt'
+const CUSTOMER_UPLOAD_MARKER = 'SYMMEDIS CUSTOMER CROSS ROLE E2E'
 const STAFF_UPLOAD_NAME = 'symmedis-staff-internal-e2e.txt'
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)) }
@@ -275,7 +276,26 @@ async function customerUploadAndDownload(customerCdp, uploadPath, downloadDir) {
   await assertBody(customerCdp, CUSTOMER_UPLOAD_NAME)
   await setDownloadDirectory(customerCdp, downloadDir)
   await clickText(customerCdp, 'Laden', { scopeText: CUSTOMER_UPLOAD_NAME })
-  await waitForDownloadedFile(downloadDir, CUSTOMER_UPLOAD_NAME, 'SYMMEDIS CUSTOMER CROSS ROLE E2E')
+  await waitForDownloadedFile(downloadDir, CUSTOMER_UPLOAD_NAME, CUSTOMER_UPLOAD_MARKER)
+}
+
+async function assertCustomerDocumentIndexed(staffCdp) {
+  return waitFor(async () => {
+    const state = await fixture(staffCdp, 'inspect')
+    const customerDoc = state.fixture.documents.find((doc) => doc.name === CUSTOMER_UPLOAD_NAME)
+    if (!customerDoc) return null
+    if (customerDoc.index_status === 'failed') {
+      throw new Error(`Customer-E2E: Dokumentindexierung fehlgeschlagen: ${customerDoc.index_error || 'unbekannt'}`)
+    }
+    if (customerDoc.index_status !== 'indexed' || !customerDoc.indexed_at) return null
+
+    const chunks = state.fixture.knowledgeChunks.filter((chunk) => chunk.document_id === customerDoc.id)
+    const hasExpectedChunk = chunks.some((chunk) => String(chunk.content || '').includes(CUSTOMER_UPLOAD_MARKER))
+    const audit = state.fixture.auditEvents.find((event) => event.entity_id === customerDoc.id && event.event_type === 'document.indexed')
+    if (!chunks.length || !hasExpectedChunk || !audit) return null
+
+    return { document: customerDoc, chunks, audit }
+  }, 45000, 500)
 }
 
 async function staffFinalizeReport(staffCdp) {
@@ -304,7 +324,7 @@ async function run() {
     mkdir(staffDownloadDir, { recursive: true }), mkdir(customerDownloadDir, { recursive: true }),
   ])
   await writeFile(staffUploadPath, `SYMMEDIS STAFF INTERNAL E2E\n${new Date().toISOString()}\n`, 'utf8')
-  await writeFile(customerUploadPath, `SYMMEDIS CUSTOMER CROSS ROLE E2E\n${new Date().toISOString()}\n`, 'utf8')
+  await writeFile(customerUploadPath, `${CUSTOMER_UPLOAD_MARKER}\n${new Date().toISOString()}\n`, 'utf8')
 
   let staff
   let customer
@@ -343,6 +363,9 @@ async function run() {
       return customerDoc?.source === 'kunde' && customerDoc?.customer_visible === true && staffDoc?.customer_visible === false
     }, 30000)
     console.log('✓ Customer Upload/Download funktioniert; internes Staff-Dokument bleibt für Kunden unsichtbar')
+
+    const indexing = await assertCustomerDocumentIndexed(staff.cdp)
+    console.log(`✓ Kunden-TXT vollständig indexiert: ${indexing.chunks.length} Knowledge-Chunk(s) und Audit ${indexing.audit.event_type}`)
 
     await staffFinalizeReport(staff.cdp)
     await waitFor(async () => {
