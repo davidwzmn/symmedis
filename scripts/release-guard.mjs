@@ -138,9 +138,11 @@ for (const signature of [
   "{ path: '/portal/dokumente'",
   "{ path: '/portal/berichte'",
   "{ path: '/portal/nachrichten'",
-  'Kernnavigation vollständig erreichbar',
+  'Kernnavigation vollständig per UI erreichbar',
+  'Logout löscht Session und führt sicher zur Website zurück',
+  "document.querySelector('button[aria-label=\"Abmelden\"]')",
 ]) {
-  if (!authE2e.includes(signature)) fail(`Browser-E2E: Rollen-/Navigationsvertrag fehlt: ${signature}`)
+  if (!authE2e.includes(signature)) fail(`Browser-E2E: Rollen-/Navigations-/Logout-Vertrag fehlt: ${signature}`)
 }
 
 const ciWorkflow = await text('.github/workflows/ci.yml')
@@ -229,7 +231,7 @@ console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
 console.log('✓ Portal-Rückkehr, Logout, Staff-Arbeitsfokus und Customer-Executive-Snapshot bleiben geschützt')
-console.log('✓ Authentifizierter Zwei-Rollen-E2E prüft geschützte Kernnavigation')
+console.log('✓ Authentifizierter Zwei-Rollen-E2E prüft UI-Navigation und sicheren Logout')
 console.log('✓ Offizieller GitHub-Pages-Deploypfad und Live-Staging-Status bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
