@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { cn } from '../../lib/cn.js'
 import { useSession } from '../../hooks/useSession.js'
 import { useTheme } from '../../hooks/useTheme.js'
@@ -6,6 +7,8 @@ import { Avatar, Chip, Kbd } from '../ui/primitives.jsx'
 import { IconLogout, IconMenu, IconMoon, IconSearch, IconSun } from '../ui/Icons.jsx'
 import { CommandPalette } from './CommandPalette.jsx'
 import { NotificationCenter } from './NotificationCenter.jsx'
+
+const PUBLIC_HOME_URL = import.meta.env.BASE_URL || '/'
 
 export function Topbar({
   bereich,
@@ -24,12 +27,11 @@ export function Topbar({
   const [menuOffen, setMenuOffen] = useState(false)
   const menuRef = useRef(null)
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setMenuOffen(false)
-    abmelden()
-    // Vollständiger Seitenwechsel: Sitzungsdaten werden aus dem Speicher entfernt,
-    // bevor die öffentliche Website neu geladen wird.
-    window.location.assign('/')
+    await abmelden()
+    // BASE_URL hält lokale Auslieferung und GitHub-Pages-Unterpfad identisch sicher.
+    window.location.assign(PUBLIC_HOME_URL)
   }
 
   // Globale Tastenkombination für die Suche
@@ -79,7 +81,7 @@ export function Topbar({
           ) : null}
 
           <a
-            href="/"
+            href={PUBLIC_HOME_URL}
             className="hidden h-9 items-center rounded-lg border border-line-strong bg-surface px-3 text-xs font-medium text-ink-2 transition-colors hover:border-brand hover:text-brand-ink sm:inline-flex"
           >
             Zur Website
@@ -157,7 +159,7 @@ export function Topbar({
                     </p>
                   </div>
                   <a
-                    href="/"
+                    href={PUBLIC_HOME_URL}
                     className="flex w-full items-center px-3.5 py-2.5 text-left text-[0.8125rem] text-ink-2 transition-colors hover:bg-surface-muted hover:text-ink"
                   >
                     Zur Website
@@ -201,9 +203,9 @@ export function Breadcrumb({ items }) {
               </span>
             ) : null}
             {item.to && i < items.length - 1 ? (
-              <a href={item.to} className="truncate text-ink-3 hover:text-ink">
+              <Link to={item.to} className="truncate text-ink-3 hover:text-ink">
                 {item.label}
-              </a>
+              </Link>
             ) : (
               <span className={cn('truncate', i === items.length - 1 ? 'font-semibold text-ink' : 'text-ink-3')}>
                 {item.label}
