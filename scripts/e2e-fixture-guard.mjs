@@ -45,11 +45,12 @@ for (const value of [
 }
 
 for (const value of [
-  'id-token: write', 'workflow_dispatch:', 'npm run build', 'scripts/cross-role-browser-e2e.mjs',
+  'id-token: write', 'statuses: write', 'workflow_dispatch:', 'npm run build', 'scripts/cross-role-browser-e2e.mjs',
   'scripts/auth-browser-e2e.mjs', 'E2E_REQUIRE_AUTH="true"', 'symmedis-auth-e2e.log',
   'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'audience=symmedis-e2e-bootstrap',
   'functions/v1/e2e-auth-bootstrap', '\\"action\\":\\"bootstrap\\"', '\\"action\\":\\"cleanup\\"',
-  'GITHUB_RUN_ID', 'cancel-in-progress: false',
+  'GITHUB_RUN_ID', 'cancel-in-progress: false', 'Record cross-role release status',
+  'symmedis/cross-role-e2e', 'actions/runs/${GITHUB_RUN_ID}', 'statuses/${GITHUB_SHA}',
 ]) {
   requireText(crossRoleWorkflow, value, 'cross-role E2E workflow')
 }
@@ -98,4 +99,5 @@ console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumen
 console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
 console.log('✓ OIDC ist auf Repo-ID, Branch, Workflow, Audience und GitHub-hosted Runner begrenzt')
+console.log('✓ Cross-Role-Ergebnis wird als symmedis/cross-role-e2e Commit-Status veröffentlicht')
 console.log('✓ Service-Role-Secrets bleiben außerhalb von Browser und GitHub-Workflow')
