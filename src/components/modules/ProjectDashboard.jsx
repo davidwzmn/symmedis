@@ -174,8 +174,8 @@ export function ProjectDashboard({ kunde, basis, rolle = 'kunde', begruessung })
       <section aria-labelledby="executive-snapshot-title">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-3">Entscheidungsbild</p>
-            <h2 id="executive-snapshot-title" className="mt-1 text-lg font-semibold tracking-tight text-ink">Wo stehen wir – und was bremst?</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-3">Auf einen Blick</p>
+            <h2 id="executive-snapshot-title" className="mt-1 text-lg font-semibold tracking-tight text-ink">Wo stehen wir, was bremst, was jetzt?</h2>
           </div>
           <p className="max-w-xl text-xs leading-relaxed text-ink-3">Fortschritt, wichtigste Ursache und daraus abgeleitete Aktion bilden gemeinsam das aktuelle Projektbild.</p>
         </div>
