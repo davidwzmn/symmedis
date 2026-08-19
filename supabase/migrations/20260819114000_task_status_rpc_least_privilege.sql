@@ -11,6 +11,7 @@ declare
   v_org_id uuid;
   v_task_project_id uuid;
   v_task_responsible text;
+  v_old_status text;
   v_project_client_id uuid;
   v_project_org_id uuid;
 begin
@@ -31,12 +32,13 @@ begin
     raise exception 'Kein freigeschaltetes Profil.' using errcode = '42501';
   end if;
 
-  select t.project_id, t.responsible_party, pr.client_id, c.organization_id
-    into v_task_project_id, v_task_responsible, v_project_client_id, v_project_org_id
+  select t.project_id, t.responsible_party, t.status, pr.client_id, c.organization_id
+    into v_task_project_id, v_task_responsible, v_old_status, v_project_client_id, v_project_org_id
   from public.tasks t
   join public.projects pr on pr.id = t.project_id
   join public.clients c on c.id = pr.client_id
-  where t.id = p_task_id;
+  where t.id = p_task_id
+  for update of t;
 
   if v_task_project_id is null then
     return false;
@@ -54,12 +56,31 @@ begin
     raise exception 'Rolle darf Aufgaben nicht aktualisieren.' using errcode = '42501';
   end if;
 
+  if v_old_status = p_status then
+    return true;
+  end if;
+
   update public.tasks
   set status = p_status,
       updated_at = now()
   where id = p_task_id;
 
-  return found;
+  insert into public.audit_events (
+    organization_id, client_id, project_id, actor_user_id,
+    event_type, entity_type, entity_id, summary, metadata
+  ) values (
+    v_project_org_id, v_project_client_id, v_task_project_id, v_user_id,
+    'task.status_updated', 'task', p_task_id::text,
+    'Aufgabenstatus aktualisiert',
+    jsonb_build_object(
+      'from', v_old_status,
+      'to', p_status,
+      'responsible_party', v_task_responsible,
+      'actor_role', v_role
+    )
+  );
+
+  return true;
 end;
 $$;
 
