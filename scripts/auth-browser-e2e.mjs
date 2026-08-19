@@ -127,15 +127,51 @@ async function assertPageState(cdp, scenario, { expectedPath, requiredTexts = []
   }, 20000)
 }
 
-async function navigateAndAssert(cdp, scenario, check) {
-  const target = `${BASE_URL}${check.path}`
-  await cdp.evaluate(`location.assign(${JSON.stringify(target)}); true`)
+async function clickRouteAndAssert(cdp, scenario, check) {
+  const clicked = await cdp.evaluate(`(() => {
+    const path = ${JSON.stringify(check.path)};
+    const links = [...document.querySelectorAll('a[href]')];
+    const link = links.find((item) => {
+      const href = item.getAttribute('href') || '';
+      return href === path || new URL(item.href, location.href).pathname === path;
+    });
+    if (!link) return false;
+    link.click();
+    return true;
+  })()`)
+  if (!clicked) throw new Error(`${scenario.name}: sichtbarer Navigationslink fehlt: ${check.path}`)
   await assertPageState(cdp, scenario, {
     expectedPath: check.path,
     requiredTexts: check.requiredTexts,
     forbiddenTexts: [scenario.forbiddenText, ...(check.forbiddenTexts || [])],
   })
-  console.log(`  ✓ ${scenario.name}: ${check.path}`)
+  console.log(`  ✓ ${scenario.name}: Navigation per UI → ${check.path}`)
+}
+
+async function assertLogout(cdp, scenario) {
+  const clicked = await cdp.evaluate(`(() => {
+    const direct = document.querySelector('button[aria-label="Abmelden"]');
+    const candidates = [...document.querySelectorAll('button')];
+    const button = direct || candidates.find((item) => item.textContent?.trim() === 'Abmelden');
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`)
+  if (!clicked) throw new Error(`${scenario.name}: Logout-Button fehlt.`)
+
+  await waitFor(async () => {
+    const state = await cdp.evaluate(`({
+      href: location.href,
+      body: document.body.innerText,
+      session: localStorage.getItem('symmedis.supabase.session') || ''
+    })`)
+    if (state.session.includes('access_token')) return null
+    const url = new URL(state.href)
+    if (url.pathname !== '/' && url.pathname !== '') return null
+    if (!state.body.includes('Wachstum stockt selten wegen mangelnder Aktivität')) return null
+    return state
+  }, 20000)
+  console.log(`✓ ${scenario.name}: Logout löscht Session und führt sicher zur Website zurück`)
 }
 
 async function runScenario(scenario, port) {
@@ -209,8 +245,9 @@ async function runScenario(scenario, port) {
     if (state.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
 
     console.log(`✓ ${scenario.name}: echte Browser-Session, geschützter Workspace und Portal-UX erfolgreich`)
-    for (const check of scenario.routeChecks || []) await navigateAndAssert(cdp, scenario, check)
-    console.log(`✓ ${scenario.name}: Kernnavigation vollständig erreichbar`)
+    for (const check of scenario.routeChecks || []) await clickRouteAndAssert(cdp, scenario, check)
+    console.log(`✓ ${scenario.name}: Kernnavigation vollständig per UI erreichbar`)
+    await assertLogout(cdp, scenario)
     cdp.close()
   } finally {
     chrome.kill('SIGTERM')
