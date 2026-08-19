@@ -11,6 +11,7 @@ const EXPECTED_REPOSITORY_ID = "1314992444";
 const EXPECTED_REF = "refs/heads/agent/supabase-auth-foundation";
 const EXPECTED_WORKFLOW_REF = "davidwzmn/symmedis/.github/workflows/cross-role-e2e.yml@refs/heads/agent/supabase-auth-foundation";
 const FIXTURE_PROJECT_ID = "a551b1c8-55d0-4a90-8897-1408e7a08bac";
+const FIXTURE_VERSION = 1;
 const ALLOWED_EVENTS = new Set(["push", "workflow_dispatch"]);
 
 function json(status: number, body: unknown) {
@@ -66,6 +67,7 @@ async function verifyGitHubOidc(token: string) {
   if (Number.isFinite(Number(claims?.nbf)) && Number(claims.nbf) > now + 30) throw new Error("oidc_not_yet_valid");
   if (Number.isFinite(Number(claims?.iat)) && Math.abs(now - Number(claims.iat)) > 15 * 60) throw new Error("stale_oidc_token");
   if (claims?.repository !== EXPECTED_REPOSITORY || String(claims?.repository_id || "") !== EXPECTED_REPOSITORY_ID) throw new Error("wrong_repository");
+  if (claims?.repository_visibility !== "public") throw new Error("wrong_repository_visibility");
   if (claims?.ref !== EXPECTED_REF || claims?.ref_type !== "branch") throw new Error("wrong_ref");
   if (claims?.workflow_ref !== EXPECTED_WORKFLOW_REF) throw new Error("wrong_workflow");
   if (!ALLOWED_EVENTS.has(String(claims?.event_name || ""))) throw new Error("wrong_event");
@@ -108,7 +110,13 @@ Deno.serve(async (req: Request) => {
       .select("id,client_id,metadata")
       .eq("id", FIXTURE_PROJECT_ID)
       .maybeSingle();
-    if (projectError || !project || project.metadata?.e2e_fixture !== true || project.metadata?.allow_mutating_e2e !== true || project.metadata?.environment !== "staging") {
+    if (
+      projectError || !project
+      || project.metadata?.e2e_fixture !== true
+      || project.metadata?.allow_mutating_e2e !== true
+      || project.metadata?.environment !== "staging"
+      || Number(project.metadata?.fixture_version) !== FIXTURE_VERSION
+    ) {
       return json(409, { error: "fixture_safety_contract_failed" });
     }
     const { data: client, error: clientError } = await admin
