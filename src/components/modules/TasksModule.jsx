@@ -40,7 +40,7 @@ export function TasksModule({ kunde, rolle = 'kunde' }) {
   const [filter, setFilter] = useState('alle')
   const [suche, setSuche] = useState('')
   const [speichert, setSpeichert] = useState(null)
-  const schreibbar = rolle !== 'demo'
+  const darfStatusAendern = (aufgabe) => rolle === 'intern' || (rolle === 'kunde' && aufgabe.verantwortlich === 'kunde')
 
   const gefiltert = useMemo(() => {
     const q = suche.trim().toLowerCase()
@@ -64,7 +64,7 @@ export function TasksModule({ kunde, rolle = 'kunde' }) {
   }), [kunde.aufgaben])
 
   const weiter = async (aufgabe) => {
-    if (!schreibbar || speichert) return
+    if (!darfStatusAendern(aufgabe) || speichert) return
     const naechster = naechsterStatus(aufgabe.status)
     setSpeichert(aufgabe.id)
     try {
@@ -111,7 +111,7 @@ export function TasksModule({ kunde, rolle = 'kunde' }) {
         <div className="hidden gap-4 md:grid md:grid-cols-3">
           {SPALTEN.map((spalte) => {
             const eintraege = gefiltert.filter((a) => a.status === spalte.id)
-            return <div key={spalte.id} className="rounded-card border border-line bg-surface-muted p-3"><div className="mb-3 flex items-center justify-between"><p className="text-[0.8125rem] font-semibold text-ink">{spalte.label}</p><span className="tabular text-xs text-ink-3">{eintraege.length}</span></div><ul className="space-y-2.5">{eintraege.map((aufgabe) => <li key={aufgabe.id}><AufgabenKarte aufgabe={aufgabe} onWeiter={schreibbar ? weiter : undefined} pending={speichert === aufgabe.id} disabled={Boolean(speichert)} /></li>)}{eintraege.length === 0 ? <li className="rounded-lg border border-dashed border-line-strong px-3 py-6 text-center text-xs text-ink-3">Keine Aufgaben</li> : null}</ul></div>
+            return <div key={spalte.id} className="rounded-card border border-line bg-surface-muted p-3"><div className="mb-3 flex items-center justify-between"><p className="text-[0.8125rem] font-semibold text-ink">{spalte.label}</p><span className="tabular text-xs text-ink-3">{eintraege.length}</span></div><ul className="space-y-2.5">{eintraege.map((aufgabe) => <li key={aufgabe.id}><AufgabenKarte aufgabe={aufgabe} onWeiter={darfStatusAendern(aufgabe) ? weiter : undefined} pending={speichert === aufgabe.id} disabled={Boolean(speichert)} /></li>)}{eintraege.length === 0 ? <li className="rounded-lg border border-dashed border-line-strong px-3 py-6 text-center text-xs text-ink-3">Keine Aufgaben</li> : null}</ul></div>
           })}
         </div>
       ) : null}
@@ -124,10 +124,11 @@ export function TasksModule({ kunde, rolle = 'kunde' }) {
               const faellt = sichereFaelligkeit(aufgabe)
               const prio = prioInfo(aufgabe.prioritaet)
               const pending = speichert === aufgabe.id
+              const darfAendern = darfStatusAendern(aufgabe)
               return (
                 <li key={aufgabe.id} className="flex items-start gap-3 px-4 py-3.5 sm:px-5">
-                  <button type="button" disabled={!schreibbar || Boolean(speichert)} onClick={() => weiter(aufgabe)} aria-busy={pending || undefined} aria-label={aufgabe.status === 'erledigt' ? `${aufgabe.titel || 'Aufgabe'} wieder öffnen` : `${aufgabe.titel || 'Aufgabe'} weiterschalten`} className={cn('mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', aufgabe.status === 'erledigt' ? 'border-ok-ink bg-ok-ink text-on-solid' : aufgabe.status === 'in-arbeit' ? 'border-info bg-info-soft text-info-ink' : 'border-line-strong text-transparent hover:border-brand', (!schreibbar || speichert) && 'cursor-not-allowed opacity-60')}>{pending ? <Spinner /> : aufgabe.status === 'erledigt' ? <IconCheck className="size-3.5" /> : aufgabe.status === 'in-arbeit' ? <span className="size-2 rounded-full bg-info" /> : null}</button>
-                  <div className="min-w-0 flex-1"><p className={cn('text-[0.875rem] leading-snug font-medium', aufgabe.status === 'erledigt' ? 'text-ink-3 line-through' : 'text-ink')}>{aufgabe.titel || 'Unbenannte Aufgabe'}</p><div className="mt-1.5 flex flex-wrap items-center gap-1.5"><Chip size="sm" toneName={prio.tone}>{prio.label}</Chip><Chip size="sm" toneName={faellt.tone} icon={faellt.ueberfaellig ? IconClock : undefined}>{faellt.label}</Chip><Chip size="sm" toneName={aufgabe.verantwortlich === 'kunde' ? 'brand' : 'accent'} icon={aufgabe.verantwortlich === 'kunde' ? IconUser : IconUsers}>{aufgabe.verantwortlich === 'kunde' ? 'Kunde' : 'SYMMEDIS'}</Chip><span className="text-xs text-ink-3">{kategorieLabel(aufgabe.kategorieId)}{aufgabe.kpi ? ` · Messgröße: ${aufgabe.kpi}` : ''}</span></div></div>
+                  <button type="button" disabled={!darfAendern || Boolean(speichert)} onClick={() => weiter(aufgabe)} aria-busy={pending || undefined} title={!darfAendern && rolle === 'kunde' ? 'Der Status dieser Aufgabe wird von SYMMEDIS gepflegt.' : undefined} aria-label={aufgabe.status === 'erledigt' ? `${aufgabe.titel || 'Aufgabe'} wieder öffnen` : `${aufgabe.titel || 'Aufgabe'} weiterschalten`} className={cn('mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', aufgabe.status === 'erledigt' ? 'border-ok-ink bg-ok-ink text-on-solid' : aufgabe.status === 'in-arbeit' ? 'border-info bg-info-soft text-info-ink' : 'border-line-strong text-transparent hover:border-brand', (!darfAendern || speichert) && 'cursor-not-allowed opacity-60')}>{pending ? <Spinner /> : aufgabe.status === 'erledigt' ? <IconCheck className="size-3.5" /> : aufgabe.status === 'in-arbeit' ? <span className="size-2 rounded-full bg-info" /> : null}</button>
+                  <div className="min-w-0 flex-1"><p className={cn('text-[0.875rem] leading-snug font-medium', aufgabe.status === 'erledigt' ? 'text-ink-3 line-through' : 'text-ink')}>{aufgabe.titel || 'Unbenannte Aufgabe'}</p><div className="mt-1.5 flex flex-wrap items-center gap-1.5"><Chip size="sm" toneName={prio.tone}>{prio.label}</Chip><Chip size="sm" toneName={faellt.tone} icon={faellt.ueberfaellig ? IconClock : undefined}>{faellt.label}</Chip><Chip size="sm" toneName={aufgabe.verantwortlich === 'kunde' ? 'brand' : 'accent'} icon={aufgabe.verantwortlich === 'kunde' ? IconUser : IconUsers}>{aufgabe.verantwortlich === 'kunde' ? 'Kunde' : 'SYMMEDIS'}</Chip><span className="text-xs text-ink-3">{kategorieLabel(aufgabe.kategorieId)}{aufgabe.kpi ? ` · Messgröße: ${aufgabe.kpi}` : ''}</span></div>{!darfAendern && rolle === 'kunde' ? <p className="mt-1.5 text-xs text-ink-3">Statuspflege durch SYMMEDIS</p> : null}</div>
                   {aufgabe.zustaendig ? <span className="hidden shrink-0 text-xs text-ink-3 lg:block">{aufgabe.zustaendig}</span> : null}
                 </li>
               )
