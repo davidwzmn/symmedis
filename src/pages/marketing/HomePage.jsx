@@ -129,9 +129,13 @@ export function HomePage() {
                   Plattform ansehen <IconArrowRight className="size-4 shrink-0" />
                 </Button>
                 <Button as={Link} to="/login" variant="ghost" size="lg">
-                  Login
+                  Portal-Login
                 </Button>
               </div>
+
+              <p className="mt-3 max-w-2xl text-xs leading-relaxed text-ink-3">
+                15 Minuten · keine Verkaufsrunde · klare Einschätzung, ob eine Ursachenanalyse für Ihre Situation sinnvoll ist.
+              </p>
 
               <div className="mt-8 grid gap-2.5 sm:grid-cols-2">
                 {HERO_PROOF.map((item) => (
@@ -278,7 +282,7 @@ export function HomePage() {
                   <Button as={Link} to="/demo" variant="cta" size="lg">
                     Plattform ansehen <IconArrowRight className="size-4 shrink-0" />
                   </Button>
-                  <Button as={Link} to="/plattform" variant="on-dark" size="lg">
+                  <Button as={Link} to="/plattform" variant="on-dark-secondary" size="lg">
                     Funktionen im Detail
                   </Button>
                 </div>
