@@ -12,12 +12,13 @@ function requireText(content, value, label) {
   if (!content.includes(value)) failures.push(`${label}: fehlt: ${value}`)
 }
 
-const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap, authBrowserE2e] = await Promise.all([
+const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap, authBrowserE2e, customerDocumentMigration] = await Promise.all([
   text('supabase/functions/e2e-fixture/index.ts'),
   text('scripts/cross-role-browser-e2e.mjs'),
   text('.github/workflows/cross-role-e2e.yml'),
   text('supabase/functions/e2e-auth-bootstrap/index.ts'),
   text('scripts/auth-browser-e2e.mjs'),
+  text('supabase/migrations/20260819142842_harden_customer_document_registration_and_rollback.sql'),
 ])
 
 for (const value of [
@@ -92,6 +93,24 @@ for (const value of [
   requireText(oidcBootstrap, value, 'E2E OIDC Bootstrap')
 }
 
+for (const value of [
+  'new.source := \'kunde\'',
+  'new.customer_visible := true',
+  'v_project_client <> v_profile.client_id',
+  'v_parts[1] <> v_profile.client_id::text',
+  'v_parts[2] <> new.project_id::text',
+  'v_object_owner is distinct from auth.uid()::text',
+  'symmedis_project_files_select_unregistered_customer_cleanup',
+  'owner_id = (select auth.uid()::text)',
+  "p.role = 'kunde'",
+  'not exists (\n    select 1\n    from public.documents d\n    where d.storage_path = objects.name',
+]) {
+  requireText(customerDocumentMigration, value, 'customer document registration/rollback migration')
+}
+if (/for select[\s\S]*symmedis_project_files_select_unregistered_customer_cleanup[\s\S]*customer_visible/i.test(customerDocumentMigration)) {
+  failures.push('Customer-Dokument-Rollback: Cleanup-SELECT darf nicht von einem bereits registrierten kundensichtbaren Dokument abhängen.')
+}
+
 const authDeleteIndex = oidcBootstrap.indexOf('await admin.auth.admin.deleteUser(user.id)')
 const profileDeleteIndex = oidcBootstrap.indexOf('.from("profiles")\n        .delete()', authDeleteIndex)
 if (authDeleteIndex < 0 || profileDeleteIndex < 0 || profileDeleteIndex < authDeleteIndex) {
@@ -117,6 +136,7 @@ console.log('✓ Eine einzige kanonische secretlose Cross-Role-E2E-Strecke ist m
 console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
 console.log('✓ Fixture-CORS ist auf öffentliche Staging-Origin und exakten lokalen CI-Origin begrenzt; kein Wildcard-CORS')
 console.log('✓ Fixture-Report-Inspect sortiert ausschließlich über reale, stabile Spalten')
+console.log('✓ Customer-Uploads werden serverseitig kanonisiert; fehlgeschlagene Registrierungen bleiben eng begrenzt aufräumbar')
 console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
 console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
