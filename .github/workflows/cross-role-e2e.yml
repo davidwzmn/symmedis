@@ -20,6 +20,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 24
     steps:
+      - name: Record pending cross-role release status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(node -e 'process.stdout.write(JSON.stringify({state:"pending",context:"symmedis/cross-role-e2e",description:"Secretless cross-role E2E is running",target_url:process.argv[1]}))' "$target_url")"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" > /dev/null
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Node
