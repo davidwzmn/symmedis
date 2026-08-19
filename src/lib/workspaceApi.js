@@ -31,6 +31,14 @@ function mapClient(client, project, data) {
     timeToImpactDays: row.time_to_impact_days || null,
     impactBasis: row.impact_basis || '',
     impactVerified: Boolean(row.impact_verified),
+    hypothese: row.hypothesis || '',
+    gegenhypothese: row.counter_hypothesis || '',
+    evidenzBewertung: Array.isArray(row.evidence_assessment) ? row.evidence_assessment : [],
+    confidenceBegruendung: row.confidence_rationale || '',
+    intervention: row.intervention || '',
+    outcomeStatus: row.outcome_status || 'pending',
+    outcomeNotiz: row.outcome_note || '',
+    outcomeGemessenAm: row.outcome_measured_at || null,
   }))
 
   const aufgaben = byProject(data.tasks, project.id).map((row) => ({
