@@ -113,8 +113,11 @@ for (const signature of ["'on-dark':", "'on-dark-secondary':", 'bg-cta text-on-c
 }
 
 const topbar = await text('src/components/shell/Topbar.jsx')
-for (const signature of ['Zur Website', 'Abmelden', "window.location.assign('/')"]) {
+for (const signature of ['Zur Website', 'Abmelden', "const PUBLIC_HOME_URL = import.meta.env.BASE_URL || '/'", 'window.location.assign(PUBLIC_HOME_URL)']) {
   if (!topbar.includes(signature)) fail(`Portal-Navigation: erwartete sichere Rückkehr-/Logout-Signatur fehlt: ${signature}`)
+}
+if (topbar.includes("window.location.assign('/')") || topbar.includes('href="/"')) {
+  fail('Portal-Navigation: Domain-Root-Navigation darf den GitHub-Pages-Unterpfad nicht umgehen.')
 }
 
 const staffDashboard = await text('src/pages/staff/StaffDashboard.jsx')
@@ -139,7 +142,8 @@ for (const signature of [
   "{ path: '/portal/berichte'",
   "{ path: '/portal/nachrichten'",
   'Kernnavigation vollständig per UI erreichbar',
-  'Logout löscht Session und führt sicher zur Website zurück',
+  'Logout löscht Session und bleibt sicher auf',
+  'const expectedBase = new URL(`${BASE_URL}/`)',
   "document.querySelector('button[aria-label=\"Abmelden\"]')",
 ]) {
   if (!authE2e.includes(signature)) fail(`Browser-E2E: Rollen-/Navigations-/Logout-Vertrag fehlt: ${signature}`)
@@ -155,15 +159,34 @@ for (const signature of [
   'id-token: write',
   'name: github-pages',
   'symmedis/live-staging',
-  "E2E_REQUIRE_AUTH: ${{ vars.E2E_REQUIRE_AUTH || 'false' }}",
+  "SYMMEDIS_STANDALONE: 'true'",
+  'node scripts/build-standalone.mjs pages-index.html dist-pages',
 ]) {
-  if (!ciWorkflow.includes(signature)) fail(`Release-Infrastruktur: offizieller GitHub-Pages-/E2E-Vertrag fehlt: ${signature}`)
+  if (!ciWorkflow.includes(signature)) fail(`Release-Infrastruktur: offizieller GitHub-Pages-Vertrag fehlt: ${signature}`)
+}
+if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(ciWorkflow) || ciWorkflow.includes('Authenticated browser E2E')) {
+  fail('Release-Infrastruktur: langlebige E2E-Passwort-Secrets bzw. der Legacy-Auth-Schritt dürfen nicht in die Haupt-CI zurückkehren.')
 }
 if (/push\s+(?:--force\s+)?origin\s+HEAD:gh-pages/.test(ciWorkflow)) {
   fail('Release-Infrastruktur: GitHub Actions darf nicht wieder per Bot-Push auf gh-pages deployen; Pages muss über deploy-pages laufen.')
 }
 if (ciWorkflow.includes('Publish live staging to gh-pages')) {
   fail('Release-Infrastruktur: der alte gh-pages-Bot-Publish-Schritt darf nicht zurückkehren.')
+}
+
+const crossRoleWorkflow = await text('.github/workflows/cross-role-e2e.yml')
+for (const signature of [
+  'id-token: write',
+  'scripts/cross-role-browser-e2e.mjs',
+  'scripts/auth-browser-e2e.mjs',
+  'E2E_REQUIRE_AUTH="true"',
+  'audience=symmedis-e2e-bootstrap',
+  'symmedis-auth-e2e.log',
+]) {
+  if (!crossRoleWorkflow.includes(signature)) fail(`Secretloser Auth-Release-Gate fehlt: ${signature}`)
+}
+if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(crossRoleWorkflow)) {
+  fail('Secretloser Auth-Release-Gate darf keine langlebigen E2E-Passwort-Secrets referenzieren.')
 }
 
 const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
@@ -230,8 +253,9 @@ console.log('✓ Echte Analyse bleibt auf authentifiziertem Edge-Function-Pfad')
 console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
-console.log('✓ Portal-Rückkehr, Logout, Staff-Arbeitsfokus und Customer-Executive-Snapshot bleiben geschützt')
-console.log('✓ Authentifizierter Zwei-Rollen-E2E prüft UI-Navigation und sicheren Logout')
+console.log('✓ Portal-Rückkehr und Logout bleiben Pages-base-aware geschützt')
+console.log('✓ Secretloser OIDC-Zwei-Rollen-E2E prüft UI-Navigation und sicheren Logout')
+console.log('✓ Haupt-CI enthält keine langlebigen E2E-Passwort-Secrets')
 console.log('✓ Offizieller GitHub-Pages-Deploypfad und Live-Staging-Status bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
