@@ -74,15 +74,23 @@ function outcomeSuggestion(rows) {
   return { status: 'mixed', horizon, reason: `Die ${horizon}-Tage-Messung ergibt kein einheitliches Signal.` }
 }
 
+function measurementNonce() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID().slice(0, 8)
+    }
+  } catch {
+    // Fallback below keeps measurement creation usable in restricted browser contexts.
+  }
+  return Math.random().toString(36).slice(2, 10)
+}
+
 function defaultMetric(finding, horizon) {
   const keyBase = String(finding.kategorieId || finding.id || 'finding').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()
-  const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(36).slice(2, 10)
   return {
     analysisItemId: finding.id,
     horizonDays: horizon,
-    key: `${keyBase}-${horizon}d-${nonce}`,
+    key: `${keyBase}-${horizon}d-${measurementNonce()}`,
     label: 'Wirkungskennzahl',
     unit: '',
     baseline: '',
@@ -159,9 +167,9 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
 
   const addMeasurement = async (finding, horizon) => {
     if (!accessToken) return
-    const draft = defaultMetric(finding, horizon)
     setAddingFindingId(`${finding.id}-${horizon}`)
     try {
+      const draft = defaultMetric(finding, horizon)
       await restInsert('measurement_snapshots', accessToken, {
         project_id: kunde.projectId,
         analysis_item_id: finding.id,
