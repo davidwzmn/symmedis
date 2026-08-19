@@ -4,12 +4,14 @@ const files = {
   model: 'supabase/migrations/20260819202448_finding_intervention_measurement_outcomes.sql',
   security: 'supabase/migrations/20260819202736_harden_finding_measurement_tenant_visibility.sql',
   quality: 'supabase/migrations/20260819203420_freeze_outcome_quality_snapshot.sql',
+  learning: 'supabase/migrations/20260819204230_prepare_anonymizable_diagnosis_learning_records.sql',
   panel: 'src/components/modules/FindingOutcomeMeasurements.jsx',
   analyses: 'src/pages/staff/AnalysesPage.jsx',
   plan: 'src/components/modules/PlanModule.jsx',
 }
 
 const source = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([key, path]) => [key, await readFile(path, 'utf8')])))
+const learningPayloadSection = source.learning.split("jsonb_build_object(")[1]?.split('),\n    new.outcome_measured_at')[0] || ''
 
 const checks = [
   ['Finding-Projekt-FK bleibt aktiv', source.model.includes('measurement_snapshots_analysis_project_fk') && source.model.includes('references public.analysis_items(id, project_id)')],
@@ -23,6 +25,10 @@ const checks = [
   ['Qualitäts-RPC bleibt Security Invoker und Staff-only', source.quality.includes('security invoker') && source.quality.includes("v_role not in ('intern', 'admin')")],
   ['Kalibrierung nutzt nur bestätigt/widerlegt', source.quality.includes("outcome_status in ('confirmed','refuted')") && source.quality.includes('brier_score')],
   ['Vanity-Metrik wird bei kleiner Stichprobe blockiert', source.quality.includes("a.binary_outcomes < 10 then 'insufficient_data'") && source.analyses.includes('mindestens 10 menschlich überprüfte Findings')],
+  ['Lernrecords bleiben im privaten Schema', source.learning.includes('create table if not exists private.diagnosis_learning_records') && source.learning.includes('revoke all on private.diagnosis_learning_records from public, anon, authenticated')],
+  ['Lerntrigger ist nicht direkt für Browserrollen ausführbar', source.learning.includes('revoke all on function private.refresh_diagnosis_learning_record() from public, anon, authenticated')],
+  ['De-identifizierter Lernpayload enthält keine Herkunfts-IDs', !learningPayloadSection.includes('projectId') && !learningPayloadSection.includes('clientId') && !learningPayloadSection.includes('organizationId')],
+  ['De-identifizierter Lernpayload enthält keinen Hypothesen-/Interventions-Freitext', !learningPayloadSection.includes('outcome_hypothesis') && !learningPayloadSection.includes("'intervention'") && learningPayloadSection.includes("'hasIntervention'")],
   ['30/60/90-Panel ist im Umsetzungsplan sichtbar', source.plan.includes('<FindingOutcomeMeasurements kunde={kunde} rolle={rolle} />')],
   ['Demo bleibt ohne Backend-Schreibzugriff', source.panel.includes('Die öffentliche Demo bleibt bewusst ohne Backend-Schreibzugriffe.')],
 ]
