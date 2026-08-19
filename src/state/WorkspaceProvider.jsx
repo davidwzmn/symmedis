@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WorkspaceContext } from './WorkspaceContext.js'
 import { createWorkspace, TEAM_MAP } from '../data/workspace.js'
 import { HEUTE, tageBis } from '../lib/format.js'
@@ -39,10 +39,16 @@ export function WorkspaceProvider({ children }) {
   const [workspaceFehler, setWorkspaceFehler] = useState(null)
   const [workspaceAktionsfehler, setWorkspaceAktionsfehler] = useState(null)
   const [workspaceFuerUser, setWorkspaceFuerUser] = useState(echteAuthentifizierung ? null : 'demo')
+  const workspaceUserRef = useRef(echteAuthentifizierung ? null : 'demo')
+  const workspaceRequestRef = useRef(0)
 
   const ladeWorkspace = useCallback(async () => {
+    const requestId = workspaceRequestRef.current + 1
+    workspaceRequestRef.current = requestId
     setWorkspaceAktionsfehler(null)
+
     if (!echteAuthentifizierung) {
+      workspaceUserRef.current = 'demo'
       setKunden(createWorkspace())
       setWorkspaceBereit(true)
       setWorkspaceFehler(null)
@@ -50,6 +56,7 @@ export function WorkspaceProvider({ children }) {
       return
     }
     if (!session || !accessToken) {
+      workspaceUserRef.current = null
       setKunden([])
       setWorkspaceBereit(authBereit)
       setWorkspaceFehler(null)
@@ -58,18 +65,33 @@ export function WorkspaceProvider({ children }) {
     }
 
     const zielUser = session.userId
-    setWorkspaceBereit(false)
+    const backgroundRefresh = workspaceUserRef.current === zielUser
+    if (!backgroundRefresh) {
+      setKunden([])
+      setWorkspaceBereit(false)
+      setWorkspaceFuerUser(null)
+    }
     setWorkspaceFehler(null)
-    setWorkspaceFuerUser(null)
+
     try {
       const data = await fetchWorkspace(accessToken)
+      if (requestId !== workspaceRequestRef.current) return
       setKunden(data)
-    } catch (error) {
-      setKunden([])
-      setWorkspaceFehler(error instanceof Error ? error.message : 'Workspace konnte nicht geladen werden.')
-    } finally {
+      workspaceUserRef.current = zielUser
       setWorkspaceFuerUser(zielUser)
-      setWorkspaceBereit(true)
+    } catch (error) {
+      if (requestId !== workspaceRequestRef.current) return
+      const message = error instanceof Error ? error.message : 'Workspace konnte nicht geladen werden.'
+      if (backgroundRefresh) {
+        setWorkspaceFehler(null)
+        setWorkspaceAktionsfehler(`Aktualisierung fehlgeschlagen. Der letzte bestätigte Stand bleibt sichtbar. ${message}`)
+      } else {
+        setKunden([])
+        setWorkspaceFehler(message)
+        setWorkspaceFuerUser(zielUser)
+      }
+    } finally {
+      if (requestId === workspaceRequestRef.current) setWorkspaceBereit(true)
     }
   }, [accessToken, authBereit, echteAuthentifizierung, session])
 
