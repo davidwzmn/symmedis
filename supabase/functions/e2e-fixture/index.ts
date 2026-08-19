@@ -15,6 +15,8 @@ const STAFF_TASK_ID = "72e4af65-806c-44ad-9e03-4f5393a97d19";
 const CUSTOMER_TASK_ID = "9d0d9f33-0ce2-4b8c-9d67-4f27791913c5";
 const ANALYSIS_ITEM_ID = "63e6f8df-c28b-4cc2-9a72-dc9750746f0e";
 const REPORT_ID = "51cb3d63-abc3-47ab-9e62-f316cb678d75";
+const INTERNAL_NOTE_ID = "a9874539-3aeb-4db4-a78d-3036925f0698";
+const INTERNAL_NOTE_MARKER = "E2E: Diese interne Notiz darf niemals im Kundenportal erscheinen.";
 const RESET_CONFIRMATION = "RESET_SYMMEDIS_E2E";
 const STAFF_ROLES = new Set(["intern", "admin"]);
 
@@ -103,21 +105,24 @@ Deno.serve(async (req: Request) => {
         { data: reports, error: reportsError },
         { data: documents, error: documentsError },
         { data: versions, error: versionsError },
+        { data: internalNotes, error: internalNotesError },
       ] = await Promise.all([
         admin.from("tasks").select("id,title,status,responsible_party").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("analysis_items").select("id,category_id,approval_status,customer_visible,observation").eq("project_id", FIXTURE_PROJECT_ID).order("category_id"),
         admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("report_date").order("id"),
         admin.from("documents").select("id,name,storage_path,status,source,customer_visible").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("report_versions").select("id,report_id,version_number,state").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("internal_notes").select("id,author,body").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
       ]);
       assertAdminResult(tasksError, "tasks inspect");
       assertAdminResult(analysisError, "analysis inspect");
       assertAdminResult(reportsError, "reports inspect");
       assertAdminResult(documentsError, "documents inspect");
       assertAdminResult(versionsError, "versions inspect");
+      assertAdminResult(internalNotesError, "internal notes inspect");
       return {
         project: { id: project.id, name: project.name, fixtureVersion: FIXTURE_VERSION },
-        tasks: tasks || [], analysis: analysis || [], reports: reports || [], documents: documents || [], reportVersions: versions || [],
+        tasks: tasks || [], analysis: analysis || [], reports: reports || [], documents: documents || [], reportVersions: versions || [], internalNotes: internalNotes || [],
       };
     };
 
@@ -145,6 +150,8 @@ Deno.serve(async (req: Request) => {
     assertAdminResult(deleteTasksError, "tasks canonical reset");
     const { error: deleteAnalysisError } = await admin.from("analysis_items").delete().eq("project_id", FIXTURE_PROJECT_ID);
     assertAdminResult(deleteAnalysisError, "analysis canonical reset");
+    const { error: deleteInternalNotesError } = await admin.from("internal_notes").delete().eq("project_id", FIXTURE_PROJECT_ID);
+    assertAdminResult(deleteInternalNotesError, "internal notes canonical reset");
 
     const { error: tasksBaselineError } = await admin.from("tasks").insert([
       {
@@ -199,6 +206,15 @@ Deno.serve(async (req: Request) => {
     });
     assertAdminResult(reportBaselineError, "report baseline reset");
 
+    const { error: internalNoteBaselineError } = await admin.from("internal_notes").insert({
+      id: INTERNAL_NOTE_ID,
+      project_id: FIXTURE_PROJECT_ID,
+      author: "SYMMEDIS E2E",
+      body: INTERNAL_NOTE_MARKER,
+      created_by: null,
+    });
+    assertAdminResult(internalNoteBaselineError, "internal note baseline reset");
+
     // Audit-Ereignisse sind bewusst append-only. Ein Fixture-Reset setzt nur den
     // fachlichen Testzustand zurück; historische E2E-Auditspuren bleiben erhalten.
     const fixture = await inspect();
@@ -207,11 +223,13 @@ Deno.serve(async (req: Request) => {
     const customerTask = baselineTasks.get(CUSTOMER_TASK_ID);
     const analysisItem = fixture.analysis.find((item: { id: string }) => item.id === ANALYSIS_ITEM_ID);
     const report = fixture.reports.find((item: { id: string }) => item.id === REPORT_ID);
+    const internalNote = fixture.internalNotes.find((item: { id: string }) => item.id === INTERNAL_NOTE_ID);
     const resetValid = fixture.tasks.length === 2
       && staffTask?.status === "offen" && staffTask?.responsible_party === "symmedis"
       && customerTask?.status === "offen" && customerTask?.responsible_party === "kunde"
       && fixture.analysis.length === 1 && analysisItem?.approval_status === "intern" && analysisItem?.customer_visible === false
       && fixture.reports.length === 1 && report?.state === "entwurf"
+      && fixture.internalNotes.length === 1 && internalNote?.body === INTERNAL_NOTE_MARKER
       && fixture.documents.length === 0 && fixture.reportVersions.length === 0;
     if (!resetValid) return json(req, 500, { error: "fixture_reset_incomplete", fixture });
 
