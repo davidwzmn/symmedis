@@ -213,7 +213,7 @@ async function staffPrepareHandover(staffCdp, staffUploadPath, staffDownloadDir)
   })()`)
   if (!taskClicked) throw new Error('Staff-E2E: interne Aufgabe konnte nicht weitergeschaltet werden.')
   await waitFor(async () => (await fixture(staffCdp, 'inspect')).fixture.tasks.find((task) => task.id === STAFF_TASK_ID)?.status === 'in-arbeit')
-  console.log('✓ Staff-Aufgabenstatus über echten autorisierten RPC persistiert')
+  console.log('✓ Staff-Aufgabenstatus über spaltenbeschränktes RLS-Update persistiert und auditierbar')
 
   await clickText(staffCdp, 'Analyse')
   await assertBody(staffCdp, FINDING_TEXT)
