@@ -61,8 +61,8 @@ for (const value of [
   'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
   'audience=symmedis-e2e-bootstrap',
   'functions/v1/e2e-auth-bootstrap',
-  '"action":"bootstrap"',
-  '"action":"cleanup"',
+  '\\"action\\":\\"bootstrap\\"',
+  '\\"action\\":\\"cleanup\\"',
   'GITHUB_RUN_ID',
   'cancel-in-progress: false',
 ]) {
