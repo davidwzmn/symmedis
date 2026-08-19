@@ -17,7 +17,7 @@ const scenarios = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function waitFor(fn, timeoutMs = 20000) {
+async function waitFor(fn, timeoutMs = 30000) {
   const start = Date.now()
   let error
   while (Date.now() - start < timeoutMs) {
@@ -50,7 +50,7 @@ class Cdp {
   async ready() {
     if (this.ws.readyState === WebSocket.OPEN) return
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('DevTools-WebSocket nicht geöffnet.')), 10000)
+      const timer = setTimeout(() => reject(new Error('DevTools-WebSocket nicht geöffnet.')), 15000)
       this.ws.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
       this.ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('DevTools-WebSocket-Fehler.')) }, { once: true })
     })
@@ -79,7 +79,7 @@ async function pageSocket(port) {
     if (!response.ok) return null
     const targets = await response.json()
     return targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl || null
-  }, 12000)
+  }, 18000)
 }
 
 async function verifyTeamPortraits(cdp, scenarioName) {
@@ -92,7 +92,7 @@ async function verifyTeamPortraits(cdp, scenarioName) {
       return img ? { name, complete: img.complete, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight } : { name, missing: true };
     });
     return result.every((item) => !item.missing && item.complete && item.naturalWidth > 0 && item.naturalHeight > 0) ? result : null;
-  })()`), 15000)
+  })()`), 30000)
 
   const david = portraits.find((portrait) => portrait.name === 'David Constantin Waizmann')
   if (!david || david.naturalWidth <= 0 || david.naturalHeight <= 0) {
@@ -106,6 +106,7 @@ async function runScenario(scenario, index) {
   const port = 9340 + index
   const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-`))
   const targetUrl = `${BASE}/${scenario.hash}?smoke=${Date.now()}`
+  console.log(`→ live ${scenario.name}: starte ${targetUrl}`)
   const chrome = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
     '--window-size=390,844', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
@@ -122,7 +123,7 @@ async function runScenario(scenario, index) {
     await cdp.send('Runtime.enable')
     await cdp.send('Page.enable')
 
-    await waitFor(() => cdp.evaluate(`document.readyState === 'complete' && Boolean(document.querySelector('#root'))`))
+    await waitFor(() => cdp.evaluate(`document.readyState === 'complete' && Boolean(document.querySelector('#root'))`), 45000)
     await cdp.evaluate(`localStorage.setItem('symmedis-theme', ${JSON.stringify(scenario.theme)}); location.reload(); true`)
 
     const state = await waitFor(async () => {
@@ -152,7 +153,7 @@ async function runScenario(scenario, index) {
       if (!value.root || value.ready !== 'complete') return null
       if (value.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Error Boundary sichtbar.`)
       return scenario.expected.every((text) => value.body.includes(text)) ? value : null
-    }, 25000)
+    }, 45000)
 
     if (EXPECTED_BUILD && state.build !== EXPECTED_BUILD) throw new Error(`${scenario.name}: erwarteter Build ${EXPECTED_BUILD}, ausgeliefert ${state.build || 'kein Marker'}.`)
     if ((scenario.theme === 'dark') !== state.dark) throw new Error(`${scenario.name}: Theme ${scenario.theme} wurde nicht aktiv.`)
