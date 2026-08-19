@@ -31,19 +31,19 @@ import {
 } from '../../components/ui/Icons.jsx'
 
 const TABS = [
-  { id: 'ueberblick', label: 'Überblick', icon: IconGrid },
-  { id: 'analyse', label: 'Analyse', icon: IconChart },
-  { id: 'impact', label: 'Impact & ROI', icon: IconTarget },
-  { id: 'social', label: 'Social', icon: IconShare },
-  { id: 'wettbewerb', label: 'Wettbewerb', icon: IconLayers },
-  { id: 'plan', label: '90-Tage-Plan', icon: IconRoute },
-  { id: 'aufgaben', label: 'Aufgaben', icon: IconCheckSquare },
-  { id: 'dokumente', label: 'Dokumente', icon: IconFolder },
-  { id: 'berichte', label: 'Berichte', icon: IconDocument },
-  { id: 'termine', label: 'Termine', icon: IconCalendar },
-  { id: 'nachrichten', label: 'Nachrichten', icon: IconChat },
-  { id: 'notizen', label: 'Interne Notizen', icon: IconLock },
-  { id: 'verlauf', label: 'Verlauf', icon: IconHistory },
+  { id: 'ueberblick', label: 'Überblick', icon: IconGrid, section: 'Steuerung' },
+  { id: 'analyse', label: 'Analyse', icon: IconChart, section: 'Diagnose & Ergebnisse' },
+  { id: 'impact', label: 'Impact & ROI', icon: IconTarget, section: 'Diagnose & Ergebnisse' },
+  { id: 'social', label: 'Social', icon: IconShare, section: 'Diagnose & Ergebnisse' },
+  { id: 'wettbewerb', label: 'Wettbewerb', icon: IconLayers, section: 'Diagnose & Ergebnisse' },
+  { id: 'berichte', label: 'Berichte', icon: IconDocument, section: 'Diagnose & Ergebnisse' },
+  { id: 'plan', label: '90-Tage-Plan', icon: IconRoute, section: 'Umsetzung' },
+  { id: 'aufgaben', label: 'Aufgaben', icon: IconCheckSquare, section: 'Umsetzung' },
+  { id: 'dokumente', label: 'Dokumente', icon: IconFolder, section: 'Zusammenarbeit' },
+  { id: 'termine', label: 'Termine', icon: IconCalendar, section: 'Zusammenarbeit' },
+  { id: 'nachrichten', label: 'Nachrichten', icon: IconChat, section: 'Zusammenarbeit' },
+  { id: 'notizen', label: 'Interne Notizen', icon: IconLock, section: 'Intern' },
+  { id: 'verlauf', label: 'Verlauf', icon: IconHistory, section: 'Intern' },
 ]
 
 function sichererScore(value) {
