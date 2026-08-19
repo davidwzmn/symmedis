@@ -6,6 +6,40 @@ import { IconClose, IconMenu } from '../ui/Icons.jsx'
 import { Logo } from '../brand/Logo.jsx'
 import { Topbar } from './Topbar.jsx'
 
+function NavItems({ items, grouped = false, onNavigate }) {
+  let previousSection = null
+
+  return items.map((item) => {
+    const showSection = grouped && item.section && item.section !== previousSection
+    previousSection = item.section || previousSection
+
+    return (
+      <li key={item.id} className={showSection ? 'pt-2 first:pt-0' : undefined}>
+        {showSection ? (
+          <p className="mb-1 hidden px-2.5 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-ink-3 lg:block">
+            {item.section}
+          </p>
+        ) : null}
+        <NavLink
+          to={item.to}
+          end={item.end}
+          title={item.label}
+          onClick={onNavigate}
+          className={({ isActive }) => cn(
+            'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] font-medium transition-colors',
+            'justify-center lg:justify-start',
+            isActive ? 'bg-brand-soft text-brand-ink' : 'text-ink-2 hover:bg-surface-muted hover:text-ink',
+          )}
+        >
+          <item.icon className="size-[1.125rem] shrink-0" aria-hidden="true" />
+          <span className="hidden lg:inline lg:flex-1 lg:truncate">{item.label}</span>
+          {item.badge ? <span className="hidden lg:inline"><CountBadge value={item.badge} toneName={item.badgeTone ?? 'brand'} /></span> : null}
+        </NavLink>
+      </li>
+    )
+  })
+}
+
 export function AppShell({
   nav,
   bereich,
@@ -65,6 +99,7 @@ export function AppShell({
 
   const primaer = nav.slice(0, 4)
   const weitere = nav.slice(4)
+  const sections = [...new Set(nav.map((item) => item.section).filter(Boolean))]
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -74,15 +109,7 @@ export function AppShell({
         <div className="flex h-14 shrink-0 items-center border-b border-line px-3 lg:px-4"><Logo compact bereich={bereich} /></div>
         <nav aria-label="Hauptnavigation" className="scroll-area flex-1 overflow-y-auto px-2 py-3">
           <ul className="space-y-0.5">
-            {nav.map((item) => (
-              <li key={item.id}>
-                <NavLink to={item.to} end={item.end} title={item.label} className={({ isActive }) => cn('group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] font-medium transition-colors', 'lg:justify-start justify-center', isActive ? 'bg-brand-soft text-brand-ink' : 'text-ink-2 hover:bg-surface-muted hover:text-ink')}>
-                  <item.icon className="size-[1.125rem] shrink-0" aria-hidden="true" />
-                  <span className="hidden lg:inline lg:flex-1 lg:truncate">{item.label}</span>
-                  {item.badge ? <span className="hidden lg:inline"><CountBadge value={item.badge} toneName={item.badgeTone ?? 'brand'} /></span> : null}
-                </NavLink>
-              </li>
-            ))}
+            <NavItems items={nav} grouped />
           </ul>
         </nav>
         {footerSlot ? <div className="shrink-0 border-t border-line p-2 lg:p-3">{footerSlot}</div> : null}
@@ -99,7 +126,7 @@ export function AppShell({
             <li key={item.id}>
               <NavLink to={item.to} end={item.end} className={({ isActive }) => cn('relative flex min-h-12 flex-col items-center justify-center gap-1 py-2 text-[0.625rem] font-medium transition-colors', isActive ? 'text-brand-ink' : 'text-ink-3')}>
                 <item.icon className="size-5" aria-hidden="true" />
-                <span className="max-w-full truncate px-1">{item.label}</span>
+                <span className="max-w-full truncate px-1">{item.mobileLabel ?? item.label}</span>
                 {item.badge ? <><span className="absolute top-1.5 right-[22%] size-1.5 rounded-full bg-urgent" aria-hidden="true" /><span className="sr-only">, {item.badge} offene Einträge</span></> : null}
               </NavLink>
             </li>
@@ -123,17 +150,34 @@ export function AppShell({
               </button>
             </div>
             <nav aria-label="Alle Bereiche" className="scroll-area max-h-[65dvh] overflow-y-auto p-3">
-              <ul className="grid grid-cols-2 gap-2">
-                {[...primaer, ...weitere].map((item) => (
-                  <li key={item.id}>
-                    <NavLink to={item.to} end={item.end} onClick={() => setDrawerOffen(false)} className={({ isActive }) => cn('flex min-h-12 items-center gap-2.5 rounded-lg border px-3 py-3 text-[0.8125rem] font-medium', isActive ? 'border-brand-border bg-brand-soft text-brand-ink' : 'border-line text-ink-2')}>
-                      <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.badge ? <CountBadge value={item.badge} toneName={item.badgeTone ?? 'brand'} /> : null}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
+              {sections.length ? sections.map((section) => (
+                <section key={section} className="mb-4 last:mb-0" aria-label={section}>
+                  <p className="mb-2 px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-ink-3">{section}</p>
+                  <ul className="grid grid-cols-2 gap-2">
+                    {nav.filter((item) => item.section === section).map((item) => (
+                      <li key={item.id}>
+                        <NavLink to={item.to} end={item.end} onClick={() => setDrawerOffen(false)} className={({ isActive }) => cn('flex min-h-12 items-center gap-2.5 rounded-lg border px-3 py-3 text-[0.8125rem] font-medium', isActive ? 'border-brand-border bg-brand-soft text-brand-ink' : 'border-line text-ink-2')}>
+                          <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          {item.badge ? <CountBadge value={item.badge} toneName={item.badgeTone ?? 'brand'} /> : null}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )) : (
+                <ul className="grid grid-cols-2 gap-2">
+                  {[...primaer, ...weitere].map((item) => (
+                    <li key={item.id}>
+                      <NavLink to={item.to} end={item.end} onClick={() => setDrawerOffen(false)} className={({ isActive }) => cn('flex min-h-12 items-center gap-2.5 rounded-lg border px-3 py-3 text-[0.8125rem] font-medium', isActive ? 'border-brand-border bg-brand-soft text-brand-ink' : 'border-line text-ink-2')}>
+                        <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {item.badge ? <CountBadge value={item.badge} toneName={item.badgeTone ?? 'brand'} /> : null}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {footerSlot ? <div className="mt-3 border-t border-line pt-3">{footerSlot}</div> : null}
             </nav>
           </div>
