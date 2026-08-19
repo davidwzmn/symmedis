@@ -165,6 +165,60 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
+async function trustedClickText(cdp, text, scopeText = '') {
+  const scrollReady = await cdp.evaluate(`(() => {
+    const wanted = ${JSON.stringify(text)};
+    const scope = ${JSON.stringify(scopeText)};
+    const roots = scope
+      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
+      : [document.body];
+    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
+    const candidates = [...root.querySelectorAll('button,a')];
+    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').includes(wanted));
+    if (!target || target.disabled) return false;
+    target.scrollIntoView({ block: 'center', inline: 'center' });
+    return true;
+  })()`)
+  if (!scrollReady) throw new Error(`Trusted-Click-Ziel nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
+  await sleep(120)
+
+  const point = await cdp.evaluate(`(() => {
+    const wanted = ${JSON.stringify(text)};
+    const scope = ${JSON.stringify(scopeText)};
+    const roots = scope
+      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
+      : [document.body];
+    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
+    const candidates = [...root.querySelectorAll('button,a')];
+    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').includes(wanted));
+    if (!target || target.disabled) return null;
+    const rect = target.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const hitOk = hit === target || target.contains(hit);
+    window.__symmedisTrustedClick = null;
+    document.addEventListener('click', (event) => {
+      window.__symmedisTrustedClick = {
+        trusted: Boolean(event.isTrusted),
+        targetText: (event.target?.innerText || event.target?.textContent || '').trim().slice(0, 120),
+      };
+    }, { capture: true, once: true });
+    return { x, y, width: rect.width, height: rect.height, hitOk, hitText: (hit?.innerText || hit?.textContent || '').trim().slice(0, 120) };
+  })()`)
+  if (!point || point.width <= 0 || point.height <= 0 || !point.hitOk) {
+    throw new Error(`Trusted-Click-Hit-Test fehlgeschlagen: ${text}; ${JSON.stringify(point)}`)
+  }
+
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 })
+  const observed = await waitFor(() => cdp.evaluate('window.__symmedisTrustedClick'), 3000, 50)
+  if (!observed?.trusted) throw new Error(`Browser-Click war nicht trusted: ${text}; ${JSON.stringify(observed)}`)
+}
+
 async function measurementEditorState(cdp, horizon = 30) {
   return cdp.evaluate(`(() => {
     const horizonText = ${JSON.stringify(`Tag ${30}`)}.replace('30', String(${horizon}));
@@ -296,13 +350,13 @@ async function run() {
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
     await assertBody(staff.cdp, 'Tag 30')
-    await clickText(staff.cdp, 'Messpunkt +', 'Tag 30')
+    await trustedClickText(staff.cdp, 'Messpunkt +', 'Tag 30')
     await assertMeasurementEditor(staff.cdp, 30)
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
-    await clickText(staff.cdp, 'Messpunkt speichern')
+    await trustedClickText(staff.cdp, 'Messpunkt speichern')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
-    await clickText(staff.cdp, 'Outcome bewusst übernehmen')
+    await trustedClickText(staff.cdp, 'Outcome bewusst übernehmen')
     console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
