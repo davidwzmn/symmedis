@@ -47,7 +47,7 @@ class Cdp {
   async ready() {
     if (this.ws.readyState === WebSocket.OPEN) return
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Chrome DevTools WebSocket konnte nicht geöffnet werden.')), 10000)
+      const timer = setTimeout(() => reject(new Error('Chrome DevTools WebSocket konnte nicht geöffnet werden.')), 15000)
       this.ws.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
       this.ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Chrome DevTools WebSocket-Fehler.')) }, { once: true })
       this.ws.addEventListener('message', (event) => {
@@ -77,11 +77,15 @@ class Cdp {
 
 async function pageWebSocket(port) {
   return waitFor(async () => {
-    const response = await fetch(`http://127.0.0.1:${port}/json`)
-    if (!response.ok) return null
-    const pages = await response.json()
-    return pages.find((item) => item.type === 'page')?.webSocketDebuggerUrl || null
-  }, 12000)
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json`)
+      if (!response.ok) return null
+      const pages = await response.json()
+      return pages.find((item) => item.type === 'page')?.webSocketDebuggerUrl || null
+    } catch {
+      return null
+    }
+  }, 25000, 250)
 }
 
 async function startBrowser({ port, profileDir, loginPath }) {
