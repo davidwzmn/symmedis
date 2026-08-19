@@ -12,10 +12,8 @@ function requireText(content, value, label) {
   if (!content.includes(value)) failures.push(`${label}: fehlt: ${value}`)
 }
 
-const [fn, script, workflow, crossRoleScript, crossRoleWorkflow, oidcBootstrap] = await Promise.all([
+const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap] = await Promise.all([
   text('supabase/functions/e2e-fixture/index.ts'),
-  text('scripts/mutating-browser-e2e.mjs'),
-  text('.github/workflows/mutating-e2e.yml'),
   text('scripts/cross-role-browser-e2e.mjs'),
   text('.github/workflows/cross-role-e2e.yml'),
   text('supabase/functions/e2e-auth-bootstrap/index.ts'),
@@ -28,16 +26,6 @@ for (const value of [
   'fixture.analysis.length === 1', 'analysisItem?.approval_status === "intern"', 'analysisItem?.customer_visible === false',
 ]) {
   requireText(fn, value, 'e2e-fixture function')
-}
-for (const value of [
-  FIXTURE_PROJECT_ID, RESET_CONFIRMATION, "const preflight = await fixture(cdp, 'reset'",
-  'Fixture vor Testbeginn selbstheilend zurückgesetzt', "await fixture(cdp, 'reset'", 'finally {',
-  'Report über UI finalisiert', 'Dokument über UI hochgeladen', 'Aufgabenstatus über UI persistiert',
-]) {
-  requireText(script, value, 'mutating browser E2E')
-}
-for (const value of ["vars.E2E_MUTATING == 'true'", 'workflow_dispatch:', 'npm run build', 'scripts/mutating-browser-e2e.mjs', 'E2E_STAFF_EMAIL', 'E2E_STAFF_PASSWORD', 'cancel-in-progress: false']) {
-  requireText(workflow, value, 'mutating E2E workflow')
 }
 
 for (const value of [
@@ -76,8 +64,8 @@ for (const value of [
   requireText(oidcBootstrap, value, 'E2E OIDC Bootstrap')
 }
 
-if (/service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(script) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(workflow) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleScript) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleWorkflow)) {
-  failures.push('E2E: Service-Role-Secrets dürfen weder Browser-Skripte noch GitHub-Workflows erreichen.')
+if (/service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleScript) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleWorkflow)) {
+  failures.push('E2E: Service-Role-Secrets dürfen weder Browser-Skript noch GitHub-Workflow erreichen.')
 }
 if (!/SUPABASE_SERVICE_ROLE_KEY/.test(oidcBootstrap)) failures.push('OIDC Bootstrap: privilegierter Auth-Admin-Zugriff muss ausschließlich serverseitig in der Edge Function liegen.')
 if (!/projectId !== FIXTURE_PROJECT_ID/.test(fn)) failures.push('e2e-fixture function muss fremde Project-IDs hart ablehnen.')
@@ -91,6 +79,7 @@ if (failures.length) {
 }
 
 console.log('SYMMEDIS E2E Fixture Guard: OK')
+console.log('✓ Eine einzige kanonische Cross-Role-E2E-Strecke ist maßgeblich')
 console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
 console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
