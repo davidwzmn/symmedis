@@ -14,6 +14,7 @@ const scenarios = [
     loginPath: '/login?rolle=intern',
     expectedPath: '/intern/',
     expectedText: process.env.E2E_STAFF_EXPECTED_TEXT || 'SYMMEDIS Staging Lab',
+    requiredTexts: ['Arbeitsfokus', 'Zur Website', 'Abmelden'],
     forbiddenText: 'Geschützter SYMMEDIS-Zugang',
   },
   {
@@ -23,6 +24,7 @@ const scenarios = [
     loginPath: '/login?rolle=kunde',
     expectedPath: '/portal/',
     expectedText: process.env.E2E_CUSTOMER_EXPECTED_TEXT || '',
+    requiredTexts: ['Wo stehen wir, was bremst, was jetzt?', 'Menschlich geprüft'],
     forbiddenText: 'Interne Notizen',
   },
 ]
@@ -157,9 +159,14 @@ async function runScenario(scenario, port) {
     if (scenario.expectedText && !state.body.includes(scenario.expectedText)) {
       throw new Error(`${scenario.name}: erwarteter Workspace-Inhalt fehlt: ${scenario.expectedText}`)
     }
+    for (const requiredText of scenario.requiredTexts || []) {
+      if (!state.body.includes(requiredText)) {
+        throw new Error(`${scenario.name}: Portal-UX-Vertrag fehlt im echten Browser: ${requiredText}`)
+      }
+    }
     if (state.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
 
-    console.log(`✓ ${scenario.name}: echte Browser-Session und geschützter Workspace erfolgreich`)
+    console.log(`✓ ${scenario.name}: echte Browser-Session, geschützter Workspace und Portal-UX erfolgreich`)
     cdp.close()
   } finally {
     chrome.kill('SIGTERM')
