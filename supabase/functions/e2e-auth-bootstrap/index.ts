@@ -194,7 +194,11 @@ Deno.serve(async (req: Request) => {
       });
     } catch (error) {
       for (const userId of created.reverse()) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
-      await admin.from("profiles").delete().in("email", [emails.staff, emails.customer]).catch(() => undefined);
+      try {
+        await admin.from("profiles").delete().in("email", [emails.staff, emails.customer]);
+      } catch {
+        // Best effort only; auth deletion normally cascades profile cleanup.
+      }
       throw error;
     }
   } catch (error) {
