@@ -78,15 +78,15 @@ export function SessionProvider({ children }) {
     if (!supabaseEnabled) return undefined
 
     let aktiv = true
-
     async function restore() {
       try {
         consumeAuthRedirectSession()
         const gespeichert = readStoredAuthSession()
-        if (!gespeichert?.refresh_token) return
-
-        const erneuert = await refreshAuthSession(gespeichert.refresh_token)
-        if (aktiv) await applyAuthSession(erneuert)
+        if (!gespeichert?.access_token) return
+        const next = gespeichert.expires_at && gespeichert.expires_at * 1000 <= Date.now() + REFRESH_SAFETY_WINDOW_MS
+          ? await refreshAuthSession(gespeichert.refresh_token)
+          : gespeichert
+        if (aktiv) await applyAuthSession(next)
       } catch {
         if (aktiv) clearSession()
       } finally {
@@ -95,53 +95,38 @@ export function SessionProvider({ children }) {
     }
 
     restore()
-    return () => {
-      aktiv = false
-    }
+    return () => { aktiv = false }
   }, [applyAuthSession, clearSession])
 
   useEffect(() => {
-    if (!supabaseEnabled || !authSession?.refresh_token || !session) return undefined
-
+    if (!supabaseEnabled || !authSession?.refresh_token) return undefined
+    const delay = refreshDelay(authSession)
     let aktiv = true
     const timer = window.setTimeout(async () => {
       try {
-        const erneuert = await refreshAuthSession(authSession.refresh_token)
-        if (aktiv) await applyAuthSession(erneuert)
+        const next = await refreshAuthSession(authSession.refresh_token)
+        if (aktiv) await applyAuthSession(next)
       } catch {
         if (aktiv) clearSession()
       }
-    }, refreshDelay(authSession))
-
+    }, delay)
     return () => {
       aktiv = false
       window.clearTimeout(timer)
     }
-  }, [authSession, session, applyAuthSession, clearSession])
+  }, [authSession, applyAuthSession, clearSession])
 
   useEffect(() => {
-    if (!supabaseEnabled) return undefined
-
-    const onStorage = async (event) => {
+    const onStorage = (event) => {
       if (event.key !== SESSION_STORAGE_KEY) return
       if (!event.newValue) {
         setAuthSession(null)
         setSession(null)
-        return
-      }
-
-      try {
-        const nextAuth = JSON.parse(event.newValue)
-        if (!nextAuth?.access_token) return
-        await applyAuthSession(nextAuth)
-      } catch {
-        clearSession()
       }
     }
-
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [applyAuthSession, clearSession])
+  }, [])
 
   const anmelden = useCallback(async ({ rolle, email, passwort }) => {
     if (!supabaseEnabled) {
@@ -151,42 +136,35 @@ export function SessionProvider({ children }) {
     }
 
     const nextAuth = await signInWithPassword(email, passwort)
-
     try {
       const next = await applyAuthSession(nextAuth)
-
       if (next.rolle !== rolle && !next.istAdmin) {
-        throw new Error(
-          rolle === 'kunde'
-            ? 'Dieser Zugang gehört nicht zum Kundenportal.'
-            : 'Dieser Zugang gehört nicht zum Mitarbeiterportal.',
-        )
+        clearSession()
+        await signOut(nextAuth.access_token)
+        throw new Error('Dieser Zugang gehört nicht zu diesem Portal.')
       }
-
       return next
     } catch (error) {
-      await signOut(nextAuth.access_token)
       clearSession()
+      await signOut(nextAuth.access_token)
       throw error
     }
   }, [applyAuthSession, clearSession])
 
   const abmelden = useCallback(async () => {
-    await signOut(authSession?.access_token)
+    const accessToken = authSession?.access_token || null
     clearSession()
+    await signOut(accessToken)
   }, [authSession, clearSession])
 
-  const value = useMemo(
-    () => ({
-      session,
-      anmelden,
-      abmelden,
-      authBereit,
-      echteAuthentifizierung: supabaseEnabled,
-      accessToken: authSession?.access_token || null,
-    }),
-    [session, anmelden, abmelden, authBereit, authSession],
-  )
+  const value = useMemo(() => ({
+    session,
+    authSession,
+    authBereit,
+    echteAuthentifizierung: supabaseEnabled,
+    anmelden,
+    abmelden,
+  }), [session, authSession, authBereit, anmelden, abmelden])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
