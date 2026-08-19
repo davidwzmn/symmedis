@@ -49,8 +49,8 @@ for (const value of [
   'scripts/auth-browser-e2e.mjs', 'E2E_REQUIRE_AUTH="true"', 'symmedis-auth-e2e.log',
   'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'audience=symmedis-e2e-bootstrap',
   'functions/v1/e2e-auth-bootstrap', '\\"action\\":\\"bootstrap\\"', '\\"action\\":\\"cleanup\\"',
-  'GITHUB_RUN_ID', 'cancel-in-progress: false', 'Record cross-role release status',
-  'symmedis/cross-role-e2e', 'actions/runs/${GITHUB_RUN_ID}', 'statuses/${GITHUB_SHA}',
+  'GITHUB_RUN_ID', 'cancel-in-progress: false', 'Record cross-role pending status', 'Record cross-role release status',
+  'state:"pending"', 'symmedis/cross-role-e2e', 'actions/runs/${GITHUB_RUN_ID}', 'statuses/${GITHUB_SHA}',
 ]) {
   requireText(crossRoleWorkflow, value, 'cross-role E2E workflow')
 }
@@ -74,8 +74,18 @@ for (const value of [
   'claims?.repository_visibility !== "public"', 'claims?.runner_environment !== "github-hosted"',
   'header?.alg !== "RS256"', 'crypto.subtle.verify', 'Number(project.metadata?.fixture_version) !== FIXTURE_VERSION',
   '@example.invalid', 'email_confirm: true', 'admin.auth.admin.createUser', 'admin.auth.admin.deleteUser',
+  'AUTH_PAGE_SIZE = 1000', 'admin.auth.admin.listUsers({ page, perPage: AUTH_PAGE_SIZE })',
+  'user.app_metadata?.e2e_fixture !== true', 'String(user.app_metadata?.e2e_run_id || "") !== runId',
+  'existing_e2e_auth_identity_safety_mismatch', 'expectedEmails.has(user.email)',
+  'if (deleteError) throw deleteError', 'profileDeleteError',
 ]) {
   requireText(oidcBootstrap, value, 'E2E OIDC Bootstrap')
+}
+
+const authDeleteIndex = oidcBootstrap.indexOf('await admin.auth.admin.deleteUser(user.id)')
+const profileDeleteIndex = oidcBootstrap.indexOf('.from("profiles")\n        .delete()', authDeleteIndex)
+if (authDeleteIndex < 0 || profileDeleteIndex < 0 || profileDeleteIndex < authDeleteIndex) {
+  failures.push('E2E OIDC Bootstrap: Cleanup muss Auth-Identitäten vor Profilen löschen, damit Orphans erneut auffindbar bleiben.')
 }
 
 if (/service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleScript) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleWorkflow) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(authBrowserE2e)) {
@@ -99,5 +109,6 @@ console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumen
 console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
 console.log('✓ OIDC ist auf Repo-ID, Branch, Workflow, Audience und GitHub-hosted Runner begrenzt')
-console.log('✓ Cross-Role-Ergebnis wird als symmedis/cross-role-e2e Commit-Status veröffentlicht')
+console.log('✓ OIDC-Cleanup findet Auth-Orphans direkt und löscht nur exakt run-gebundene Fixture-Identitäten')
+console.log('✓ Cross-Role-Ergebnis wird pending/success/failure als symmedis/cross-role-e2e Commit-Status veröffentlicht')
 console.log('✓ Service-Role-Secrets bleiben außerhalb von Browser und GitHub-Workflow')
