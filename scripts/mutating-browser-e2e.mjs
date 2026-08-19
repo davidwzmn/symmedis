@@ -143,6 +143,10 @@ async function run() {
     cdp = new Cdp(await pageWebSocket(port)); await cdp.ready(); await cdp.send('Runtime.enable'); await cdp.send('Page.enable'); await cdp.send('DOM.enable')
     await login(cdp)
 
+    const preflight = await fixture(cdp, 'reset', { confirm: FIXTURE_CONFIRM })
+    if (!preflight.reset) throw new Error('Fixture-Preflight-Reset wurde nicht bestätigt.')
+    console.log('✓ Fixture vor Testbeginn selbstheilend zurückgesetzt')
+
     const before = await fixture(cdp, 'inspect')
     const initialTask = before.fixture.tasks.find((item) => item.title === TASK_TITLE)
     const initialReport = before.fixture.reports.find((item) => item.title === REPORT_TITLE)
