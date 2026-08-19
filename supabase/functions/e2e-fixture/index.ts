@@ -7,6 +7,7 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const APP_ORIGIN = "https://davidwzmn.github.io";
 const FIXTURE_PROJECT_ID = "a551b1c8-55d0-4a90-8897-1408e7a08bac";
 const FIXTURE_NAME = "Ursachenanalyse – Staging E2E";
+const FIXTURE_VERSION = 1;
 const RESET_CONFIRMATION = "RESET_SYMMEDIS_E2E";
 const STAFF_ROLES = new Set(["intern", "admin"]);
 
@@ -83,7 +84,8 @@ Deno.serve(async (req: Request) => {
       && project.metadata?.purpose === "e2e"
       && project.metadata?.environment === "staging"
       && project.metadata?.e2e_fixture === true
-      && project.metadata?.allow_mutating_e2e === true;
+      && project.metadata?.allow_mutating_e2e === true
+      && Number(project.metadata?.fixture_version) === FIXTURE_VERSION;
     if (!safeFixture) return json(req, 409, { error: "fixture_safety_contract_failed" });
 
     const inspect = async () => {
@@ -97,7 +99,7 @@ Deno.serve(async (req: Request) => {
       assertAdminResult(reportsError, "reports inspect");
       assertAdminResult(documentsError, "documents inspect");
       assertAdminResult(versionsError, "versions inspect");
-      return { project: { id: project.id, name: project.name }, tasks: tasks || [], reports: reports || [], documents: documents || [], reportVersions: versions || [] };
+      return { project: { id: project.id, name: project.name, fixtureVersion: FIXTURE_VERSION }, tasks: tasks || [], reports: reports || [], documents: documents || [], reportVersions: versions || [] };
     };
 
     if (action === "inspect") return json(req, 200, { ok: true, fixture: await inspect() });
