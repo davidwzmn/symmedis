@@ -29,7 +29,7 @@ async function waitFor(fn, timeoutMs = 30000, intervalMs = 200) {
     } catch (error) { lastError = error }
     await sleep(intervalMs)
   }
-  throw lastError || new Error(`Zeitüberschitung nach ${timeoutMs} ms`)
+  throw lastError || new Error(`Zeitüberschreitung nach ${timeoutMs} ms`)
 }
 
 class Cdp {
@@ -180,8 +180,8 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
-async function pointerClickText(cdp, text, scopeText = '') {
-  const point = await cdp.evaluate(`(() => {
+async function keyboardActivateText(cdp, text, scopeText = '') {
+  const focused = await cdp.evaluate(`(() => {
     const wanted = ${JSON.stringify(text)};
     const scope = ${JSON.stringify(scopeText)};
     const roots = scope
@@ -191,15 +191,15 @@ async function pointerClickText(cdp, text, scopeText = '') {
     const candidates = [...root.querySelectorAll('button,a')];
     const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
       || candidates.find((el) => (el.innerText || '').includes(wanted));
-    if (!target || target.disabled) return null;
+    if (!target || target.disabled) return false;
     target.scrollIntoView({ block: 'center', inline: 'center' });
-    const rect = target.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, width: rect.width, height: rect.height };
+    target.focus();
+    return document.activeElement === target;
   })()`)
-  if (!point || point.width <= 0 || point.height <= 0) throw new Error(`Pointer-Ziel nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y })
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 })
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 })
+  if (!focused) throw new Error(`Keyboard-Ziel nicht fokussierbar: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
+  const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key })
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
 }
 
 async function setSelectByLabel(cdp, labelText, value) {
@@ -289,13 +289,13 @@ async function run() {
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
     await assertBody(staff.cdp, 'Tag 30')
-    await pointerClickText(staff.cdp, 'Messpunkt +', 'Tag 30')
+    await keyboardActivateText(staff.cdp, 'Messpunkt +', 'Tag 30')
     await assertMetricVisibleOrExplain(staff.cdp)
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
-    await pointerClickText(staff.cdp, 'Messpunkt speichern')
+    await keyboardActivateText(staff.cdp, 'Messpunkt speichern')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
-    await pointerClickText(staff.cdp, 'Outcome bewusst übernehmen')
+    await keyboardActivateText(staff.cdp, 'Outcome bewusst übernehmen')
     console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; dauerhafte Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
