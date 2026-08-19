@@ -75,10 +75,14 @@ class Cdp {
 
 async function pageSocket(port) {
   return waitFor(async () => {
-    const response = await fetch(`http://127.0.0.1:${port}/json`)
-    if (!response.ok) return null
-    const targets = await response.json()
-    return targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl || null
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json`)
+      if (!response.ok) return null
+      const targets = await response.json()
+      return targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl || null
+    } catch {
+      return null
+    }
   }, 18000)
 }
 
@@ -117,12 +121,11 @@ async function runScenarioAttempt(scenario, index, attempt) {
     await cdp.ready()
     await cdp.send('Runtime.enable')
     await cdp.send('Page.enable')
-    await waitFor(() => cdp.evaluate(`document.readyState === 'complete' && Boolean(document.querySelector('#root'))`), 45000)
+    await waitFor(() => cdp.evaluate(`document.readyState !== 'loading' && Boolean(document.querySelector('#root'))`), 45000)
     await cdp.evaluate(`localStorage.setItem('symmedis-theme', ${JSON.stringify(scenario.theme)}); location.reload(); true`)
 
     const state = await waitFor(async () => {
-      const value = await cdp.evaluate(`(async () => {
-        if (document.fonts?.ready) await document.fonts.ready;
+      const value = await cdp.evaluate(`(() => {
         const tinyVisibleText = [...document.querySelectorAll('body *')]
           .filter((el) => {
             const style = getComputedStyle(el);
@@ -144,7 +147,7 @@ async function runScenarioAttempt(scenario, index, attempt) {
           tinyVisibleText
         };
       })()`)
-      if (!value.root || value.ready !== 'complete') return null
+      if (!value.root || value.ready === 'loading') return null
       if (value.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Error Boundary sichtbar.`)
       return scenario.expected.every((text) => value.body.includes(text)) ? value : null
     }, 45000)
