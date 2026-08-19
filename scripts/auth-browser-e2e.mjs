@@ -56,7 +56,7 @@ async function waitFor(fn, timeoutMs = 15000, intervalMs = 200) {
     }
     await sleep(intervalMs)
   }
-  throw lastError || new Error(`Zeitüberschreitung nach ${timeoutMs} ms`)
+  throw lastError || new Error(`Zeitüberschitung nach ${timeoutMs} ms`)
 }
 
 class Cdp {
@@ -232,21 +232,16 @@ async function runScenario(scenario, port) {
       })`)
       if (!value.session.includes('access_token')) return null
       if (value.body.includes('Workspace konnte nicht geladen werden')) throw new Error(`${scenario.name}: Workspace-Laden ist fehlgeschlagen.`)
-      return value
-    }, 20000)
-
-    if (scenario.forbiddenText && state.body.includes(scenario.forbiddenText)) {
-      throw new Error(`${scenario.name}: verbotener Inhalt sichtbar: ${scenario.forbiddenText}`)
-    }
-    if (scenario.expectedText && !state.body.includes(scenario.expectedText)) {
-      throw new Error(`${scenario.name}: erwarteter Workspace-Inhalt fehlt: ${scenario.expectedText}`)
-    }
-    for (const requiredText of scenario.requiredTexts || []) {
-      if (!state.body.includes(requiredText)) {
-        throw new Error(`${scenario.name}: Portal-UX-Vertrag fehlt im echten Browser: ${requiredText}`)
+      if (value.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
+      if (scenario.forbiddenText && value.body.includes(scenario.forbiddenText)) {
+        throw new Error(`${scenario.name}: verbotener Inhalt sichtbar: ${scenario.forbiddenText}`)
       }
-    }
-    if (state.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
+      if (scenario.expectedText && !value.body.includes(scenario.expectedText)) return null
+      for (const requiredText of scenario.requiredTexts || []) {
+        if (!value.body.includes(requiredText)) return null
+      }
+      return value
+    }, 30000)
 
     console.log(`✓ ${scenario.name}: echte Browser-Session, geschützter Workspace und Portal-UX erfolgreich`)
     for (const check of scenario.routeChecks || []) await clickRouteAndAssert(cdp, scenario, check)
