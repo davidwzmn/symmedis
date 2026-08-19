@@ -165,6 +165,28 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
+async function pointerClickText(cdp, text, scopeText = '') {
+  const point = await cdp.evaluate(`(() => {
+    const wanted = ${JSON.stringify(text)};
+    const scope = ${JSON.stringify(scopeText)};
+    const roots = scope
+      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
+      : [document.body];
+    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
+    const candidates = [...root.querySelectorAll('button,a')];
+    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').includes(wanted));
+    if (!target || target.disabled) return null;
+    target.scrollIntoView({ block: 'center', inline: 'center' });
+    const rect = target.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, width: rect.width, height: rect.height };
+  })()`)
+  if (!point || point.width <= 0 || point.height <= 0) throw new Error(`Pointer-Ziel nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 })
+}
+
 async function setSelectByLabel(cdp, labelText, value) {
   const changed = await cdp.evaluate(`(() => {
     const wantedLabel = ${JSON.stringify(labelText)};
@@ -252,13 +274,13 @@ async function run() {
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
     await assertBody(staff.cdp, 'Tag 30')
-    await clickText(staff.cdp, 'Messpunkt +', 'Tag 30')
+    await pointerClickText(staff.cdp, 'Messpunkt +', 'Tag 30')
     await assertBody(staff.cdp, METRIC_LABEL)
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
-    await clickText(staff.cdp, 'Messpunkt speichern')
+    await pointerClickText(staff.cdp, 'Messpunkt speichern')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
-    await clickText(staff.cdp, 'Outcome bewusst übernehmen')
+    await pointerClickText(staff.cdp, 'Outcome bewusst übernehmen')
     console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; dauerhafte Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
