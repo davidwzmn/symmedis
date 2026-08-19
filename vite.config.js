@@ -28,7 +28,9 @@ function apiDevServer() {
 
 export default defineConfig(() => {
   const standalone = process.env.SYMMEDIS_STANDALONE === 'true'
+  const publicBase = standalone ? '/symmedis/' : '/'
   return {
+    base: publicBase,
     plugins: [react(), tailwindcss(), apiDevServer()],
     server: {
       host: true,
