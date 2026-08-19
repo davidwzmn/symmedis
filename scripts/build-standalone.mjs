@@ -13,12 +13,18 @@ const ziel = process.argv[2] || 'symmedis-plattform.html'
 const DIST = process.argv[3] || 'dist-hash'
 const ASSETS = join(DIST, 'assets')
 const buildSha = (process.env.GITHUB_SHA || process.env.SYMMEDIS_BUILD_SHA || 'local').trim()
+const pagesMode = process.env.SYMMEDIS_STANDALONE === 'true'
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const assetUrlPattern = (file) => `[^"']*/assets/${escapeRegExp(file)}`
 
 let html = readFileSync(join(DIST, 'index.html'), 'utf8')
 const dateien = readdirSync(ASSETS)
+
+if (pagesMode && !html.includes('/symmedis/assets/')) {
+  console.error('FEHLER: Pages-Standalone-Build wurde nicht mit der erwarteten Vite-Basis /symmedis/ erzeugt.')
+  process.exit(1)
+}
 
 const cssFiles = dateien.filter((file) => file.endsWith('.css'))
 const jsFiles = dateien.filter((file) => file.endsWith('.js'))
