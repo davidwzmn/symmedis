@@ -68,7 +68,7 @@ jobs:
           grep -q 'id="root"' /tmp/symmedis-home.html
           for route in /demo /termin /login /portal /intern; do
             body="$(curl --silent --show-error --fail "http://127.0.0.1:4173${route}")"
-            printf '%s' "$body" | grep -q 'id="root"'
+            grep -Fq 'id="root"' <<< "$body"
           done
       - name: Mobile browser smoke
         shell: bash
@@ -124,7 +124,7 @@ jobs:
           NODE
           )"
           body="$(curl --silent --show-error --fail --request POST --header "apikey: ${publishable_key}" --header 'Content-Type: application/json' --header 'Origin: https://davidwzmn.github.io' --data '{"website":"release-smoke-honeypot"}' 'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/submit-lead')"
-          printf '%s' "$body" | grep -q '"ok":true'
+          grep -Fq '"ok":true' <<< "$body"
       - name: Build static hash version
         env:
           VITE_ROUTER: hash
@@ -207,7 +207,7 @@ jobs:
           set -euo pipefail
           url="https://davidwzmn.github.io/symmedis/?build=${GITHUB_SHA}"
           for attempt in {1..120}; do
-            if page="$(curl --silent --show-error --fail --max-time 10 "$url")" && printf '%s' "$page" | grep -q "name=\"symmedis-build\" content=\"${GITHUB_SHA}\""; then
+            if page="$(curl --silent --show-error --fail --max-time 10 "$url")" && grep -Fq "name=\"symmedis-build\" content=\"${GITHUB_SHA}\"" <<< "$page"; then
               echo "Live staging serves ${GITHUB_SHA}"
               exit 0
             fi
