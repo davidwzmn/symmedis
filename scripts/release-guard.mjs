@@ -127,16 +127,35 @@ for (const signature of ['Auf einen Blick', 'Wo stehen wir, was bremst, was jetz
   if (!projectDashboard.includes(signature)) fail(`Kundenportal: Executive Snapshot darf nicht regressieren: ${signature}`)
 }
 
+const authE2e = await text('scripts/auth-browser-e2e.mjs')
+for (const signature of [
+  "const REQUIRE_AUTH = process.env.E2E_REQUIRE_AUTH === 'true'",
+  "{ path: '/intern/aufgaben'",
+  "{ path: '/intern/freigaben'",
+  "{ path: '/intern/dokumente'",
+  "{ path: '/intern/posteingang'",
+  "{ path: '/portal/aufgaben'",
+  "{ path: '/portal/dokumente'",
+  "{ path: '/portal/berichte'",
+  "{ path: '/portal/nachrichten'",
+  'Kernnavigation vollständig erreichbar',
+]) {
+  if (!authE2e.includes(signature)) fail(`Browser-E2E: Rollen-/Navigationsvertrag fehlt: ${signature}`)
+}
+
 const ciWorkflow = await text('.github/workflows/ci.yml')
 for (const signature of [
+  'uses: actions/configure-pages@v5',
   'uses: actions/upload-pages-artifact@v4',
   'uses: actions/deploy-pages@v4',
+  'pages: read',
   'pages: write',
   'id-token: write',
   'name: github-pages',
   'symmedis/live-staging',
+  "E2E_REQUIRE_AUTH: ${{ vars.E2E_REQUIRE_AUTH || 'false' }}",
 ]) {
-  if (!ciWorkflow.includes(signature)) fail(`Release-Infrastruktur: offizieller GitHub-Pages-Vertrag fehlt: ${signature}`)
+  if (!ciWorkflow.includes(signature)) fail(`Release-Infrastruktur: offizieller GitHub-Pages-/E2E-Vertrag fehlt: ${signature}`)
 }
 if (/push\s+(?:--force\s+)?origin\s+HEAD:gh-pages/.test(ciWorkflow)) {
   fail('Release-Infrastruktur: GitHub Actions darf nicht wieder per Bot-Push auf gh-pages deployen; Pages muss über deploy-pages laufen.')
@@ -210,6 +229,7 @@ console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
 console.log('✓ Portal-Rückkehr, Logout, Staff-Arbeitsfokus und Customer-Executive-Snapshot bleiben geschützt')
+console.log('✓ Authentifizierter Zwei-Rollen-E2E prüft geschützte Kernnavigation')
 console.log('✓ Offizieller GitHub-Pages-Deploypfad und Live-Staging-Status bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
