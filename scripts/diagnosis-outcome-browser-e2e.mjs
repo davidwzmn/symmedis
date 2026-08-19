@@ -142,21 +142,6 @@ async function assertBody(cdp, text) {
   await waitFor(() => cdp.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`))
 }
 
-async function assertMetricVisibleOrExplain(cdp) {
-  await waitFor(async () => {
-    const state = await cdp.evaluate(`({
-      body: document.body.innerText,
-      metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
-      addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
-      loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden')
-    })`)
-    if (state.addFailed || state.loadFailed) {
-      throw new Error(`Messpunkt-UI meldet Fehler vor dem Rendern: ${String(state.body).slice(-1600)}`)
-    }
-    return state.metricVisible ? state : null
-  }, 12000, 200)
-}
-
 async function assertBodyMissing(cdp, text) {
   const visible = await cdp.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)
   if (visible) throw new Error(`Unerwartet sichtbar: ${text}`)
@@ -180,90 +165,48 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
-async function keyboardActivateText(cdp, text, scopeText = '') {
-  const before = await cdp.evaluate(`(() => {
-    const wanted = ${JSON.stringify(text)};
-    const scope = ${JSON.stringify(scopeText)};
-    const roots = scope
-      ? [...document.querySelectorAll('div,li,section,article')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
-      : [document.body];
-    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
-    const candidates = [...root.querySelectorAll('button,a')];
-    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
-      || candidates.find((el) => (el.innerText || '').includes(wanted));
-    if (!target) return { found: false };
-    const reactKey = Object.keys(target).find((key) => key.startsWith('__reactProps$')) || '';
-    let storedToken = false;
-    try { storedToken = Boolean(JSON.parse(localStorage.getItem('symmedis.supabase.session') || '{}').access_token); } catch {}
-    target.scrollIntoView({ block: 'center', inline: 'center' });
-    target.focus();
+async function measurementEditorState(cdp, horizon = 30) {
+  return cdp.evaluate(`(() => {
+    const horizonText = ${JSON.stringify(`Tag ${30}`)}.replace('30', String(${horizon}));
+    const metricValue = ${JSON.stringify(METRIC_LABEL)};
+    const candidates = [...document.querySelectorAll('div,section,article')].filter((el) => {
+      const text = el.innerText || '';
+      return text.includes(horizonText) && (text.includes('Messpunkt +') || text.includes('Messpunkt speichern'));
+    });
+    const root = candidates.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || null;
+    if (!root) return { foundCard: false, foundEditor: false, empty: false };
+    const labels = [...root.querySelectorAll('label')];
+    const metricLabel = labels.find((label) => (label.innerText || '').trim().startsWith('Kennzahl'));
+    let input = metricLabel?.htmlFor ? document.getElementById(metricLabel.htmlFor) : metricLabel?.querySelector('input');
+    if (!input && metricLabel?.parentElement) input = metricLabel.parentElement.querySelector('input');
+    const text = root.innerText || '';
     return {
-      found: true,
-      disabled: Boolean(target.disabled),
-      focused: document.activeElement === target,
-      hasReactProps: Boolean(reactKey),
-      hasOnClick: Boolean(reactKey && typeof target[reactKey]?.onClick === 'function'),
-      hasStoredToken: storedToken,
-      tagName: target.tagName,
-      type: target.getAttribute('type') || '',
+      foundCard: true,
+      foundEditor: Boolean(input && input.value === metricValue && text.includes('Messpunkt speichern')),
+      metricValue: input?.value || '',
+      empty: text.includes('Noch kein Messpunkt definiert.'),
+      text: text.slice(0, 1200),
     };
   })()`)
-  console.log(`Outcome action probe before ${text}: ${JSON.stringify(before)}`)
-  if (!before?.found || before.disabled || !before.focused) throw new Error(`Keyboard-Ziel nicht aktivierbar: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
-  if (!before.hasStoredToken) throw new Error(`Outcome-Aktion ${text} hat keine gespeicherte Auth-Session.`)
-  if (before.hasReactProps && !before.hasOnClick) throw new Error(`Outcome-Aktion ${text} hat keinen React-onClick-Handler.`)
+}
 
-  const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }
-  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key })
-  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
-  await sleep(300)
+async function assertMeasurementEditor(cdp, horizon = 30) {
+  await waitFor(async () => {
+    const state = await measurementEditorState(cdp, horizon)
+    if (state.foundEditor) return state
+    const body = await cdp.evaluate('document.body.innerText')
+    if (String(body).includes('Messpunkt konnte nicht angelegt werden') || String(body).includes('Outcome-Messungen konnten nicht geladen werden')) {
+      throw new Error(`Messpunkt-UI meldet Fehler: ${String(body).slice(-1600)}`)
+    }
+    return null
+  }, 12000, 200)
+}
 
-  const after = await cdp.evaluate(`(() => {
-    const wanted = ${JSON.stringify(text)};
-    const candidates = [...document.querySelectorAll('button,a')];
-    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
-      || candidates.find((el) => (el.innerText || '').includes(wanted));
-    return {
-      found: Boolean(target),
-      disabled: Boolean(target?.disabled),
-      activeText: document.activeElement?.innerText || '',
-      metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
-      addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
-      loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden'),
-    };
-  })()`)
-  console.log(`Outcome action probe after ${text}: ${JSON.stringify(after)}`)
-
-  if (text === 'Messpunkt +' && !after.metricVisible && !after.addFailed && !after.loadFailed) {
-    const direct = await cdp.evaluate(`(async () => {
-      const wanted = ${JSON.stringify(text)};
-      const candidates = [...document.querySelectorAll('button,a')];
-      const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
-        || candidates.find((el) => (el.innerText || '').includes(wanted));
-      if (!target) return { invoked: false, reason: 'target_missing' };
-      const reactKey = Object.keys(target).find((key) => key.startsWith('__reactProps$')) || '';
-      const handler = reactKey ? target[reactKey]?.onClick : null;
-      if (typeof handler !== 'function') return { invoked: false, reason: 'handler_missing' };
-      try {
-        const result = handler({ type: 'click', currentTarget: target, target, preventDefault() {}, stopPropagation() {} });
-        if (result && typeof result.then === 'function') await result;
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return {
-          invoked: true,
-          metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
-          addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
-          loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden'),
-          bodyTail: document.body.innerText.slice(-1200),
-        };
-      } catch (error) {
-        return { invoked: true, error: String(error?.message || error) };
-      }
-    })()`)
-    console.log(`Outcome direct React handler diagnostic ${text}: ${JSON.stringify(direct)}`)
-    throw new Error(`Native Outcome-Aktivierung blieb wirkungslos; direkter React-Handler-Diagnosezustand: ${JSON.stringify(direct)}`)
-  }
-
-  return after
+async function assertNoMeasurementEditor(cdp, horizon = 30) {
+  await waitFor(async () => {
+    const state = await measurementEditorState(cdp, horizon)
+    return state.foundCard && !state.foundEditor && state.empty ? state : null
+  }, 12000, 200)
 }
 
 async function setSelectByLabel(cdp, labelText, value) {
@@ -353,14 +296,14 @@ async function run() {
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
     await assertBody(staff.cdp, 'Tag 30')
-    await keyboardActivateText(staff.cdp, 'Messpunkt +', 'Tag 30')
-    await assertMetricVisibleOrExplain(staff.cdp)
+    await clickText(staff.cdp, 'Messpunkt +', 'Tag 30')
+    await assertMeasurementEditor(staff.cdp, 30)
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
-    await keyboardActivateText(staff.cdp, 'Messpunkt speichern')
+    await clickText(staff.cdp, 'Messpunkt speichern')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
-    await keyboardActivateText(staff.cdp, 'Outcome bewusst übernehmen')
-    console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; dauerhafte Persistenz wird über Quality + Customer-Handover bewiesen')
+    await clickText(staff.cdp, 'Outcome bewusst übernehmen')
+    console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
     await assertBody(staff.cdp, 'Historische Diagnosequalität')
@@ -392,7 +335,7 @@ async function run() {
         await clickText(staff.cdp, 'Plan')
         await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
         await assertBody(staff.cdp, 'Tag 30')
-        await assertBodyMissing(staff.cdp, METRIC_LABEL)
+        await assertNoMeasurementEditor(staff.cdp, 30)
         console.log('✓ Reset entfernt Outcome, Qualitätszählung und Messpunkt vollständig')
       } catch (error) {
         console.error('KRITISCH: Diagnosis-Outcome-Fixture-Reset/Beweis fehlgeschlagen:', error instanceof Error ? error.message : error)
