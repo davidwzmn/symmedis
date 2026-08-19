@@ -28,11 +28,15 @@ for (const value of [
   'const ALLOWED_ORIGINS = new Set([', '"https://davidwzmn.github.io"', '"http://127.0.0.1:4176"',
   'ALLOWED_ORIGINS.has(origin) ? origin : "https://davidwzmn.github.io"',
   '"Access-Control-Allow-Methods": "POST, OPTIONS"',
+  'admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("report_date").order("id")',
 ]) {
   requireText(fn, value, 'e2e-fixture function')
 }
 if (/Access-Control-Allow-Origin["']?\s*:\s*["']\*["']/.test(fn)) {
   failures.push('e2e-fixture function: Wildcard-CORS darf nicht verwendet werden.')
+}
+if (/from\(["']reports["']\)[^\n]*order\(["']created_at["']\)/.test(fn)) {
+  failures.push('e2e-fixture function: Reports besitzen kein created_at; Fixture-Inspect darf nicht danach sortieren.')
 }
 
 for (const value of [
@@ -112,6 +116,7 @@ console.log('SYMMEDIS E2E Fixture Guard: OK')
 console.log('✓ Eine einzige kanonische secretlose Cross-Role-E2E-Strecke ist maßgeblich')
 console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
 console.log('✓ Fixture-CORS ist auf öffentliche Staging-Origin und exakten lokalen CI-Origin begrenzt; kein Wildcard-CORS')
+console.log('✓ Fixture-Report-Inspect sortiert ausschließlich über reale, stabile Spalten')
 console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
 console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
