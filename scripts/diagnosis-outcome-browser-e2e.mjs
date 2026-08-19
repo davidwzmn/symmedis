@@ -181,7 +181,7 @@ async function clickText(cdp, text, scopeText = '') {
 }
 
 async function keyboardActivateText(cdp, text, scopeText = '') {
-  const focused = await cdp.evaluate(`(() => {
+  const before = await cdp.evaluate(`(() => {
     const wanted = ${JSON.stringify(text)};
     const scope = ${JSON.stringify(scopeText)};
     const roots = scope
@@ -191,15 +191,49 @@ async function keyboardActivateText(cdp, text, scopeText = '') {
     const candidates = [...root.querySelectorAll('button,a')];
     const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
       || candidates.find((el) => (el.innerText || '').includes(wanted));
-    if (!target || target.disabled) return false;
+    if (!target) return { found: false };
+    const reactKey = Object.keys(target).find((key) => key.startsWith('__reactProps$')) || '';
+    let storedToken = false;
+    try { storedToken = Boolean(JSON.parse(localStorage.getItem('symmedis.supabase.session') || '{}').access_token); } catch {}
     target.scrollIntoView({ block: 'center', inline: 'center' });
     target.focus();
-    return document.activeElement === target;
+    return {
+      found: true,
+      disabled: Boolean(target.disabled),
+      focused: document.activeElement === target,
+      hasReactProps: Boolean(reactKey),
+      hasOnClick: Boolean(reactKey && typeof target[reactKey]?.onClick === 'function'),
+      hasStoredToken: storedToken,
+      tagName: target.tagName,
+      type: target.getAttribute('type') || '',
+    };
   })()`)
-  if (!focused) throw new Error(`Keyboard-Ziel nicht fokussierbar: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
+  console.log(`Outcome action probe before ${text}: ${JSON.stringify(before)}`)
+  if (!before?.found || before.disabled || !before.focused) throw new Error(`Keyboard-Ziel nicht aktivierbar: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
+  if (!before.hasStoredToken) throw new Error(`Outcome-Aktion ${text} hat keine gespeicherte Auth-Session.`)
+  if (before.hasReactProps && !before.hasOnClick) throw new Error(`Outcome-Aktion ${text} hat keinen React-onClick-Handler.`)
+
   const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key })
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+  await sleep(300)
+
+  const after = await cdp.evaluate(`(() => {
+    const wanted = ${JSON.stringify(text)};
+    const candidates = [...document.querySelectorAll('button,a')];
+    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').includes(wanted));
+    return {
+      found: Boolean(target),
+      disabled: Boolean(target?.disabled),
+      activeText: document.activeElement?.innerText || '',
+      metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
+      addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
+      loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden'),
+    };
+  })()`)
+  console.log(`Outcome action probe after ${text}: ${JSON.stringify(after)}`)
+  return after
 }
 
 async function setSelectByLabel(cdp, labelText, value) {
