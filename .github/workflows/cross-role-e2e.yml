@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: cross-role-e2e-${{ github.ref }}
@@ -15,14 +16,8 @@ concurrency:
 
 jobs:
   staff-customer-handover:
-    if: github.event_name == 'workflow_dispatch' || vars.E2E_CROSS_ROLE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
-      E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
-      E2E_CUSTOMER_EMAIL: ${{ secrets.E2E_CUSTOMER_EMAIL }}
-      E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,13 +32,38 @@ jobs:
         run: npm run release:guard
       - name: Build authenticated preview
         run: npm run build
-      - name: Require isolated Staff and Customer credentials
+      - name: Bootstrap ephemeral E2E identities with GitHub OIDC
         shell: bash
         run: |
           set -euo pipefail
-          for name in E2E_STAFF_EMAIL E2E_STAFF_PASSWORD E2E_CUSTOMER_EMAIL E2E_CUSTOMER_PASSWORD; do
-            test -n "${!name}" || { echo "${name} secret fehlt." >&2; exit 1; }
+          token_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=symmedis-e2e-bootstrap"
+          oidc_json="$(curl --silent --show-error --fail-with-body --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$token_url")"
+          oidc="$(printf '%s' "$oidc_json" | jq -r '.value')"
+          test -n "$oidc" && test "$oidc" != "null" || { echo "GitHub OIDC Token fehlt." >&2; exit 1; }
+          echo "::add-mask::${oidc}"
+
+          bootstrap="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${oidc}" \
+            --header 'Content-Type: application/json' \
+            --data "{\"action\":\"bootstrap\",\"runId\":\"${GITHUB_RUN_ID}\"}" \
+            'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/e2e-auth-bootstrap')"
+
+          staff_email="$(printf '%s' "$bootstrap" | jq -r '.staff.email')"
+          staff_password="$(printf '%s' "$bootstrap" | jq -r '.staff.password')"
+          customer_email="$(printf '%s' "$bootstrap" | jq -r '.customer.email')"
+          customer_password="$(printf '%s' "$bootstrap" | jq -r '.customer.password')"
+          for value in "$staff_email" "$staff_password" "$customer_email" "$customer_password"; do
+            test -n "$value" && test "$value" != "null" || { echo "Ephemere E2E-Credentials unvollständig." >&2; exit 1; }
+            echo "::add-mask::${value}"
           done
+          {
+            echo "E2E_STAFF_EMAIL=${staff_email}"
+            echo "E2E_STAFF_PASSWORD=${staff_password}"
+            echo "E2E_CUSTOMER_EMAIL=${customer_email}"
+            echo "E2E_CUSTOMER_PASSWORD=${customer_password}"
+          } >> "$GITHUB_ENV"
+          echo "Ephemere Staff-/Customer-Identitäten für GitHub Run ${GITHUB_RUN_ID} erstellt."
       - name: Start authenticated preview
         shell: bash
         run: |
@@ -70,6 +90,23 @@ jobs:
           if [[ -f /tmp/symmedis-cross-role-preview.pid ]]; then
             kill "$(cat /tmp/symmedis-cross-role-preview.pid)" 2>/dev/null || true
           fi
+      - name: Cleanup ephemeral E2E identities
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=symmedis-e2e-bootstrap"
+          oidc_json="$(curl --silent --show-error --fail-with-body --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$token_url")"
+          oidc="$(printf '%s' "$oidc_json" | jq -r '.value')"
+          test -n "$oidc" && test "$oidc" != "null" || { echo "Cleanup-OIDC-Token fehlt." >&2; exit 1; }
+          echo "::add-mask::${oidc}"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${oidc}" \
+            --header 'Content-Type: application/json' \
+            --data "{\"action\":\"cleanup\",\"runId\":\"${GITHUB_RUN_ID}\"}" \
+            'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/e2e-auth-bootstrap' > /dev/null
+          echo "Ephemere E2E-Identitäten für GitHub Run ${GITHUB_RUN_ID} gelöscht."
       - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
