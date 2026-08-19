@@ -10,7 +10,7 @@ const EXPECTED_BUILD = process.env.LIVE_EXPECTED_BUILD || ''
 const scenarios = [
   { name: 'home-light', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'light' },
   { name: 'home-dark', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'dark' },
-  { name: 'demo', hash: '#/demo', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
+  { name: 'demo', hash: '#/demo/uebersicht', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
   { name: 'termin', hash: '#/termin', expected: ['Bringen Sie die Wachstumsfrage', 'Diagnosegespräch anfragen'], theme: 'light' },
   { name: 'login', hash: '#/login', expected: ['Geschützter SYMMEDIS-Zugang', 'Kundenportal', 'Mitarbeiterportal'], theme: 'light' },
 ]
