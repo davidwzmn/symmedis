@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 const FIXTURE_PROJECT_ID = 'a551b1c8-55d0-4a90-8897-1408e7a08bac'
 const STAFF_TASK_ID = '72e4af65-806c-44ad-9e03-4f5393a97d19'
 const CUSTOMER_TASK_ID = '9d0d9f33-0ce2-4b8c-9d67-4f27791913c5'
+const ANALYSIS_ITEM_ID = '63e6f8df-c28b-4cc2-9a72-dc9750746f0e'
 const RESET_CONFIRMATION = 'RESET_SYMMEDIS_E2E'
 const failures = []
 
@@ -20,19 +21,18 @@ const [fn, script, workflow, crossRoleScript, crossRoleWorkflow, oidcBootstrap] 
   text('supabase/functions/e2e-auth-bootstrap/index.ts'),
 ])
 
-for (const value of [FIXTURE_PROJECT_ID, STAFF_TASK_ID, CUSTOMER_TASK_ID, RESET_CONFIRMATION, 'FIXTURE_VERSION = 1', 'fixture_version', 'allow_mutating_e2e', 'e2e_fixture', 'STAFF_ROLES', 'delete().eq("project_id", FIXTURE_PROJECT_ID)', 'fixture.tasks.length === 2']) {
+for (const value of [
+  FIXTURE_PROJECT_ID, STAFF_TASK_ID, CUSTOMER_TASK_ID, ANALYSIS_ITEM_ID, RESET_CONFIRMATION,
+  'FIXTURE_VERSION = 1', 'fixture_version', 'allow_mutating_e2e', 'e2e_fixture', 'STAFF_ROLES',
+  'delete().eq("project_id", FIXTURE_PROJECT_ID)', 'fixture.tasks.length === 2',
+  'fixture.analysis.length === 1', 'analysisItem?.approval_status === "intern"', 'analysisItem?.customer_visible === false',
+]) {
   requireText(fn, value, 'e2e-fixture function')
 }
 for (const value of [
-  FIXTURE_PROJECT_ID,
-  RESET_CONFIRMATION,
-  "const preflight = await fixture(cdp, 'reset'",
-  'Fixture vor Testbeginn selbstheilend zurückgesetzt',
-  "await fixture(cdp, 'reset'",
-  'finally {',
-  'Report über UI finalisiert',
-  'Dokument über UI hochgeladen',
-  'Aufgabenstatus über UI persistiert',
+  FIXTURE_PROJECT_ID, RESET_CONFIRMATION, "const preflight = await fixture(cdp, 'reset'",
+  'Fixture vor Testbeginn selbstheilend zurückgesetzt', "await fixture(cdp, 'reset'", 'finally {',
+  'Report über UI finalisiert', 'Dokument über UI hochgeladen', 'Aufgabenstatus über UI persistiert',
 ]) {
   requireText(script, value, 'mutating browser E2E')
 }
@@ -41,53 +41,37 @@ for (const value of ["vars.E2E_MUTATING == 'true'", 'workflow_dispatch:', 'npm r
 }
 
 for (const value of [
-  STAFF_TASK_ID,
-  CUSTOMER_TASK_ID,
+  STAFF_TASK_ID, CUSTOMER_TASK_ID, ANALYSIS_ITEM_ID,
+  'Staff-Aufgabenstatus über echten autorisierten RPC persistiert',
+  'Human-Review-Finding kontrolliert für den Kunden freigegeben',
+  'Internes Staff-Dokument hochgeladen und authentifiziert wieder heruntergeladen',
   'Customer-E2E: SYMMEDIS-Aufgabe ist für Kunden nicht read-only.',
-  'Customer Upload + authentifizierter Download über echte UI erfolgreich',
+  'Kunde sieht ausschließlich das durch Human Review freigegebene Finding',
+  'Customer Upload/Download funktioniert; internes Staff-Dokument bleibt für Kunden unsichtbar',
   'Staff finalisiert Report; unveränderliche Version wurde erzeugt',
   'Kunde sieht nach Reload exakt den finalisierten Report und die archivierte Version',
-  "await fixture(staff.cdp, 'reset'",
-  'finally {',
+  "await fixture(staff.cdp, 'reset'", 'finally {',
 ]) {
   requireText(crossRoleScript, value, 'cross-role browser E2E')
 }
 for (const value of [
-  'id-token: write',
-  'workflow_dispatch:',
-  'npm run build',
-  'scripts/cross-role-browser-e2e.mjs',
-  'ACTIONS_ID_TOKEN_REQUEST_URL',
-  'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
-  'audience=symmedis-e2e-bootstrap',
-  'functions/v1/e2e-auth-bootstrap',
-  '\\"action\\":\\"bootstrap\\"',
-  '\\"action\\":\\"cleanup\\"',
-  'GITHUB_RUN_ID',
-  'cancel-in-progress: false',
+  'id-token: write', 'workflow_dispatch:', 'npm run build', 'scripts/cross-role-browser-e2e.mjs',
+  'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'audience=symmedis-e2e-bootstrap',
+  'functions/v1/e2e-auth-bootstrap', '\\"action\\":\\"bootstrap\\"', '\\"action\\":\\"cleanup\\"',
+  'GITHUB_RUN_ID', 'cancel-in-progress: false',
 ]) {
   requireText(crossRoleWorkflow, value, 'cross-role E2E workflow')
 }
-if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(crossRoleWorkflow)) {
-  failures.push('Cross-Role-E2E: dauerhafte Staff-/Customer-Passwort-Secrets dürfen nicht zurückkehren.')
-}
+if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(crossRoleWorkflow)) failures.push('Cross-Role-E2E: dauerhafte Staff-/Customer-Passwort-Secrets dürfen nicht zurückkehren.')
 
 for (const value of [
-  'https://token.actions.githubusercontent.com',
-  '.well-known/jwks',
-  'EXPECTED_AUDIENCE = "symmedis-e2e-bootstrap"',
-  'EXPECTED_REPOSITORY_ID = "1314992444"',
+  'https://token.actions.githubusercontent.com', '.well-known/jwks',
+  'EXPECTED_AUDIENCE = "symmedis-e2e-bootstrap"', 'EXPECTED_REPOSITORY_ID = "1314992444"',
   'EXPECTED_REF = "refs/heads/agent/supabase-auth-foundation"',
   'EXPECTED_WORKFLOW_REF = "davidwzmn/symmedis/.github/workflows/cross-role-e2e.yml@refs/heads/agent/supabase-auth-foundation"',
-  'claims?.repository_visibility !== "public"',
-  'claims?.runner_environment !== "github-hosted"',
-  'header?.alg !== "RS256"',
-  'crypto.subtle.verify',
-  'Number(project.metadata?.fixture_version) !== FIXTURE_VERSION',
-  '@example.invalid',
-  'email_confirm: true',
-  'admin.auth.admin.createUser',
-  'admin.auth.admin.deleteUser',
+  'claims?.repository_visibility !== "public"', 'claims?.runner_environment !== "github-hosted"',
+  'header?.alg !== "RS256"', 'crypto.subtle.verify', 'Number(project.metadata?.fixture_version) !== FIXTURE_VERSION',
+  '@example.invalid', 'email_confirm: true', 'admin.auth.admin.createUser', 'admin.auth.admin.deleteUser',
 ]) {
   requireText(oidcBootstrap, value, 'E2E OIDC Bootstrap')
 }
@@ -107,11 +91,8 @@ if (failures.length) {
 }
 
 console.log('SYMMEDIS E2E Fixture Guard: OK')
-console.log('✓ Mutierende E2E-Tests sind auf das dedizierte Staging-Fixture begrenzt')
-console.log('✓ Fixture wird kanonisch auf zwei Aufgaben und einen Draft-Report zurückgebaut')
-console.log('✓ Staff- und Customer-Aufgabe sind getrennt und ownership-sicher')
-console.log('✓ Cross-Role-E2E prüft Customer Task, Upload, Download und Staff→Customer Report-Handover')
+console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
+console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
 console.log('✓ OIDC ist auf Repo-ID, Branch, Workflow, Audience und GitHub-hosted Runner begrenzt')
-console.log('✓ Fixture-Version ist gegen stilles Schema-/Daten-Drift gesperrt')
 console.log('✓ Service-Role-Secrets bleiben außerhalb von Browser und GitHub-Workflow')
