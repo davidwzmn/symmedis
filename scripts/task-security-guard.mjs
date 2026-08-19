@@ -16,6 +16,9 @@ for (const value of [
   'public.update_task_status',
   "p_status not in ('offen', 'in-arbeit', 'erledigt')",
   "v_task_responsible <> 'kunde'",
+  'for update of t',
+  "'task.status_updated'",
+  "jsonb_build_object(",
   'revoke update on table public.tasks from authenticated',
   'revoke all on function public.update_task_status(uuid, text) from anon',
   'grant execute on function public.update_task_status(uuid, text) to authenticated',
@@ -42,4 +45,5 @@ if (failures.length) {
 console.log('SYMMEDIS Task Security Guard: OK')
 console.log('✓ Aufgabenstatus läuft ausschließlich über den autorisierten RPC')
 console.log('✓ Kundenzugänge können nur kundenverantwortliche Aufgaben verändern')
+console.log('✓ Task-Statuswechsel sind atomar gesperrt und auditierbar')
 console.log('✓ SYMMEDIS-Aufgaben bleiben für Kunden sichtbar, aber read-only')
