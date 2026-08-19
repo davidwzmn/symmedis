@@ -10,7 +10,7 @@ const EXPECTED_BUILD = process.env.LIVE_EXPECTED_BUILD || ''
 const scenarios = [
   { name: 'home-light', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'light' },
   { name: 'home-dark', hash: '#/', expected: ['Wachstum stockt selten wegen mangelnder Aktivität. Meist fehlt die richtige Diagnose.', 'Diagnosegespräch anfragen', 'Plattform ansehen', 'Menschliche Freigabe statt Blackbox', 'Die Menschen hinter SYMMEDIS'], theme: 'dark' },
-  { name: 'demo', hash: '#/demo/uebersicht', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light' },
+  { name: 'demo', hash: '#/demo/uebersicht', expected: ['Sichere, interaktive Produktdemo', '5-Minuten-Produkttour'], theme: 'light', dumpDom: true },
   { name: 'termin', hash: '#/termin', expected: ['Bringen Sie die Wachstumsfrage', 'Diagnosegespräch anfragen'], theme: 'light' },
   { name: 'login', hash: '#/login', expected: ['Geschützter SYMMEDIS-Zugang', 'Kundenportal', 'Mitarbeiterportal'], theme: 'light' },
 ]
@@ -101,7 +101,44 @@ async function verifyTeamPortraits(cdp, scenarioName) {
   console.log(`✓ live ${scenarioName}: Team-Porträts geladen (${portraits.map((portrait) => `${portrait.name} ${portrait.naturalWidth}x${portrait.naturalHeight}`).join(', ')})`)
 }
 
+async function runDumpDomAttempt(scenario, attempt) {
+  const targetUrl = `${BASE}/${scenario.hash}?smoke=${Date.now()}`
+  console.log(`→ live ${scenario.name}: starte DOM-Versuch ${attempt + 1} ${targetUrl}`)
+  const chrome = spawn(CHROME, [
+    '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--window-size=390,844',
+    '--virtual-time-budget=8000', '--dump-dom', targetUrl,
+  ], { stdio: ['ignore', 'pipe', 'pipe'] })
+
+  let stdout = ''
+  let stderr = ''
+  chrome.stdout.on('data', (chunk) => { stdout += String(chunk) })
+  chrome.stderr.on('data', (chunk) => { stderr += String(chunk) })
+
+  const exitCode = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.kill('SIGKILL')
+      reject(new Error(`${scenario.name}: Browser-Prozess nach 45000 ms beendet.`))
+    }, 45000)
+    chrome.once('error', (error) => { clearTimeout(timer); reject(error) })
+    chrome.once('close', (code) => { clearTimeout(timer); resolve(code) })
+  })
+
+  if (exitCode !== 0) throw new Error(`${scenario.name}: Chrome --dump-dom endete mit Code ${exitCode}. ${stderr.slice(-500)}`)
+  if (!stdout.includes('<div id="root">')) throw new Error(`${scenario.name}: React-Root fehlt im Live-DOM.`)
+  if (stdout.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Error Boundary sichtbar.`)
+  for (const text of scenario.expected) {
+    if (!stdout.includes(text)) throw new Error(`${scenario.name}: erwarteter Live-Text fehlt: ${text}`)
+  }
+  if (!stdout.includes(`name="symmedis-build" content="${EXPECTED_BUILD}"`)) {
+    throw new Error(`${scenario.name}: Build-Marker ${EXPECTED_BUILD} fehlt im Live-DOM.`)
+  }
+  if (stdout.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
+  console.log(`✓ live ${scenario.name}: gerenderter DOM, erwartete Produkttexte und Build ${EXPECTED_BUILD.slice(0, 7)} bestätigt`)
+}
+
 async function runScenarioAttempt(scenario, index, attempt) {
+  if (scenario.dumpDom) return runDumpDomAttempt(scenario, attempt)
+
   const port = 9340 + (index * 2) + attempt
   const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-${attempt}-`))
   const targetUrl = `${BASE}/${scenario.hash}?smoke=${Date.now()}`
