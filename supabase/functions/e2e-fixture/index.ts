@@ -124,18 +124,13 @@ Deno.serve(async (req: Request) => {
     const { error: deleteDocumentsError } = await admin.from("documents").delete().eq("project_id", FIXTURE_PROJECT_ID);
     assertAdminResult(deleteDocumentsError, "documents reset delete");
 
-    const { data: fixtureReports, error: fixtureReportsError } = await admin
-      .from("reports")
-      .select("id")
-      .eq("project_id", FIXTURE_PROJECT_ID);
-    assertAdminResult(fixtureReportsError, "reports reset read");
-    const reportIds = (fixtureReports || []).map((row) => row.id);
-    if (reportIds.length) {
-      const { error: versionsDeleteError } = await admin.from("report_versions").delete().in("report_id", reportIds);
-      assertAdminResult(versionsDeleteError, "report versions reset");
-    }
+    const { error: deleteReportsError } = await admin.from("reports").delete().eq("project_id", FIXTURE_PROJECT_ID);
+    assertAdminResult(deleteReportsError, "reports canonical reset");
 
-    const { error: tasksBaselineError } = await admin.from("tasks").upsert([
+    const { error: deleteTasksError } = await admin.from("tasks").delete().eq("project_id", FIXTURE_PROJECT_ID);
+    assertAdminResult(deleteTasksError, "tasks canonical reset");
+
+    const { error: tasksBaselineError } = await admin.from("tasks").insert([
       {
         id: STAFF_TASK_ID,
         project_id: FIXTURE_PROJECT_ID,
@@ -148,7 +143,6 @@ Deno.serve(async (req: Request) => {
         status: "offen",
         due_date: "2026-08-20",
         kpi: "E2E Staff Flow",
-        updated_at: new Date().toISOString(),
       },
       {
         id: CUSTOMER_TASK_ID,
@@ -162,12 +156,11 @@ Deno.serve(async (req: Request) => {
         status: "offen",
         due_date: "2026-08-21",
         kpi: "E2E Statuswechsel",
-        updated_at: new Date().toISOString(),
       },
-    ], { onConflict: "id" });
+    ]);
     assertAdminResult(tasksBaselineError, "tasks baseline reset");
 
-    const { error: reportBaselineError } = await admin.from("reports").upsert({
+    const { error: reportBaselineError } = await admin.from("reports").insert({
       id: REPORT_ID,
       project_id: FIXTURE_PROJECT_ID,
       title: "Staging Report – nicht freigeben",
@@ -180,7 +173,7 @@ Deno.serve(async (req: Request) => {
       generated_from_analysis_run_id: null,
       executive_summary: "Interner Testdatensatz. Keine Kundenfreigabe.",
       content: { staging: true, customer_release: false },
-    }, { onConflict: "id" });
+    });
     assertAdminResult(reportBaselineError, "report baseline reset");
 
     const { error: auditResetError } = await admin
