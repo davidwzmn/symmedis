@@ -13,6 +13,7 @@ const EXPECTED_WORKFLOW_REF = "davidwzmn/symmedis/.github/workflows/cross-role-e
 const FIXTURE_PROJECT_ID = "a551b1c8-55d0-4a90-8897-1408e7a08bac";
 const FIXTURE_VERSION = 1;
 const ALLOWED_EVENTS = new Set(["push", "workflow_dispatch"]);
+const AUTH_PAGE_SIZE = 1000;
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -127,20 +128,53 @@ Deno.serve(async (req: Request) => {
     if (clientError || !client?.organization_id) return json(409, { error: "fixture_client_missing" });
 
     const emails = runEmails(claims);
+    const expectedEmails = new Set([emails.staff, emails.customer]);
+    const runId = String(claims.run_id);
+
     const cleanup = async () => {
       const { data: rows, error } = await admin
         .from("profiles")
         .select("id,email,role,client_id,organization_id")
         .in("email", [emails.staff, emails.customer]);
       if (error) throw error;
+
       for (const row of rows || []) {
         const expected = row.email === emails.staff
-          ? row.role === "intern" && row.organization_id === client.organization_id
-          : row.role === "kunde" && row.client_id === client.id && row.organization_id === client.organization_id;
+          ? row.role === "intern" && row.organization_id === client.organization_id && row.client_id == null
+          : row.email === emails.customer
+            && row.role === "kunde"
+            && row.client_id === client.id
+            && row.organization_id === client.organization_id;
         if (!expected) throw new Error("existing_e2e_identity_safety_mismatch");
-        await admin.auth.admin.deleteUser(row.id).catch(() => undefined);
-        await admin.from("profiles").delete().eq("id", row.id);
       }
+
+      const authUsers = [];
+      for (let page = 1; ; page += 1) {
+        const { data, error: listError } = await admin.auth.admin.listUsers({ page, perPage: AUTH_PAGE_SIZE });
+        if (listError) throw listError;
+        const users = data?.users || [];
+        authUsers.push(...users.filter((user) => user.email && expectedEmails.has(user.email)));
+        if (users.length < AUTH_PAGE_SIZE) break;
+      }
+
+      for (const user of authUsers) {
+        if (
+          user.app_metadata?.e2e_fixture !== true
+          || String(user.app_metadata?.e2e_run_id || "") !== runId
+          || !user.email
+          || !expectedEmails.has(user.email)
+        ) {
+          throw new Error("existing_e2e_auth_identity_safety_mismatch");
+        }
+        const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+        if (deleteError) throw deleteError;
+      }
+
+      const { error: profileDeleteError } = await admin
+        .from("profiles")
+        .delete()
+        .in("email", [emails.staff, emails.customer]);
+      if (profileDeleteError) throw profileDeleteError;
     };
 
     if (action === "cleanup") {
@@ -159,7 +193,7 @@ Deno.serve(async (req: Request) => {
         password: staffPassword,
         email_confirm: true,
         user_metadata: { full_name: "SYMMEDIS E2E Staff" },
-        app_metadata: { e2e_fixture: true, e2e_run_id: String(claims.run_id) },
+        app_metadata: { e2e_fixture: true, e2e_run_id: runId },
       });
       if (staffAuthError || !staffAuth.user?.id) throw staffAuthError || new Error("staff_user_not_created");
       created.push(staffAuth.user.id);
@@ -179,7 +213,7 @@ Deno.serve(async (req: Request) => {
         password: customerPassword,
         email_confirm: true,
         user_metadata: { full_name: "SYMMEDIS E2E Customer" },
-        app_metadata: { e2e_fixture: true, e2e_run_id: String(claims.run_id) },
+        app_metadata: { e2e_fixture: true, e2e_run_id: runId },
       });
       if (customerAuthError || !customerAuth.user?.id) throw customerAuthError || new Error("customer_user_not_created");
       created.push(customerAuth.user.id);
@@ -196,17 +230,17 @@ Deno.serve(async (req: Request) => {
 
       return json(200, {
         ok: true,
-        runId: String(claims.run_id),
+        runId,
         staff: { email: emails.staff, password: staffPassword },
         customer: { email: emails.customer, password: customerPassword },
       });
     } catch (error) {
-      for (const userId of created.reverse()) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
-      try {
-        await admin.from("profiles").delete().in("email", [emails.staff, emails.customer]);
-      } catch {
-        // Best effort only; auth deletion normally cascades profile cleanup.
+      for (const userId of created.reverse()) {
+        const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+        if (deleteError) console.error("partial bootstrap auth cleanup failed", userId, deleteError.message);
       }
+      const { error: profileCleanupError } = await admin.from("profiles").delete().in("email", [emails.staff, emails.customer]);
+      if (profileCleanupError) console.error("partial bootstrap profile cleanup failed", profileCleanupError.message);
       throw error;
     }
   } catch (error) {
