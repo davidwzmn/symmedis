@@ -141,7 +141,9 @@ async function clickText(cdp, text, { scopeText = '' } = {}) {
   const found = await cdp.evaluate(`(() => {
     const wanted = ${JSON.stringify(text)};
     const scope = ${JSON.stringify(scopeText)};
-    const roots = scope ? [...document.querySelectorAll('div,li,section,tr')].filter((el) => (el.innerText || '').includes(scope)) : [document.body];
+    const roots = scope
+      ? [...document.querySelectorAll('div,li,section,tr')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
+      : [document.body];
     const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
     const candidates = [...root.querySelectorAll('button,a')];
     const target = candidates.find((el) => el.getAttribute('role') === 'tab' && (el.innerText || '').trim() === wanted)
