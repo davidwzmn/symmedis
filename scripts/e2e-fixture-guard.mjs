@@ -4,6 +4,7 @@ const FIXTURE_PROJECT_ID = 'a551b1c8-55d0-4a90-8897-1408e7a08bac'
 const STAFF_TASK_ID = '72e4af65-806c-44ad-9e03-4f5393a97d19'
 const CUSTOMER_TASK_ID = '9d0d9f33-0ce2-4b8c-9d67-4f27791913c5'
 const ANALYSIS_ITEM_ID = '63e6f8df-c28b-4cc2-9a72-dc9750746f0e'
+const INTERNAL_NOTE_CANARY = 'E2E: Diese interne Notiz darf niemals im Kundenportal erscheinen.'
 const RESET_CONFIRMATION = 'RESET_SYMMEDIS_E2E'
 const failures = []
 
@@ -22,10 +23,14 @@ const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap, authBrowserE2e, cu
 ])
 
 for (const value of [
-  FIXTURE_PROJECT_ID, STAFF_TASK_ID, CUSTOMER_TASK_ID, ANALYSIS_ITEM_ID, RESET_CONFIRMATION,
+  FIXTURE_PROJECT_ID, STAFF_TASK_ID, CUSTOMER_TASK_ID, ANALYSIS_ITEM_ID, INTERNAL_NOTE_CANARY, RESET_CONFIRMATION,
+  'INTERNAL_NOTE_ID = "a9874539-3aeb-4db4-a78d-3036925f0698"',
   'FIXTURE_VERSION = 1', 'fixture_version', 'allow_mutating_e2e', 'e2e_fixture', 'STAFF_ROLES',
   'delete().eq("project_id", FIXTURE_PROJECT_ID)', 'fixture.tasks.length === 2',
   'fixture.analysis.length === 1', 'analysisItem?.approval_status === "intern"', 'analysisItem?.customer_visible === false',
+  'admin.from("internal_notes").select("id,author,body")',
+  'deleteInternalNotesError', 'internal note baseline reset',
+  'fixture.internalNotes.length === 1', 'internalNote?.body === INTERNAL_NOTE_MARKER',
   'const ALLOWED_ORIGINS = new Set([', '"https://davidwzmn.github.io"', '"http://127.0.0.1:4176"',
   'ALLOWED_ORIGINS.has(origin) ? origin : "https://davidwzmn.github.io"',
   '"Access-Control-Allow-Methods": "POST, OPTIONS"',
@@ -68,6 +73,8 @@ for (const value of [
 if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(crossRoleWorkflow)) failures.push('Cross-Role-E2E: dauerhafte Staff-/Customer-Passwort-Secrets dürfen nicht zurückkehren.')
 
 for (const value of [
+  'const INTERNAL_NOTE_CANARY =', INTERNAL_NOTE_CANARY,
+  'forbiddenText: INTERNAL_NOTE_CANARY',
   'const expectedBase = new URL(`${BASE_URL}/`)',
   'finalUrl.origin !== expectedBase.origin',
   'finalUrl.pathname !== expectedBase.pathname',
@@ -75,6 +82,9 @@ for (const value of [
   'Kernnavigation vollständig per UI erreichbar',
 ]) {
   requireText(authBrowserE2e, value, 'secretless auth browser E2E')
+}
+if (/forbiddenText:\s*['"]Interne Notizen['"]/.test(authBrowserE2e)) {
+  failures.push('Secretless Auth E2E: generischer Wortfilter "Interne Notizen" darf den echten Daten-Canary nicht ersetzen.')
 }
 
 for (const value of [
@@ -133,9 +143,10 @@ if (failures.length) {
 
 console.log('SYMMEDIS E2E Fixture Guard: OK')
 console.log('✓ Eine einzige kanonische secretlose Cross-Role-E2E-Strecke ist maßgeblich')
-console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
+console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding, Draft-Report und internen Privacy-Canary deterministisch')
 console.log('✓ Fixture-CORS ist auf öffentliche Staging-Origin und exakten lokalen CI-Origin begrenzt; kein Wildcard-CORS')
 console.log('✓ Fixture-Report-Inspect sortiert ausschließlich über reale, stabile Spalten')
+console.log('✓ Interne Notizen werden über einen echten Daten-Canary statt einen mehrdeutigen Wortfilter auf Kundenleaks geprüft')
 console.log('✓ Customer-Uploads werden serverseitig kanonisiert; fehlgeschlagene Registrierungen bleiben eng begrenzt aufräumbar')
 console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
 console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
