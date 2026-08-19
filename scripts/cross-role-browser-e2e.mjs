@@ -144,7 +144,9 @@ async function clickText(cdp, text, { scopeText = '' } = {}) {
     const roots = scope ? [...document.querySelectorAll('div,li,section,tr')].filter((el) => (el.innerText || '').includes(scope)) : [document.body];
     const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
     const candidates = [...root.querySelectorAll('button,a')];
-    const target = candidates.find((el) => (el.innerText || '').trim() === wanted) || candidates.find((el) => (el.innerText || '').includes(wanted));
+    const target = candidates.find((el) => el.getAttribute('role') === 'tab' && (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').trim() === wanted)
+      || candidates.find((el) => (el.innerText || '').includes(wanted));
     if (!target) return false;
     target.click(); return true;
   })()`)
