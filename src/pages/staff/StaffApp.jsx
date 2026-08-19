@@ -37,20 +37,20 @@ export function StaffApp() {
   if (!session || session.rolle !== 'intern') return <Navigate to="/login?rolle=intern" replace />
 
   const nav = [
-    { id: 'uebersicht', label: 'Übersicht', to: '/intern/uebersicht', icon: IconGrid },
-    { id: 'anfragen', label: 'Website-Anfragen', to: '/intern/anfragen', icon: IconMail },
-    { id: 'kunden', label: 'Kunden', to: '/intern/kunden', icon: IconBuilding },
-    { id: 'analysen', label: 'Analysen', to: '/intern/analysen', icon: IconChart },
-    { id: 'freigaben', label: 'Freigaben', to: '/intern/freigaben', icon: IconShield, badge: kennzahlen.offeneFreigaben, badgeTone: 'warn' },
-    { id: 'aufgaben', label: 'Aufgaben', to: '/intern/aufgaben', icon: IconCheckSquare, badge: kennzahlen.ueberfaellig, badgeTone: 'urgent' },
-    { id: 'dokumente', label: 'Dokumente', to: '/intern/dokumente', icon: IconFolder, badge: kennzahlen.neueDokumente, badgeTone: 'info' },
-    { id: 'social', label: 'Social Media', to: '/intern/social', icon: IconShare },
-    { id: 'berichte', label: 'Berichte', to: '/intern/berichte', icon: IconDocument },
-    { id: 'termine', label: 'Termine', to: '/intern/termine', icon: IconCalendar },
-    { id: 'posteingang', label: 'Posteingang', to: '/intern/posteingang', icon: IconChat },
-    { id: 'team', label: 'Team', to: '/intern/team', icon: IconUsers },
-    { id: 'verlauf', label: 'Aktivitäten', to: '/intern/verlauf', icon: IconHistory },
-    { id: 'einstellungen', label: 'Einstellungen', to: '/intern/einstellungen', icon: IconSettings },
+    { id: 'uebersicht', label: 'Übersicht', to: '/intern/uebersicht', icon: IconGrid, section: 'Steuerung' },
+    { id: 'freigaben', label: 'Freigaben', to: '/intern/freigaben', icon: IconShield, badge: kennzahlen.offeneFreigaben, badgeTone: 'warn', section: 'Steuerung' },
+    { id: 'aufgaben', label: 'Aufgaben', to: '/intern/aufgaben', icon: IconCheckSquare, badge: kennzahlen.ueberfaellig, badgeTone: 'urgent', section: 'Steuerung' },
+    { id: 'posteingang', label: 'Posteingang', to: '/intern/posteingang', icon: IconChat, section: 'Steuerung' },
+    { id: 'kunden', label: 'Kunden', to: '/intern/kunden', icon: IconBuilding, section: 'Projektarbeit' },
+    { id: 'analysen', label: 'Analysen', to: '/intern/analysen', icon: IconChart, section: 'Projektarbeit' },
+    { id: 'dokumente', label: 'Dokumente', to: '/intern/dokumente', icon: IconFolder, badge: kennzahlen.neueDokumente, badgeTone: 'info', section: 'Projektarbeit' },
+    { id: 'berichte', label: 'Berichte', to: '/intern/berichte', icon: IconDocument, section: 'Projektarbeit' },
+    { id: 'social', label: 'Social Media', to: '/intern/social', icon: IconShare, section: 'Projektarbeit' },
+    { id: 'termine', label: 'Termine', to: '/intern/termine', icon: IconCalendar, section: 'Projektarbeit' },
+    { id: 'anfragen', label: 'Website-Anfragen', to: '/intern/anfragen', icon: IconMail, section: 'Organisation' },
+    { id: 'team', label: 'Team', to: '/intern/team', icon: IconUsers, section: 'Organisation' },
+    { id: 'verlauf', label: 'Aktivitäten', to: '/intern/verlauf', icon: IconHistory, section: 'Organisation' },
+    { id: 'einstellungen', label: 'Einstellungen', to: '/intern/einstellungen', icon: IconSettings, section: 'Organisation' },
   ]
 
   return (
