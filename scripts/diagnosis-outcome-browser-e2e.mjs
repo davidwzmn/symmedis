@@ -29,7 +29,7 @@ async function waitFor(fn, timeoutMs = 30000, intervalMs = 200) {
     } catch (error) { lastError = error }
     await sleep(intervalMs)
   }
-  throw lastError || new Error(`Zeitüberschreitung nach ${timeoutMs} ms`)
+  throw lastError || new Error(`Zeitüberschitung nach ${timeoutMs} ms`)
 }
 
 class Cdp {
@@ -140,6 +140,21 @@ async function fixture(staffCdp, action, extra = {}) {
 
 async function assertBody(cdp, text) {
   await waitFor(() => cdp.evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`))
+}
+
+async function assertMetricVisibleOrExplain(cdp) {
+  await waitFor(async () => {
+    const state = await cdp.evaluate(`({
+      body: document.body.innerText,
+      metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
+      addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
+      loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden')
+    })`)
+    if (state.addFailed || state.loadFailed) {
+      throw new Error(`Messpunkt-UI meldet Fehler vor dem Rendern: ${String(state.body).slice(-1600)}`)
+    }
+    return state.metricVisible ? state : null
+  }, 12000, 200)
 }
 
 async function assertBodyMissing(cdp, text) {
@@ -275,7 +290,7 @@ async function run() {
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
     await assertBody(staff.cdp, 'Tag 30')
     await pointerClickText(staff.cdp, 'Messpunkt +', 'Tag 30')
-    await assertBody(staff.cdp, METRIC_LABEL)
+    await assertMetricVisibleOrExplain(staff.cdp)
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
     await pointerClickText(staff.cdp, 'Messpunkt speichern')
