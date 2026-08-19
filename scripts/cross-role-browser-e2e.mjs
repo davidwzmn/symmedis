@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -42,7 +42,6 @@ class Cdp {
     this.ws = new WebSocket(url)
     this.nextId = 1
     this.pending = new Map()
-    this.events = []
   }
 
   async ready() {
@@ -53,14 +52,11 @@ class Cdp {
       this.ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Chrome DevTools WebSocket-Fehler.')) }, { once: true })
       this.ws.addEventListener('message', (event) => {
         const message = JSON.parse(String(event.data))
-        if (message.id && this.pending.has(message.id)) {
-          const { resolve: done, reject: fail } = this.pending.get(message.id)
-          this.pending.delete(message.id)
-          if (message.error) fail(new Error(message.error.message || 'CDP-Fehler'))
-          else done(message.result)
-          return
-        }
-        if (message.method) this.events.push(message)
+        if (!message.id || !this.pending.has(message.id)) return
+        const { resolve: done, reject: fail } = this.pending.get(message.id)
+        this.pending.delete(message.id)
+        if (message.error) fail(new Error(message.error.message || 'CDP-Fehler'))
+        else done(message.result)
       })
     })
   }
@@ -91,20 +87,18 @@ async function pageWebSocket(port) {
   }, 12000)
 }
 
-async function startBrowser({ name, port, profileDir, loginPath }) {
+async function startBrowser({ port, profileDir, loginPath }) {
   const chrome = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
     '--window-size=1440,1000', `--remote-debugging-port=${port}`, `--user-data-dir=${profileDir}`,
     `${BASE_URL}${loginPath}`,
   ], { stdio: ['ignore', 'ignore', 'pipe'] })
-  let stderr = ''
-  chrome.stderr.on('data', (chunk) => { stderr += String(chunk) })
   const cdp = new Cdp(await pageWebSocket(port))
   await cdp.ready()
   await cdp.send('Runtime.enable')
   await cdp.send('Page.enable')
   await cdp.send('DOM.enable')
-  return { name, chrome, cdp, stderr: () => stderr }
+  return { chrome, cdp }
 }
 
 async function login(cdp, { email, password, expectedPath, label }) {
@@ -138,9 +132,7 @@ async function fixture(staffCdp, action, extra = {}) {
     const token = session.access_token || '';
     if (!token) throw new Error('Keine Staff-Session für Fixture-Aufruf.');
     const response = await fetch('${SUPABASE_URL}/functions/v1/e2e-fixture', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: ${JSON.stringify(payload)}
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: ${JSON.stringify(payload)}
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error('Fixture ' + ${JSON.stringify(action)} + ' fehlgeschlagen: ' + (body.error || response.status));
@@ -157,8 +149,7 @@ async function clickText(cdp, text, { scopeText = '' } = {}) {
     const candidates = [...root.querySelectorAll('button,a')];
     const target = candidates.find((el) => (el.innerText || '').trim() === wanted) || candidates.find((el) => (el.innerText || '').includes(wanted));
     if (!target) return false;
-    target.click();
-    return true;
+    target.click(); return true;
   })()`)
   if (!found) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
@@ -171,8 +162,7 @@ async function clickRoute(cdp, path) {
       return href === path || new URL(item.href, location.href).pathname === path;
     });
     if (!link) return false;
-    link.click();
-    return true;
+    link.click(); return true;
   })()`)
   if (!clicked) throw new Error(`Navigationslink fehlt: ${path}`)
   await waitFor(() => cdp.evaluate(`location.pathname === ${JSON.stringify(path)}`))
@@ -201,10 +191,8 @@ async function waitForDownloadedFile(dir, expectedName) {
 }
 
 async function assertCustomerTaskOwnership(customerCdp) {
-  await clickRoute(customerCdp, '/portal/aufgaben')
   await assertBody(customerCdp, CUSTOMER_TASK_TITLE)
   await assertBody(customerCdp, STAFF_TASK_TITLE)
-
   const ownership = await customerCdp.evaluate(`(() => {
     const findButton = (title) => [...document.querySelectorAll('button[aria-label]')].find((button) => (button.getAttribute('aria-label') || '').includes(title));
     const customer = findButton(${JSON.stringify(CUSTOMER_TASK_TITLE)});
@@ -213,7 +201,6 @@ async function assertCustomerTaskOwnership(customerCdp) {
   })()`)
   if (!ownership.customerExists || ownership.customerDisabled) throw new Error('Customer-E2E: kundenverantwortliche Aufgabe ist nicht änderbar.')
   if (!ownership.staffExists || !ownership.staffDisabled) throw new Error('Customer-E2E: SYMMEDIS-Aufgabe ist für Kunden nicht read-only.')
-
   const clicked = await customerCdp.evaluate(`(() => {
     const button = [...document.querySelectorAll('button[aria-label]')].find((item) => (item.getAttribute('aria-label') || '').includes(${JSON.stringify(CUSTOMER_TASK_TITLE)}));
     if (!button || button.disabled) return false;
@@ -248,31 +235,30 @@ async function staffFinalizeReport(staffCdp) {
 
 async function run() {
   if (!CHROME) throw new Error('CHROME_BIN fehlt.')
-  if (!STAFF_EMAIL || !STAFF_PASSWORD || !CUSTOMER_EMAIL || !CUSTOMER_PASSWORD) {
-    throw new Error('Cross-Role-E2E benötigt E2E_STAFF_* und E2E_CUSTOMER_* vollständig.')
-  }
+  if (!STAFF_EMAIL || !STAFF_PASSWORD || !CUSTOMER_EMAIL || !CUSTOMER_PASSWORD) throw new Error('Cross-Role-E2E benötigt E2E_STAFF_* und E2E_CUSTOMER_* vollständig.')
 
   const rootDir = await mkdtemp(join(tmpdir(), 'symmedis-cross-role-'))
   const staffDir = join(rootDir, 'staff')
   const customerDir = join(rootDir, 'customer')
   const downloadDir = join(rootDir, 'downloads')
   const uploadPath = join(rootDir, UPLOAD_NAME)
-  await Promise.all([import('node:fs/promises').then(({ mkdir }) => mkdir(staffDir, { recursive: true })), import('node:fs/promises').then(({ mkdir }) => mkdir(customerDir, { recursive: true })), import('node:fs/promises').then(({ mkdir }) => mkdir(downloadDir, { recursive: true }))])
+  await Promise.all([mkdir(staffDir, { recursive: true }), mkdir(customerDir, { recursive: true }), mkdir(downloadDir, { recursive: true })])
   await writeFile(uploadPath, `SYMMEDIS CROSS ROLE E2E\n${new Date().toISOString()}\n`, 'utf8')
 
   let staff
   let customer
   try {
-    staff = await startBrowser({ name: 'staff', port: 9260, profileDir: staffDir, loginPath: '/login?rolle=intern' })
-    customer = await startBrowser({ name: 'customer', port: 9261, profileDir: customerDir, loginPath: '/login?rolle=kunde' })
+    staff = await startBrowser({ port: 9260, profileDir: staffDir, loginPath: '/login?rolle=intern' })
     await login(staff.cdp, { email: STAFF_EMAIL, password: STAFF_PASSWORD, expectedPath: '/intern/', label: 'Staff' })
-    await login(customer.cdp, { email: CUSTOMER_EMAIL, password: CUSTOMER_PASSWORD, expectedPath: '/portal/', label: 'Customer' })
-
     const reset = await fixture(staff.cdp, 'reset', { confirm: FIXTURE_CONFIRM })
     if (!reset.reset) throw new Error('Cross-Role-E2E: Preflight-Reset wurde nicht bestätigt.')
     console.log('✓ Fixture-Baseline vollständig hergestellt')
 
-    await customer.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/portal/aufgaben`)}); true`)
+    customer = await startBrowser({ port: 9261, profileDir: customerDir, loginPath: '/login?rolle=kunde' })
+    await login(customer.cdp, { email: CUSTOMER_EMAIL, password: CUSTOMER_PASSWORD, expectedPath: '/portal/', label: 'Customer' })
+    await assertBody(customer.cdp, 'SYMMEDIS Staging Lab')
+
+    await clickRoute(customer.cdp, '/portal/aufgaben')
     await assertCustomerTaskOwnership(customer.cdp)
     await waitFor(async () => {
       const state = await fixture(staff.cdp, 'inspect')
