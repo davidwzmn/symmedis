@@ -11,6 +11,7 @@ import { Button, Chip } from '../ui/primitives.jsx'
 import { Card, CardBody, CardHeader, Banner, EmptyState } from '../ui/layout.jsx'
 import { ProgressBar } from '../ui/data.jsx'
 import { IconCheck, IconRoute, IconTarget, IconUser, IconUsers } from '../ui/Icons.jsx'
+import { FindingOutcomeMeasurements } from './FindingOutcomeMeasurements.jsx'
 
 const STANDARD_PRIORITAET = { label: 'Nicht klassifiziert', tone: 'neutral' }
 
@@ -132,6 +133,8 @@ export function PlanModule({ kunde, rolle = 'kunde', onAufgaben }) {
           </div>
         </>
       )}
+
+      <FindingOutcomeMeasurements kunde={kunde} rolle={rolle} />
 
       <Card>
         <CardHeader title="Woraus der Plan abgeleitet ist" subtitle="Die drei größten Umsatzbremsen" />
