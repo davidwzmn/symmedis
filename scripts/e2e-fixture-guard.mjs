@@ -30,7 +30,7 @@ for (const value of [
 
 for (const value of [
   STAFF_TASK_ID, CUSTOMER_TASK_ID, ANALYSIS_ITEM_ID,
-  'Staff-Aufgabenstatus über echten autorisierten RPC persistiert',
+  'Staff-Aufgabenstatus über spaltenbeschränktes RLS-Update persistiert und auditierbar',
   'Human-Review-Finding kontrolliert für den Kunden freigegeben',
   'Internes Staff-Dokument hochgeladen und authentifiziert wieder heruntergeladen',
   'Customer-E2E: SYMMEDIS-Aufgabe ist für Kunden nicht read-only.',
