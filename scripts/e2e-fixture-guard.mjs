@@ -12,11 +12,12 @@ function requireText(content, value, label) {
   if (!content.includes(value)) failures.push(`${label}: fehlt: ${value}`)
 }
 
-const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap] = await Promise.all([
+const [fn, crossRoleScript, crossRoleWorkflow, oidcBootstrap, authBrowserE2e] = await Promise.all([
   text('supabase/functions/e2e-fixture/index.ts'),
   text('scripts/cross-role-browser-e2e.mjs'),
   text('.github/workflows/cross-role-e2e.yml'),
   text('supabase/functions/e2e-auth-bootstrap/index.ts'),
+  text('scripts/auth-browser-e2e.mjs'),
 ])
 
 for (const value of [
@@ -42,8 +43,10 @@ for (const value of [
 ]) {
   requireText(crossRoleScript, value, 'cross-role browser E2E')
 }
+
 for (const value of [
   'id-token: write', 'workflow_dispatch:', 'npm run build', 'scripts/cross-role-browser-e2e.mjs',
+  'scripts/auth-browser-e2e.mjs', 'E2E_REQUIRE_AUTH="true"', 'symmedis-auth-e2e.log',
   'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'audience=symmedis-e2e-bootstrap',
   'functions/v1/e2e-auth-bootstrap', '\\"action\\":\\"bootstrap\\"', '\\"action\\":\\"cleanup\\"',
   'GITHUB_RUN_ID', 'cancel-in-progress: false',
@@ -51,6 +54,16 @@ for (const value of [
   requireText(crossRoleWorkflow, value, 'cross-role E2E workflow')
 }
 if (/secrets\.E2E_(?:STAFF|CUSTOMER)/.test(crossRoleWorkflow)) failures.push('Cross-Role-E2E: dauerhafte Staff-/Customer-Passwort-Secrets dürfen nicht zurückkehren.')
+
+for (const value of [
+  'const expectedBase = new URL(`${BASE_URL}/`)',
+  'finalUrl.origin !== expectedBase.origin',
+  'finalUrl.pathname !== expectedBase.pathname',
+  'Logout hat die App-Basis verlassen',
+  'Kernnavigation vollständig per UI erreichbar',
+]) {
+  requireText(authBrowserE2e, value, 'secretless auth browser E2E')
+}
 
 for (const value of [
   'https://token.actions.githubusercontent.com', '.well-known/jwks',
@@ -64,8 +77,8 @@ for (const value of [
   requireText(oidcBootstrap, value, 'E2E OIDC Bootstrap')
 }
 
-if (/service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleScript) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleWorkflow)) {
-  failures.push('E2E: Service-Role-Secrets dürfen weder Browser-Skript noch GitHub-Workflow erreichen.')
+if (/service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleScript) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(crossRoleWorkflow) || /service[_-]?role|SUPABASE_SERVICE_ROLE_KEY/i.test(authBrowserE2e)) {
+  failures.push('E2E: Service-Role-Secrets dürfen weder Browser-Skripte noch GitHub-Workflow erreichen.')
 }
 if (!/SUPABASE_SERVICE_ROLE_KEY/.test(oidcBootstrap)) failures.push('OIDC Bootstrap: privilegierter Auth-Admin-Zugriff muss ausschließlich serverseitig in der Edge Function liegen.')
 if (!/projectId !== FIXTURE_PROJECT_ID/.test(fn)) failures.push('e2e-fixture function muss fremde Project-IDs hart ablehnen.')
@@ -79,9 +92,10 @@ if (failures.length) {
 }
 
 console.log('SYMMEDIS E2E Fixture Guard: OK')
-console.log('✓ Eine einzige kanonische Cross-Role-E2E-Strecke ist maßgeblich')
+console.log('✓ Eine einzige kanonische secretlose Cross-Role-E2E-Strecke ist maßgeblich')
 console.log('✓ Fixture rekonstruiert Staff-/Customer-Aufgaben, Human-Review-Finding und Draft-Report deterministisch')
 console.log('✓ Cross-Role-E2E prüft Staff Task, Human Review, interne Dokumentprivacy, Customer Task/Upload/Download und Report-Handover')
+console.log('✓ Dieselben OIDC-Identitäten prüfen zusätzlich Portal-Navigation und sicheren Logout')
 console.log('✓ Cross-Role-Identitäten entstehen kurzlebig per GitHub OIDC statt aus Passwort-Secrets')
 console.log('✓ OIDC ist auf Repo-ID, Branch, Workflow, Audience und GitHub-hosted Runner begrenzt')
 console.log('✓ Service-Role-Secrets bleiben außerhalb von Browser und GitHub-Workflow')
