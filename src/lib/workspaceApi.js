@@ -111,7 +111,7 @@ export async function fetchTeamDirectory(accessToken) {
   }))
 }
 
-export const persistTaskStatus = (accessToken, id, status) => restRpc('update_task_status', accessToken, { p_task_id: id, p_status: status })
+export const persistTaskStatus = (accessToken, id, status) => restUpdate('tasks', accessToken, `id=eq.${id}`, { status })
 export const persistAnalysisPatch = (accessToken, projectId, categoryId, patch) => restUpdate('analysis_items', accessToken, `project_id=eq.${projectId}&category_id=eq.${encodeURIComponent(categoryId)}`, patch)
 export const persistBlockerStatus = (accessToken, id, status) => restUpdate('growth_blockers', accessToken, `id=eq.${id}`, { status })
 export const persistDocumentVisibility = (accessToken, id, customerVisible) => restUpdate('documents', accessToken, `id=eq.${id}`, { customer_visible: Boolean(customerVisible) })
