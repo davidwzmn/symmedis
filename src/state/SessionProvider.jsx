@@ -78,15 +78,15 @@ export function SessionProvider({ children }) {
     if (!supabaseEnabled) return undefined
 
     let aktiv = true
+
     async function restore() {
       try {
         consumeAuthRedirectSession()
         const gespeichert = readStoredAuthSession()
-        if (!gespeichert?.access_token) return
-        const next = gespeichert.expires_at && gespeichert.expires_at * 1000 <= Date.now() + REFRESH_SAFETY_WINDOW_MS
-          ? await refreshAuthSession(gespeichert.refresh_token)
-          : gespeichert
-        if (aktiv) await applyAuthSession(next)
+        if (!gespeichert?.refresh_token) return
+
+        const erneuert = await refreshAuthSession(gespeichert.refresh_token)
+        if (aktiv) await applyAuthSession(erneuert)
       } catch {
         if (aktiv) clearSession()
       } finally {
@@ -95,38 +95,53 @@ export function SessionProvider({ children }) {
     }
 
     restore()
-    return () => { aktiv = false }
+    return () => {
+      aktiv = false
+    }
   }, [applyAuthSession, clearSession])
 
   useEffect(() => {
-    if (!supabaseEnabled || !authSession?.refresh_token) return undefined
-    const delay = refreshDelay(authSession)
+    if (!supabaseEnabled || !authSession?.refresh_token || !session) return undefined
+
     let aktiv = true
     const timer = window.setTimeout(async () => {
       try {
-        const next = await refreshAuthSession(authSession.refresh_token)
-        if (aktiv) await applyAuthSession(next)
+        const erneuert = await refreshAuthSession(authSession.refresh_token)
+        if (aktiv) await applyAuthSession(erneuert)
       } catch {
         if (aktiv) clearSession()
       }
-    }, delay)
+    }, refreshDelay(authSession))
+
     return () => {
       aktiv = false
       window.clearTimeout(timer)
     }
-  }, [authSession, applyAuthSession, clearSession])
+  }, [authSession, session, applyAuthSession, clearSession])
 
   useEffect(() => {
-    const onStorage = (event) => {
+    if (!supabaseEnabled) return undefined
+
+    const onStorage = async (event) => {
       if (event.key !== SESSION_STORAGE_KEY) return
       if (!event.newValue) {
         setAuthSession(null)
         setSession(null)
+        return
+      }
+
+      try {
+        const nextAuth = JSON.parse(event.newValue)
+        if (!nextAuth?.access_token) return
+        await applyAuthSession(nextAuth)
+      } catch {
+        clearSession()
       }
     }
+
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [applyAuthSession, clearSession])
 
   const anmelden = useCallback(async ({ rolle, email, passwort }) => {
     if (!supabaseEnabled) {
@@ -136,17 +151,22 @@ export function SessionProvider({ children }) {
     }
 
     const nextAuth = await signInWithPassword(email, passwort)
+
     try {
       const next = await applyAuthSession(nextAuth)
+
       if (next.rolle !== rolle && !next.istAdmin) {
-        clearSession()
-        await signOut(nextAuth.access_token)
-        throw new Error('Dieser Zugang gehört nicht zu diesem Portal.')
+        throw new Error(
+          rolle === 'kunde'
+            ? 'Dieser Zugang gehört nicht zum Kundenportal.'
+            : 'Dieser Zugang gehört nicht zum Mitarbeiterportal.',
+        )
       }
+
       return next
     } catch (error) {
-      clearSession()
       await signOut(nextAuth.access_token)
+      clearSession()
       throw error
     }
   }, [applyAuthSession, clearSession])
@@ -157,14 +177,17 @@ export function SessionProvider({ children }) {
     await signOut(accessToken)
   }, [authSession, clearSession])
 
-  const value = useMemo(() => ({
-    session,
-    authSession,
-    authBereit,
-    echteAuthentifizierung: supabaseEnabled,
-    anmelden,
-    abmelden,
-  }), [session, authSession, authBereit, anmelden, abmelden])
+  const value = useMemo(
+    () => ({
+      session,
+      anmelden,
+      abmelden,
+      authBereit,
+      echteAuthentifizierung: supabaseEnabled,
+      accessToken: authSession?.access_token || null,
+    }),
+    [session, anmelden, abmelden, authBereit, authSession],
+  )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
