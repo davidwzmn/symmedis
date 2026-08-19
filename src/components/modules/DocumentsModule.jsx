@@ -129,7 +129,6 @@ export function DocumentsModule({ kunde, rolle = 'kunde' }) {
 
       const erfolgreich = ergebnisse.filter((result) => result.status === 'fulfilled').length
       const fehlgeschlagen = gueltig.length - erfolgreich
-      if (erfolgreich && echteDaten) await neuLaden().catch(() => null)
 
       if (erfolgreich) {
         toast.show({
