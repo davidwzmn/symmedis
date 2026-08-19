@@ -20,8 +20,10 @@ const BUTTON_VARIANTS = {
     'bg-surface text-danger-ink border border-danger-border hover:bg-danger-soft',
   inverse:
     'bg-surface-inverse text-canvas border border-surface-inverse hover:opacity-90',
-  // Für Flächen, die selbst schon invertiert sind (dunkle Karten im Marketing)
-  'on-dark': 'bg-canvas text-ink border border-canvas hover:bg-surface',
+  // CTA auf invertierten Marketingflächen: Lime statt Weiß, damit der Button
+  // in Light- und Dark-Mode klar von seiner Umgebung getrennt bleibt.
+  'on-dark':
+    'bg-cta text-on-cta border border-cta-border hover:bg-cta-hover hover:border-cta-hover active:bg-cta-active font-semibold',
 }
 
 const BUTTON_SIZES = {
