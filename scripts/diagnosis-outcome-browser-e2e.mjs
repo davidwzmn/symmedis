@@ -233,6 +233,36 @@ async function keyboardActivateText(cdp, text, scopeText = '') {
     };
   })()`)
   console.log(`Outcome action probe after ${text}: ${JSON.stringify(after)}`)
+
+  if (text === 'Messpunkt +' && !after.metricVisible && !after.addFailed && !after.loadFailed) {
+    const direct = await cdp.evaluate(`(async () => {
+      const wanted = ${JSON.stringify(text)};
+      const candidates = [...document.querySelectorAll('button,a')];
+      const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
+        || candidates.find((el) => (el.innerText || '').includes(wanted));
+      if (!target) return { invoked: false, reason: 'target_missing' };
+      const reactKey = Object.keys(target).find((key) => key.startsWith('__reactProps$')) || '';
+      const handler = reactKey ? target[reactKey]?.onClick : null;
+      if (typeof handler !== 'function') return { invoked: false, reason: 'handler_missing' };
+      try {
+        const result = handler({ type: 'click', currentTarget: target, target, preventDefault() {}, stopPropagation() {} });
+        if (result && typeof result.then === 'function') await result;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return {
+          invoked: true,
+          metricVisible: document.body.innerText.includes(${JSON.stringify(METRIC_LABEL)}),
+          addFailed: document.body.innerText.includes('Messpunkt konnte nicht angelegt werden'),
+          loadFailed: document.body.innerText.includes('Outcome-Messungen konnten nicht geladen werden'),
+          bodyTail: document.body.innerText.slice(-1200),
+        };
+      } catch (error) {
+        return { invoked: true, error: String(error?.message || error) };
+      }
+    })()`)
+    console.log(`Outcome direct React handler diagnostic ${text}: ${JSON.stringify(direct)}`)
+    throw new Error(`Native Outcome-Aktivierung blieb wirkungslos; direkter React-Handler-Diagnosezustand: ${JSON.stringify(direct)}`)
+  }
+
   return after
 }
 
