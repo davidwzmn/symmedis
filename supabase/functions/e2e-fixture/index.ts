@@ -4,7 +4,10 @@ import { createClient } from "npm:@supabase/supabase-js@2.111.0";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const APP_ORIGIN = "https://davidwzmn.github.io";
+const ALLOWED_ORIGINS = new Set([
+  "https://davidwzmn.github.io",
+  "http://127.0.0.1:4176",
+]);
 const FIXTURE_PROJECT_ID = "a551b1c8-55d0-4a90-8897-1408e7a08bac";
 const FIXTURE_NAME = "Ursachenanalyse – Staging E2E";
 const FIXTURE_VERSION = 1;
@@ -17,8 +20,9 @@ const STAFF_ROLES = new Set(["intern", "admin"]);
 
 function cors(req: Request) {
   const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://davidwzmn.github.io";
   return {
-    "Access-Control-Allow-Origin": origin === APP_ORIGIN ? origin : APP_ORIGIN,
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
