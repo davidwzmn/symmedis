@@ -6,6 +6,7 @@ const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL)
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
 const APP_URL = (import.meta.env.VITE_SITE_URL || DEFAULT_APP_URL).replace(/\/$/, '')
 const AUTH_REDIRECT_URL = APP_URL
+const SIGN_OUT_TIMEOUT_MS = 2500
 
 const STORAGE_KEY = 'symmedis.supabase.session'
 
@@ -109,7 +110,15 @@ export async function refreshAuthSession(refreshToken) {
 }
 
 export async function signOut(accessToken) {
-  if (supabaseEnabled && accessToken) await supabaseRequest('/auth/v1/logout', { method: 'POST', accessToken }).catch(() => null)
+  if (supabaseEnabled && accessToken) {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), SIGN_OUT_TIMEOUT_MS)
+    try {
+      await supabaseRequest('/auth/v1/logout', { method: 'POST', accessToken, signal: controller.signal }).catch(() => null)
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
   storeAuthSession(null)
 }
 
