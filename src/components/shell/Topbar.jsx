@@ -24,6 +24,14 @@ export function Topbar({
   const [menuOffen, setMenuOffen] = useState(false)
   const menuRef = useRef(null)
 
+  const handleLogout = () => {
+    setMenuOffen(false)
+    abmelden()
+    // Vollständiger Seitenwechsel: Sitzungsdaten werden aus dem Speicher entfernt,
+    // bevor die öffentliche Website neu geladen wird.
+    window.location.assign('/')
+  }
+
   // Globale Tastenkombination für die Suche
   useEffect(() => {
     const onKey = (event) => {
@@ -70,6 +78,13 @@ export function Topbar({
             </span>
           ) : null}
 
+          <a
+            href="/"
+            className="hidden h-9 items-center rounded-lg border border-line-strong bg-surface px-3 text-xs font-medium text-ink-2 transition-colors hover:border-brand hover:text-brand-ink sm:inline-flex"
+          >
+            Zur Website
+          </a>
+
           <button
             type="button"
             onClick={() => setSucheOffen(true)}
@@ -108,6 +123,19 @@ export function Topbar({
           </button>
 
           {session ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              aria-label="Abmelden"
+              title="Abmelden"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-line-strong bg-surface px-2.5 text-xs font-medium text-ink-2 transition-colors hover:border-danger-border hover:bg-danger-soft hover:text-danger-ink sm:px-3"
+            >
+              <IconLogout className="size-4 shrink-0" />
+              <span className="hidden xl:inline">Abmelden</span>
+            </button>
+          ) : null}
+
+          {session ? (
             <div className="relative" ref={menuRef}>
               <button
                 type="button"
@@ -128,19 +156,16 @@ export function Topbar({
                       Rolle: {session.rolle === 'kunde' ? 'Kunde' : 'Mitarbeiter'} · Demo-Zugang
                     </p>
                   </div>
+                  <a
+                    href="/"
+                    className="flex w-full items-center px-3.5 py-2.5 text-left text-[0.8125rem] text-ink-2 transition-colors hover:bg-surface-muted hover:text-ink"
+                  >
+                    Zur Website
+                  </a>
                   <button
                     type="button"
-                    onClick={() => {
-                      setMenuOffen(false)
-                      abmelden()
-                      // Bewusst ein vollständiger Seitenwechsel statt einer
-                      // Client-Navigation: beim Abmelden bleibt so garantiert
-                      // nichts aus der Sitzung im Speicher zurück, und der
-                      // Zugriffsschutz der Portalroute kann nicht noch einmal
-                      // rendern und auf den Login umleiten.
-                      window.location.assign('/')
-                    }}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[0.8125rem] text-ink-2 transition-colors hover:bg-surface-muted hover:text-ink"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2.5 border-t border-line px-3.5 py-2.5 text-left text-[0.8125rem] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger-ink"
                   >
                     <IconLogout className="size-4" />
                     Abmelden
