@@ -25,6 +25,9 @@ const ANALYSE_DB_KEYS = {
   beobachtung: 'observation', ursache: 'cause', auswirkung: 'impact', empfehlung: 'recommendation',
   beleg: 'evidence', prioritaet: 'priority', freigabe: 'approval_status', sichtbarKunde: 'customer_visible',
   internNotiz: 'internal_note', kommentar: 'comment',
+  hypothese: 'hypothesis', gegenhypothese: 'counter_hypothesis', evidenzBewertung: 'evidence_assessment',
+  confidenceBegruendung: 'confidence_rationale', intervention: 'intervention', outcomeStatus: 'outcome_status',
+  outcomeNotiz: 'outcome_note', outcomeGemessenAm: 'outcome_measured_at',
 }
 
 function analysePatchFuerDb(patch) {
