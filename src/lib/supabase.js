@@ -36,7 +36,7 @@ function headers(accessToken, json = true, traceparent = null) {
 
 export async function supabaseRequest(path, options = {}) {
   if (!supabaseEnabled) throw new Error('Supabase ist nicht konfiguriert.')
-  const trace = traceContext()
+  const trace = options.trace === false ? null : traceContext()
   const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...options,
     headers: { ...headers(options.accessToken, options.json !== false, trace?.traceparent), ...options.headers },
@@ -55,20 +55,17 @@ export async function supabaseRequest(path, options = {}) {
 
 export async function submitWebsiteLead(payload) {
   if (!supabaseEnabled) throw new Error('Die Anfragefunktion ist derzeit nicht verfügbar.')
-  const trace = traceContext()
   const response = await fetch(`${SUPABASE_URL}/functions/v1/submit-lead`, {
     method: 'POST',
     headers: {
       apikey: SUPABASE_KEY,
       'Content-Type': 'application/json',
-      ...(trace?.traceparent ? { traceparent: trace.traceparent } : {}),
     },
     body: JSON.stringify(payload),
   })
   const data = await response.json().catch(() => null)
   if (!response.ok) {
     const error = new Error(data?.error || 'Die Anfrage konnte gerade nicht gesendet werden.')
-    if (trace?.traceId) error.traceId = trace.traceId
     error.status = response.status
     throw error
   }
@@ -175,7 +172,7 @@ export async function restRpc(functionName, accessToken, args) {
   return supabaseRequest(`/rest/v1/rpc/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(args) })
 }
 export async function invokeEdgeFunction(functionName, accessToken, body) {
-  return supabaseRequest(`/functions/v1/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(body) })
+  return supabaseRequest(`/functions/v1/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(body), trace: false })
 }
 export async function uploadProjectFile(accessToken, path, file) {
   return supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'POST', accessToken, json: false, headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
