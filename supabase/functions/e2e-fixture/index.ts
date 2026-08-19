@@ -106,13 +106,17 @@ Deno.serve(async (req: Request) => {
         { data: documents, error: documentsError },
         { data: versions, error: versionsError },
         { data: internalNotes, error: internalNotesError },
+        { data: knowledgeChunks, error: knowledgeChunksError },
+        { data: auditEvents, error: auditEventsError },
       ] = await Promise.all([
         admin.from("tasks").select("id,title,status,responsible_party").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("analysis_items").select("id,category_id,approval_status,customer_visible,observation").eq("project_id", FIXTURE_PROJECT_ID).order("category_id"),
         admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("report_date").order("id"),
-        admin.from("documents").select("id,name,storage_path,status,source,customer_visible").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("documents").select("id,name,storage_path,status,source,customer_visible,index_status,index_error,indexed_at").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("report_versions").select("id,report_id,version_number,state").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("internal_notes").select("id,author,body").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("knowledge_chunks").select("id,document_id,chunk_index,source_label,content,metadata").eq("project_id", FIXTURE_PROJECT_ID).order("document_id").order("chunk_index"),
+        admin.from("audit_events").select("id,event_type,entity_type,entity_id,summary,metadata,occurred_at").eq("project_id", FIXTURE_PROJECT_ID).eq("event_type", "document.indexed").order("occurred_at", { ascending: false }).limit(20),
       ]);
       assertAdminResult(tasksError, "tasks inspect");
       assertAdminResult(analysisError, "analysis inspect");
@@ -120,9 +124,18 @@ Deno.serve(async (req: Request) => {
       assertAdminResult(documentsError, "documents inspect");
       assertAdminResult(versionsError, "versions inspect");
       assertAdminResult(internalNotesError, "internal notes inspect");
+      assertAdminResult(knowledgeChunksError, "knowledge chunks inspect");
+      assertAdminResult(auditEventsError, "audit events inspect");
       return {
         project: { id: project.id, name: project.name, fixtureVersion: FIXTURE_VERSION },
-        tasks: tasks || [], analysis: analysis || [], reports: reports || [], documents: documents || [], reportVersions: versions || [], internalNotes: internalNotes || [],
+        tasks: tasks || [],
+        analysis: analysis || [],
+        reports: reports || [],
+        documents: documents || [],
+        reportVersions: versions || [],
+        internalNotes: internalNotes || [],
+        knowledgeChunks: knowledgeChunks || [],
+        auditEvents: auditEvents || [],
       };
     };
 
@@ -154,69 +167,38 @@ Deno.serve(async (req: Request) => {
     assertAdminResult(deleteInternalNotesError, "internal notes canonical reset");
 
     const { error: tasksBaselineError } = await admin.from("tasks").insert([
-      {
-        id: STAFF_TASK_ID, project_id: FIXTURE_PROJECT_ID, phase_id: "30", category_id: null,
-        title: "Staging: Onboarding-Flow vollständig prüfen", responsible_party: "symmedis", assignee_name: "SYMMEDIS",
-        priority: "mittel", status: "offen", due_date: "2026-08-20", kpi: "E2E Staff Flow",
-      },
-      {
-        id: CUSTOMER_TASK_ID, project_id: FIXTURE_PROJECT_ID, phase_id: "30", category_id: null,
-        title: "Staging: Kunden-Aufgabe vollständig prüfen", responsible_party: "kunde", assignee_name: "E2E Customer",
-        priority: "mittel", status: "offen", due_date: "2026-08-21", kpi: "E2E Statuswechsel",
-      },
+      { id: STAFF_TASK_ID, project_id: FIXTURE_PROJECT_ID, phase_id: "30", category_id: null, title: "Staging: Onboarding-Flow vollständig prüfen", responsible_party: "symmedis", assignee_name: "SYMMEDIS", priority: "mittel", status: "offen", due_date: "2026-08-20", kpi: "E2E Staff Flow" },
+      { id: CUSTOMER_TASK_ID, project_id: FIXTURE_PROJECT_ID, phase_id: "30", category_id: null, title: "Staging: Kunden-Aufgabe vollständig prüfen", responsible_party: "kunde", assignee_name: "E2E Customer", priority: "mittel", status: "offen", due_date: "2026-08-21", kpi: "E2E Statuswechsel" },
     ]);
     assertAdminResult(tasksBaselineError, "tasks baseline reset");
 
     const { error: analysisBaselineError } = await admin.from("analysis_items").insert({
-      id: ANALYSIS_ITEM_ID,
-      project_id: FIXTURE_PROJECT_ID,
-      category_id: "positionierung",
-      score: 42,
+      id: ANALYSIS_ITEM_ID, project_id: FIXTURE_PROJECT_ID, category_id: "positionierung", score: 42,
       observation: "E2E: Positionierungs-Finding wartet auf Kundenfreigabe.",
       cause: "E2E: Die Positionierung ist im Testfall bewusst noch nicht vollständig geschärft.",
       impact: "E2E: Der Test prüft den kontrollierten Human-Review-Handover.",
       recommendation: "E2E: Finding nach menschlicher Prüfung für den Kunden freigeben.",
-      evidence: "E2E-Fixture · kontrollierter Testbeleg",
-      priority: "hoch",
-      approval_status: "intern",
-      customer_visible: false,
-      internal_note: "Nur E2E-Fixture; niemals für reale Kunden verwenden.",
-      comment: "",
-      confidence: 88,
-      evidence_sources: [{ type: "fixture", label: "E2E Testbeleg" }],
-      impact_currency: "EUR",
-      impact_basis: "E2E-only, kein realer wirtschaftlicher Impact",
-      impact_verified: false,
+      evidence: "E2E-Fixture · kontrollierter Testbeleg", priority: "hoch", approval_status: "intern", customer_visible: false,
+      internal_note: "Nur E2E-Fixture; niemals für reale Kunden verwenden.", comment: "", confidence: 88,
+      evidence_sources: [{ type: "fixture", label: "E2E Testbeleg" }], impact_currency: "EUR",
+      impact_basis: "E2E-only, kein realer wirtschaftlicher Impact", impact_verified: false,
     });
     assertAdminResult(analysisBaselineError, "analysis baseline reset");
 
     const { error: reportBaselineError } = await admin.from("reports").insert({
-      id: REPORT_ID,
-      project_id: FIXTURE_PROJECT_ID,
-      title: "Staging Report – nicht freigeben",
-      report_type: "Executive Diagnosis",
-      pages: 0,
-      state: "entwurf",
-      report_date: "2026-08-17",
-      author: "SYMMEDIS Team",
-      storage_path: null,
-      generated_from_analysis_run_id: null,
-      executive_summary: "Interner Testdatensatz. Keine Kundenfreigabe.",
+      id: REPORT_ID, project_id: FIXTURE_PROJECT_ID, title: "Staging Report – nicht freigeben", report_type: "Executive Diagnosis",
+      pages: 0, state: "entwurf", report_date: "2026-08-17", author: "SYMMEDIS Team", storage_path: null,
+      generated_from_analysis_run_id: null, executive_summary: "Interner Testdatensatz. Keine Kundenfreigabe.",
       content: { staging: true, customer_release: false },
     });
     assertAdminResult(reportBaselineError, "report baseline reset");
 
     const { error: internalNoteBaselineError } = await admin.from("internal_notes").insert({
-      id: INTERNAL_NOTE_ID,
-      project_id: FIXTURE_PROJECT_ID,
-      author: "SYMMEDIS E2E",
-      body: INTERNAL_NOTE_MARKER,
-      created_by: null,
+      id: INTERNAL_NOTE_ID, project_id: FIXTURE_PROJECT_ID, author: "SYMMEDIS E2E", body: INTERNAL_NOTE_MARKER, created_by: null,
     });
     assertAdminResult(internalNoteBaselineError, "internal note baseline reset");
 
-    // Audit-Ereignisse sind bewusst append-only. Ein Fixture-Reset setzt nur den
-    // fachlichen Testzustand zurück; historische E2E-Auditspuren bleiben erhalten.
+    // Audit-Ereignisse sind bewusst append-only. Ein Fixture-Reset setzt nur den fachlichen Testzustand zurück.
     const fixture = await inspect();
     const baselineTasks = new Map(fixture.tasks.map((task: { id: string; status: string; responsible_party: string }) => [task.id, task]));
     const staffTask = baselineTasks.get(STAFF_TASK_ID);
@@ -230,7 +212,7 @@ Deno.serve(async (req: Request) => {
       && fixture.analysis.length === 1 && analysisItem?.approval_status === "intern" && analysisItem?.customer_visible === false
       && fixture.reports.length === 1 && report?.state === "entwurf"
       && fixture.internalNotes.length === 1 && internalNote?.body === INTERNAL_NOTE_MARKER
-      && fixture.documents.length === 0 && fixture.reportVersions.length === 0;
+      && fixture.documents.length === 0 && fixture.reportVersions.length === 0 && fixture.knowledgeChunks.length === 0;
     if (!resetValid) return json(req, 500, { error: "fixture_reset_incomplete", fixture });
 
     return json(req, 200, { ok: true, reset: true, fixture });
