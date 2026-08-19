@@ -127,6 +127,24 @@ for (const signature of ['Auf einen Blick', 'Wo stehen wir, was bremst, was jetz
   if (!projectDashboard.includes(signature)) fail(`Kundenportal: Executive Snapshot darf nicht regressieren: ${signature}`)
 }
 
+const ciWorkflow = await text('.github/workflows/ci.yml')
+for (const signature of [
+  'uses: actions/upload-pages-artifact@v4',
+  'uses: actions/deploy-pages@v4',
+  'pages: write',
+  'id-token: write',
+  'name: github-pages',
+  'symmedis/live-staging',
+]) {
+  if (!ciWorkflow.includes(signature)) fail(`Release-Infrastruktur: offizieller GitHub-Pages-Vertrag fehlt: ${signature}`)
+}
+if (/push\s+(?:--force\s+)?origin\s+HEAD:gh-pages/.test(ciWorkflow)) {
+  fail('Release-Infrastruktur: GitHub Actions darf nicht wieder per Bot-Push auf gh-pages deployen; Pages muss über deploy-pages laufen.')
+}
+if (ciWorkflow.includes('Publish live staging to gh-pages')) {
+  fail('Release-Infrastruktur: der alte gh-pages-Bot-Publish-Schritt darf nicht zurückkehren.')
+}
+
 const growthVisual = await text('src/pages/marketing/GrowthSystemVisual.jsx')
 for (const signature of ['BEISPIEL · DIAGNOSE', 'Mehrere Quellen bestätigt', 'Nächster Schritt']) {
   if (!growthVisual.includes(signature)) fail(`Homepage-Visual: erwartete reduzierte Diagnose-Darstellung fehlt: ${signature}`)
@@ -192,6 +210,7 @@ console.log('✓ Demo-Fallback ist explizites Opt-in und eigener Workspace')
 console.log('✓ Demo-/Customer-/Staff-Routen bleiben geschützt und code-gesplittet')
 console.log('✓ Homepage-Hierarchie, CTA-Logik und menschliche Freigabe bleiben geschützt')
 console.log('✓ Portal-Rückkehr, Logout, Staff-Arbeitsfokus und Customer-Executive-Snapshot bleiben geschützt')
+console.log('✓ Offizieller GitHub-Pages-Deploypfad und Live-Staging-Status bleiben geschützt')
 console.log('✓ Globaler Render-Recovery-Pfad bleibt aktiv')
 console.log('✓ Optionale KI bleibt auch im Preview-Server explizit kosten-gesperrt')
 console.log('✓ Customer-Task-, Dokument-, Report- und Storage-Guards bleiben versioniert')
