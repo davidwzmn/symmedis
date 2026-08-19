@@ -20,10 +20,12 @@ const BUTTON_VARIANTS = {
     'bg-surface text-danger-ink border border-danger-border hover:bg-danger-soft',
   inverse:
     'bg-surface-inverse text-canvas border border-surface-inverse hover:opacity-90',
-  // CTA auf invertierten Marketingflächen: Lime statt Weiß, damit der Button
-  // in Light- und Dark-Mode klar von seiner Umgebung getrennt bleibt.
+  // Primärer CTA auf invertierten Marketingflächen: Lime statt Weiß.
   'on-dark':
     'bg-cta text-on-cta border border-cta-border hover:bg-cta-hover hover:border-cta-hover active:bg-cta-active font-semibold',
+  // Sekundäre Aktion auf dunkler Fläche: transparent mit klarer Kontur.
+  'on-dark-secondary':
+    'bg-transparent text-canvas border border-canvas/30 hover:bg-canvas/10 hover:border-canvas/50 active:bg-canvas/15',
 }
 
 const BUTTON_SIZES = {
