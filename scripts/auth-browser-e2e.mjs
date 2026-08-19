@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 const BASE_URL = (process.env.E2E_BASE_URL || 'http://127.0.0.1:4176').replace(/\/$/, '')
 const CHROME = process.env.CHROME_BIN || ''
+const REQUIRE_AUTH = process.env.E2E_REQUIRE_AUTH === 'true'
 
 const scenarios = [
   {
@@ -16,6 +17,12 @@ const scenarios = [
     expectedText: process.env.E2E_STAFF_EXPECTED_TEXT || 'SYMMEDIS Staging Lab',
     requiredTexts: ['Arbeitsfokus', 'Zur Website', 'Abmelden'],
     forbiddenText: 'Geschützter SYMMEDIS-Zugang',
+    routeChecks: [
+      { path: '/intern/aufgaben', requiredTexts: ['Aufgaben', 'Bei SYMMEDIS'] },
+      { path: '/intern/freigaben', requiredTexts: ['Freigaben'] },
+      { path: '/intern/dokumente', requiredTexts: ['Dokumente'] },
+      { path: '/intern/posteingang', requiredTexts: ['Posteingang'] },
+    ],
   },
   {
     name: 'customer',
@@ -26,6 +33,12 @@ const scenarios = [
     expectedText: process.env.E2E_CUSTOMER_EXPECTED_TEXT || '',
     requiredTexts: ['Wo stehen wir, was bremst, was jetzt?', 'Menschlich geprüft'],
     forbiddenText: 'Interne Notizen',
+    routeChecks: [
+      { path: '/portal/aufgaben', requiredTexts: ['Aufgaben', 'Maßnahmen aus dem 90-Tage-Plan'] },
+      { path: '/portal/dokumente', requiredTexts: ['Dokumente', 'Ihre Unterlagen'] },
+      { path: '/portal/berichte', requiredTexts: ['Berichte und Export'] },
+      { path: '/portal/nachrichten', requiredTexts: ['Nachrichten', 'Direkter, geschützter Projektkanal'] },
+    ],
   },
 ]
 
@@ -94,6 +107,35 @@ async function pageWebSocket(port) {
     const pages = await response.json()
     return pages.find((item) => item.type === 'page')?.webSocketDebuggerUrl || null
   }, 12000)
+}
+
+async function assertPageState(cdp, scenario, { expectedPath, requiredTexts = [], forbiddenTexts = [] }) {
+  return waitFor(async () => {
+    const state = await cdp.evaluate(`({ href: location.href, body: document.body.innerText })`)
+    if (!state.href.includes(expectedPath)) return null
+    if (state.body.includes('Workspace konnte nicht geladen werden')) throw new Error(`${scenario.name}: Workspace-Laden ist fehlgeschlagen.`)
+    if (state.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
+    for (const forbiddenText of forbiddenTexts) {
+      if (forbiddenText && state.body.includes(forbiddenText)) {
+        throw new Error(`${scenario.name}: verbotener Inhalt sichtbar: ${forbiddenText}`)
+      }
+    }
+    for (const requiredText of requiredTexts) {
+      if (requiredText && !state.body.includes(requiredText)) return null
+    }
+    return state
+  }, 20000)
+}
+
+async function navigateAndAssert(cdp, scenario, check) {
+  const target = `${BASE_URL}${check.path}`
+  await cdp.evaluate(`location.assign(${JSON.stringify(target)}); true`)
+  await assertPageState(cdp, scenario, {
+    expectedPath: check.path,
+    requiredTexts: check.requiredTexts,
+    forbiddenTexts: [scenario.forbiddenText, ...(check.forbiddenTexts || [])],
+  })
+  console.log(`  ✓ ${scenario.name}: ${check.path}`)
 }
 
 async function runScenario(scenario, port) {
@@ -167,6 +209,8 @@ async function runScenario(scenario, port) {
     if (state.body.includes('Etwas ist schiefgelaufen')) throw new Error(`${scenario.name}: globaler Renderfehler.`)
 
     console.log(`✓ ${scenario.name}: echte Browser-Session, geschützter Workspace und Portal-UX erfolgreich`)
+    for (const check of scenario.routeChecks || []) await navigateAndAssert(cdp, scenario, check)
+    console.log(`✓ ${scenario.name}: Kernnavigation vollständig erreichbar`)
     cdp.close()
   } finally {
     chrome.kill('SIGTERM')
@@ -185,6 +229,12 @@ const configured = scenarios.filter((scenario) => scenario.email && scenario.pas
 const partial = scenarios.filter((scenario) => Boolean(scenario.email) !== Boolean(scenario.password))
 if (partial.length) {
   console.error(`Unvollständige E2E-Credentials für: ${partial.map((scenario) => scenario.name).join(', ')}`)
+  process.exit(1)
+}
+
+if (REQUIRE_AUTH && configured.length !== scenarios.length) {
+  const missing = scenarios.filter((scenario) => !scenario.email || !scenario.password).map((scenario) => scenario.name)
+  console.error(`Authentifizierter Release-Gate ist verpflichtend, aber Credentials fehlen für: ${missing.join(', ')}`)
   process.exit(1)
 }
 
