@@ -159,6 +159,7 @@ async function assertLogout(cdp, scenario) {
   })()`)
   if (!clicked) throw new Error(`${scenario.name}: Logout-Button fehlt.`)
 
+  const expectedBase = new URL(`${BASE_URL}/`)
   await waitFor(async () => {
     const state = await cdp.evaluate(`({
       href: location.href,
@@ -167,11 +168,19 @@ async function assertLogout(cdp, scenario) {
     })`)
     if (state.session.includes('access_token')) return null
     const url = new URL(state.href)
-    if (url.pathname !== '/' && url.pathname !== '') return null
-    if (!state.body.includes('Wachstum stockt selten wegen mangelnder Aktivität')) return null
+    if (url.origin !== ${JSON.stringify('PLACEHOLDER')}) return null
     return state
   }, 20000)
-  console.log(`✓ ${scenario.name}: Logout löscht Session und führt sicher zur Website zurück`)
+
+  const finalState = await cdp.evaluate(`({ href: location.href, body: document.body.innerText })`)
+  const finalUrl = new URL(finalState.href)
+  if (finalUrl.origin !== expectedBase.origin || finalUrl.pathname !== expectedBase.pathname) {
+    throw new Error(`${scenario.name}: Logout hat die App-Basis verlassen: ${finalState.href}`)
+  }
+  if (!finalState.body.includes('Wachstum stockt selten wegen mangelnder Aktivität')) {
+    throw new Error(`${scenario.name}: öffentliche Website nach Logout nicht sichtbar.`)
+  }
+  console.log(`✓ ${scenario.name}: Logout löscht Session und bleibt sicher auf ${expectedBase.pathname}`)
 }
 
 async function runScenario(scenario, port) {
