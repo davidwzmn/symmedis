@@ -12,41 +12,66 @@ const STORAGE_KEY = 'symmedis.supabase.session'
 
 export const supabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_KEY)
 
-function headers(accessToken, json = true) {
+function randomHex(bytes) {
+  const values = new Uint8Array(bytes)
+  crypto.getRandomValues(values)
+  return Array.from(values, (value) => value.toString(16).padStart(2, '0')).join('')
+}
+
+function traceContext() {
+  if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') return null
+  const traceId = randomHex(16)
+  const spanId = randomHex(8)
+  return { traceId, traceparent: `00-${traceId}-${spanId}-01` }
+}
+
+function headers(accessToken, json = true, traceparent = null) {
   return {
     apikey: SUPABASE_KEY,
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(json ? { 'Content-Type': 'application/json' } : {}),
+    ...(traceparent ? { traceparent } : {}),
   }
 }
 
 export async function supabaseRequest(path, options = {}) {
   if (!supabaseEnabled) throw new Error('Supabase ist nicht konfiguriert.')
+  const trace = traceContext()
   const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...options,
-    headers: { ...headers(options.accessToken, options.json !== false), ...options.headers },
+    headers: { ...headers(options.accessToken, options.json !== false, trace?.traceparent), ...options.headers },
   })
   const contentType = response.headers.get('content-type') || ''
   const payload = contentType.includes('application/json') ? await response.json().catch(() => null) : await response.blob().catch(() => null)
   if (!response.ok) {
     const message = payload?.msg || payload?.message || payload?.error_description || payload?.error || 'Anfrage fehlgeschlagen.'
-    throw new Error(message)
+    const error = new Error(message)
+    if (trace?.traceId) error.traceId = trace.traceId
+    error.status = response.status
+    throw error
   }
   return payload
 }
 
 export async function submitWebsiteLead(payload) {
   if (!supabaseEnabled) throw new Error('Die Anfragefunktion ist derzeit nicht verfügbar.')
+  const trace = traceContext()
   const response = await fetch(`${SUPABASE_URL}/functions/v1/submit-lead`, {
     method: 'POST',
     headers: {
       apikey: SUPABASE_KEY,
       'Content-Type': 'application/json',
+      ...(trace?.traceparent ? { traceparent: trace.traceparent } : {}),
     },
     body: JSON.stringify(payload),
   })
   const data = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(data?.error || 'Die Anfrage konnte gerade nicht gesendet werden.')
+  if (!response.ok) {
+    const error = new Error(data?.error || 'Die Anfrage konnte gerade nicht gesendet werden.')
+    if (trace?.traceId) error.traceId = trace.traceId
+    error.status = response.status
+    throw error
+  }
   return data
 }
 
