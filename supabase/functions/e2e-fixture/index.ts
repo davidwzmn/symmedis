@@ -199,13 +199,8 @@ Deno.serve(async (req: Request) => {
     });
     assertAdminResult(reportBaselineError, "report baseline reset");
 
-    const { error: auditResetError } = await admin
-      .from("audit_events")
-      .delete()
-      .eq("project_id", FIXTURE_PROJECT_ID)
-      .in("event_type", ["report.version_published", "task.status_updated", "document.uploaded", "document.visibility_updated"]);
-    assertAdminResult(auditResetError, "audit reset");
-
+    // Audit-Ereignisse sind bewusst append-only. Ein Fixture-Reset setzt nur den
+    // fachlichen Testzustand zurück; historische E2E-Auditspuren bleiben erhalten.
     const fixture = await inspect();
     const baselineTasks = new Map(fixture.tasks.map((task: { id: string; status: string; responsible_party: string }) => [task.id, task]));
     const staffTask = baselineTasks.get(STAFF_TASK_ID);
