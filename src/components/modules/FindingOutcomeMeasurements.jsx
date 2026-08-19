@@ -76,10 +76,13 @@ function outcomeSuggestion(rows) {
 
 function defaultMetric(finding, horizon) {
   const keyBase = String(finding.kategorieId || finding.id || 'finding').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()
+  const nonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10)
   return {
     analysisItemId: finding.id,
     horizonDays: horizon,
-    key: `${keyBase}-${horizon}d`,
+    key: `${keyBase}-${horizon}d-${nonce}`,
     label: 'Wirkungskennzahl',
     unit: '',
     baseline: '',
@@ -96,7 +99,7 @@ function defaultMetric(finding, horizon) {
 }
 
 export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
-  const { accessToken, echteAuthentifizierung } = useSession()
+  const { accessToken, echteAuthentifizierung, session } = useSession()
   const toast = useToast()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
@@ -188,8 +191,13 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
         outcome_status: suggestion.status,
         outcome_measured_at: new Date().toISOString(),
         outcome_note: suggestion.reason,
+        outcome_confidence: Number.isFinite(Number(finding.confidence)) ? Math.round(Number(finding.confidence)) : null,
+        outcome_hypothesis: finding.hypothese || finding.ursache || '',
+        outcome_intervention: finding.intervention || finding.empfehlung || '',
+        outcome_evidence_assessment: Array.isArray(finding.evidenzBewertung) ? finding.evidenzBewertung : [],
+        outcome_reviewed_by: session?.userId || null,
       })
-      toast.show({ title: OUTCOME[suggestion.status], description: 'Der Messdaten-Vorschlag wurde bewusst durch einen Menschen übernommen.', variant: 'success' })
+      toast.show({ title: OUTCOME[suggestion.status], description: 'Outcome und damaliger Diagnosezustand wurden durch den Human Review eingefroren.', variant: 'success' })
     } catch (error) {
       toast.show({ title: 'Outcome konnte nicht übernommen werden', description: error instanceof Error ? error.message : 'Unbekannter Fehler', variant: 'danger' })
     } finally {
