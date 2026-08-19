@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspace } from '../../hooks/useWorkspace.js'
+import { useSession } from '../../hooks/useSession.js'
 import { KATEGORIEN, KATEGORIE_MAP } from '../../data/catalog.js'
 import { scoreStufe, tone } from '../../lib/tone.js'
 import { cn } from '../../lib/cn.js'
+import { restRpc } from '../../lib/supabase.js'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card, CardBody, CardHeader, PageHeader, Banner, EmptyState } from '../../components/ui/layout.jsx'
 import { Segmented } from '../../components/ui/forms.jsx'
@@ -13,6 +15,88 @@ import { IconChart, IconInfo } from '../../components/ui/Icons.jsx'
 function score(value) {
   const zahl = Number(value)
   return Number.isFinite(zahl) ? Math.max(0, Math.min(100, zahl)) : null
+}
+
+function percent(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${number.toLocaleString('de-DE', { maximumFractionDigits: 1 })}%` : '–'
+}
+
+function decimal(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '–'
+}
+
+function DiagnosisQualityCard() {
+  const { accessToken, echteAuthentifizierung } = useSession()
+  const [quality, setQuality] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    if (!echteAuthentifizierung || !accessToken) return undefined
+
+    setLoading(true)
+    setError('')
+    restRpc('get_diagnosis_quality_summary', accessToken, {})
+      .then((result) => { if (!cancelled) setQuality(result || null) })
+      .catch((current) => { if (!cancelled) setError(current instanceof Error ? current.message : 'Diagnosequalität konnte nicht geladen werden.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
+  }, [accessToken, echteAuthentifizierung])
+
+  if (!echteAuthentifizierung) return null
+
+  if (loading) {
+    return <Card><CardHeader title="Historische Diagnosequalität" subtitle="Kalibrierung wird geladen" icon={IconChart} /><CardBody><p className="text-sm text-ink-3" role="status">Outcome-Historie wird ausgewertet …</p></CardBody></Card>
+  }
+
+  if (error) {
+    return <Banner toneName="warn" icon={IconInfo} title="Diagnosequalität derzeit nicht verfügbar">{error}</Banner>
+  }
+
+  if (!quality) return null
+
+  const binaryOutcomes = Number(quality.binaryOutcomes || 0)
+  const measuredFindings = Number(quality.measuredFindings || 0)
+  const totalFindings = Number(quality.totalFindings || 0)
+  const sufficient = binaryOutcomes >= 10
+  const stable = quality.qualityStatus === 'stable'
+
+  return (
+    <Card>
+      <CardHeader
+        title="Historische Diagnosequalität"
+        subtitle="Wie gut waren unsere Confidence-Einschätzungen, nachdem reale Outcomes vorlagen?"
+        icon={IconChart}
+        action={<Chip size="sm" toneName={stable ? 'ok' : sufficient ? 'info' : 'neutral'}>{stable ? 'Belastbare Datenbasis' : sufficient ? 'Frühes Signal' : 'Datenbasis im Aufbau'}</Chip>}
+      />
+      <CardBody className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-line bg-surface-muted p-4"><p className="text-xs text-ink-3">Outcome-Coverage</p><p className="mt-1 tabular text-2xl font-semibold text-ink">{percent(quality.outcomeCoveragePct)}</p><p className="mt-1 text-xs text-ink-3">{measuredFindings} von {totalFindings} Findings mit Outcome</p></div>
+          <div className="rounded-xl border border-line bg-surface-muted p-4"><p className="text-xs text-ink-3">Binäre Outcomes</p><p className="mt-1 tabular text-2xl font-semibold text-ink">{binaryOutcomes}</p><p className="mt-1 text-xs text-ink-3">Nur bestätigt oder widerlegt</p></div>
+          <div className="rounded-xl border border-line bg-surface-muted p-4"><p className="text-xs text-ink-3">Ø Confidence beim Review</p><p className="mt-1 tabular text-2xl font-semibold text-ink">{sufficient ? percent(quality.meanConfidence) : '–'}</p><p className="mt-1 text-xs text-ink-3">Historisch eingefrorener Wert</p></div>
+          <div className="rounded-xl border border-line bg-surface-muted p-4"><p className="text-xs text-ink-3">Bestätigungsrate</p><p className="mt-1 tabular text-2xl font-semibold text-ink">{sufficient ? percent(quality.confirmationRatePct) : '–'}</p><p className="mt-1 text-xs text-ink-3">Keine Wertung bei mixed/unknown</p></div>
+        </div>
+
+        {!sufficient ? (
+          <Banner toneName="neutral" icon={IconInfo} title="Noch keine belastbare Qualitätsaussage">
+            Für Kalibrierungsmetriken benötigt SYMMEDIS mindestens 10 menschlich überprüfte Findings mit eindeutigem Outcome „bestätigt“ oder „widerlegt“. Aktuell sind es {binaryOutcomes}. Bis dahin zeigen wir Coverage, aber keine scheinpräzise Trefferquote.
+          </Banner>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-line p-4"><p className="text-xs font-semibold text-ink">Brier Score</p><p className="mt-1 tabular text-xl font-semibold text-ink">{decimal(quality.brierScore)}</p><p className="mt-1 text-xs leading-relaxed text-ink-3">0 ist ideal. Bestraft selbstsichere Fehlprognosen stärker als vorsichtige Unsicherheit.</p></div>
+            <div className="rounded-xl border border-line p-4"><p className="text-xs font-semibold text-ink">Ø Kalibrierungsfehler</p><p className="mt-1 tabular text-xl font-semibold text-ink">{decimal(quality.meanAbsoluteCalibrationError)}</p><p className="mt-1 text-xs leading-relaxed text-ink-3">Mittlere absolute Abweichung zwischen eingefrorener Confidence und beobachtetem Outcome.</p></div>
+            <div className="rounded-xl border border-line p-4"><p className="text-xs font-semibold text-ink">High-Confidence widerlegt</p><p className="mt-1 tabular text-xl font-semibold text-ink">{percent(quality.highConfidenceRefutedRatePct)}</p><p className="mt-1 text-xs leading-relaxed text-ink-3">Anteil widerlegter Diagnosen unter Findings mit mindestens 75 % Confidence.</p></div>
+          </div>
+        )}
+
+        <p className="text-xs leading-relaxed text-ink-3">Qualität wird ausschließlich aus beim Human Review eingefrorenen Diagnosezuständen berechnet. Spätere Änderungen an Hypothesen oder Confidence schreiben die Vergangenheit nicht um.</p>
+      </CardBody>
+    </Card>
+  )
 }
 
 export function AnalysesPage() {
@@ -39,6 +123,7 @@ export function AnalysesPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Analysen" subtitle="Portfoliovergleich über alle laufenden Kundenprojekte." />
+        <DiagnosisQualityCard />
         <Card><EmptyState icon={IconChart} title="Noch keine Kundenprojekte" description="Sobald der erste Kunden-Tenant mit Analyseprojekt angelegt ist, entsteht hier der organisationsweite Quervergleich." /></Card>
       </div>
     )
@@ -51,6 +136,8 @@ export function AnalysesPage() {
         subtitle={`${kundenMitAnalyse.length} von ${kunden.length} Projekten mit Analysewerten · Quervergleich nur über tatsächlich vorhandene Dimensionen.`}
         actions={<Segmented label="Ansicht wählen" value={ansicht} onChange={setAnsicht} options={[{ value: 'matrix', label: 'Matrix' }, { value: 'mittel', label: 'Portfolio' }]} />}
       />
+
+      <DiagnosisQualityCard />
 
       {schwaechste ? (
         <Banner toneName="info" icon={IconInfo} title="Muster im Portfolio">
