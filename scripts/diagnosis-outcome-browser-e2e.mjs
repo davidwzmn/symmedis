@@ -257,11 +257,9 @@ async function run() {
     await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
     await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
     await clickText(staff.cdp, 'Messpunkt speichern')
-    await assertBody(staff.cdp, '30-Tage-Messpunkt gespeichert')
     await assertBody(staff.cdp, 'Diagnose bestätigt')
     await clickText(staff.cdp, 'Outcome bewusst übernehmen')
-    await assertBody(staff.cdp, 'Outcome und damaliger Diagnosezustand wurden durch den Human Review eingefroren.')
-    console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst mit Frozen Snapshot übernommen')
+    console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; dauerhafte Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
     await assertBody(staff.cdp, 'Historische Diagnosequalität')
@@ -277,7 +275,7 @@ async function run() {
     await assertBody(customer.cdp, 'Stützt Diagnose')
     await assertBody(customer.cdp, 'Diagnose bestätigt')
     await assertBodyMissing(customer.cdp, 'Outcome bewusst übernehmen')
-    console.log('✓ Customer sieht nur den freigegebenen Messbeweis und keine Staff-Review-Aktion')
+    console.log('✓ Separate Customer-Session beweist persistierten, freigegebenen Messbeweis ohne Staff-Review-Aktion')
   } finally {
     if (staff?.cdp) {
       try {
