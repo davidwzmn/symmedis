@@ -122,7 +122,13 @@ async function runScenarioAttempt(scenario, index, attempt) {
     await cdp.send('Runtime.enable')
     await cdp.send('Page.enable')
     await waitFor(() => cdp.evaluate(`document.readyState !== 'loading' && Boolean(document.querySelector('#root'))`), 45000)
-    await cdp.evaluate(`localStorage.setItem('symmedis-theme', ${JSON.stringify(scenario.theme)}); location.reload(); true`)
+
+    if (scenario.theme === 'dark') {
+      await cdp.evaluate(`localStorage.setItem('symmedis-theme', 'dark'); location.reload(); true`)
+      await waitFor(() => cdp.evaluate(`document.readyState !== 'loading' && Boolean(document.querySelector('#root'))`), 45000)
+    } else {
+      await cdp.evaluate(`localStorage.setItem('symmedis-theme', 'light'); document.documentElement.classList.remove('dark'); true`)
+    }
 
     const state = await waitFor(async () => {
       const value = await cdp.evaluate(`(() => {
