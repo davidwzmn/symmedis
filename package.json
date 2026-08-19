@@ -10,7 +10,7 @@
     "preview": "node server/index.mjs",
     "start": "node server/index.mjs",
     "lint": "eslint . --max-warnings=0",
-    "release:guard": "node scripts/release-guard.mjs",
+    "release:guard": "node scripts/release-guard.mjs && node scripts/e2e-fixture-guard.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
