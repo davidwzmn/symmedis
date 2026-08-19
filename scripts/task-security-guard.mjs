@@ -13,27 +13,39 @@ const [migration, workspaceApi, tasksModule] = await Promise.all([
 ])
 
 for (const value of [
-  'public.update_task_status',
-  "p_status not in ('offen', 'in-arbeit', 'erledigt')",
-  "v_task_responsible <> 'kunde'",
-  'for update of t',
-  "'task.status_updated'",
-  "jsonb_build_object(",
+  'drop function if exists public.update_task_status(uuid, text)',
   'revoke update on table public.tasks from authenticated',
-  'revoke all on function public.update_task_status(uuid, text) from anon',
-  'grant execute on function public.update_task_status(uuid, text) to authenticated',
+  'grant update (status) on table public.tasks to authenticated',
+  'create policy tasks_status_update',
+  "p.role in ('intern', 'admin')",
+  "p.role = 'kunde'",
+  "tasks.responsible_party = 'kunde'",
+  'private.audit_task_status_update()',
+  'security definer',
+  "'task.status_updated'",
+  "'from', old.status",
+  "'to', new.status",
+  'before update of status on public.tasks',
+  'revoke all on function private.audit_task_status_update() from authenticated',
 ]) {
   requireText(migration, value, 'Task-Migration')
 }
 
-requireText(workspaceApi, "restRpc('update_task_status'", 'Workspace API')
-if (/restUpdate\('tasks'/.test(workspaceApi)) failures.push('Workspace API: Aufgabenstatus darf nicht per direktem REST UPDATE gespeichert werden.')
+requireText(workspaceApi, "restUpdate('tasks', accessToken, `id=eq.${id}`, { status })", 'Workspace API')
+if (/restRpc\('update_task_status'/.test(workspaceApi)) failures.push('Workspace API: der entfernte öffentliche Task-RPC darf nicht zurückkehren.')
 
 for (const value of [
   "rolle === 'intern' || (rolle === 'kunde' && aufgabe.verantwortlich === 'kunde')",
   'Statuspflege durch SYMMEDIS',
 ]) {
   requireText(tasksModule, value, 'TasksModule')
+}
+
+if (/grant\s+update\s+on\s+(?:table\s+)?public\.tasks\s+to\s+authenticated/i.test(migration)) {
+  failures.push('Task-Migration: authenticated darf kein tabellenweites UPDATE auf tasks erhalten.')
+}
+if (/grant\s+execute\s+on\s+function\s+public\.update_task_status/i.test(migration)) {
+  failures.push('Task-Migration: ein öffentlich ausführbarer Task-Status-RPC darf nicht zurückkehren.')
 }
 
 if (failures.length) {
@@ -43,7 +55,8 @@ if (failures.length) {
 }
 
 console.log('SYMMEDIS Task Security Guard: OK')
-console.log('✓ Aufgabenstatus läuft ausschließlich über den autorisierten RPC')
-console.log('✓ Kundenzugänge können nur kundenverantwortliche Aufgaben verändern')
-console.log('✓ Task-Statuswechsel sind atomar gesperrt und auditierbar')
+console.log('✓ Browserrollen besitzen ausschließlich UPDATE(status) auf Aufgaben')
+console.log('✓ RLS erzwingt Mandant, Rolle und Kunden-Zuständigkeit auf Zeilenebene')
+console.log('✓ Öffentlicher SECURITY-DEFINER-Task-RPC ist entfernt')
+console.log('✓ Statuswechsel werden über einen nicht exponierten privaten Trigger auditierbar')
 console.log('✓ SYMMEDIS-Aufgaben bleiben für Kunden sichtbar, aber read-only')
