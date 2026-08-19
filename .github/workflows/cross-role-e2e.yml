@@ -99,6 +99,13 @@ jobs:
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
           test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           CHROME_BIN="$chrome" E2E_BASE_URL="http://127.0.0.1:4176" node scripts/cross-role-browser-e2e.mjs 2>&1 | tee /tmp/symmedis-cross-role-e2e.log
+      - name: Run diagnosis outcome learning loop
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
+          CHROME_BIN="$chrome" E2E_BASE_URL="http://127.0.0.1:4176" node scripts/diagnosis-outcome-browser-e2e.mjs 2>&1 | tee /tmp/symmedis-diagnosis-outcome-e2e.log
       - name: Run secretless portal navigation and logout smoke
         shell: bash
         run: |
@@ -142,6 +149,7 @@ jobs:
           path: |
             /tmp/symmedis-cross-role-preview.log
             /tmp/symmedis-cross-role-e2e.log
+            /tmp/symmedis-diagnosis-outcome-e2e.log
             /tmp/symmedis-auth-e2e.log
           if-no-files-found: ignore
           retention-days: 7
@@ -157,7 +165,7 @@ jobs:
           description="Secretless cross-role E2E failed"
           if [[ "$JOB_STATUS" == "success" ]]; then
             state="success"
-            description="Secretless cross-role handover, navigation and logout passed"
+            description="Handover, diagnosis outcome loop, navigation and logout passed"
           fi
           target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           payload="$(node -e 'process.stdout.write(JSON.stringify({state:process.argv[1],context:"symmedis/cross-role-e2e",description:process.argv[2],target_url:process.argv[3]}))' "$state" "$description" "$target_url")"
