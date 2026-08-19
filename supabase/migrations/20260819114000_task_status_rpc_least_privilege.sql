@@ -1,100 +1,21 @@
-create or replace function public.update_task_status(p_task_id uuid, p_status text)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_user_id uuid := auth.uid();
-  v_role text;
-  v_client_id uuid;
-  v_org_id uuid;
-  v_task_project_id uuid;
-  v_task_responsible text;
-  v_old_status text;
-  v_project_client_id uuid;
-  v_project_org_id uuid;
-begin
-  if v_user_id is null then
-    raise exception 'Nicht authentifiziert.' using errcode = '42501';
-  end if;
+-- Finaler Least-Privilege-Vertrag für Aufgabenstatus:
+-- Der Browser erhält ausschließlich UPDATE auf der Spalte status.
+-- RLS begrenzt die erlaubten Zeilen nach Rolle, Mandant und Zuständigkeit.
+-- Audit + updated_at laufen über einen nicht exponierten privaten Trigger.
 
-  if p_status not in ('offen', 'in-arbeit', 'erledigt') then
-    raise exception 'Ungültiger Aufgabenstatus.' using errcode = '22023';
-  end if;
+-- Frühere RPC-Variante explizit entfernen, damit kein öffentlich erreichbarer
+-- SECURITY-DEFINER-Endpunkt für Aufgabenstatus bestehen bleibt.
+drop function if exists public.update_task_status(uuid, text);
 
-  select p.role, p.client_id, p.organization_id
-    into v_role, v_client_id, v_org_id
-  from public.profiles p
-  where p.id = v_user_id;
-
-  if v_role is null then
-    raise exception 'Kein freigeschaltetes Profil.' using errcode = '42501';
-  end if;
-
-  select t.project_id, t.responsible_party, t.status, pr.client_id, c.organization_id
-    into v_task_project_id, v_task_responsible, v_old_status, v_project_client_id, v_project_org_id
-  from public.tasks t
-  join public.projects pr on pr.id = t.project_id
-  join public.clients c on c.id = pr.client_id
-  where t.id = p_task_id
-  for update of t;
-
-  if v_task_project_id is null then
-    return false;
-  end if;
-
-  if v_role in ('intern', 'admin') then
-    if v_org_id is distinct from v_project_org_id then
-      raise exception 'Aufgabe gehört zu einer anderen Organisation.' using errcode = '42501';
-    end if;
-  elsif v_role = 'kunde' then
-    if v_client_id is distinct from v_project_client_id or v_task_responsible <> 'kunde' then
-      raise exception 'Kunden dürfen nur eigene Aufgaben aktualisieren.' using errcode = '42501';
-    end if;
-  else
-    raise exception 'Rolle darf Aufgaben nicht aktualisieren.' using errcode = '42501';
-  end if;
-
-  if v_old_status = p_status then
-    return true;
-  end if;
-
-  update public.tasks
-  set status = p_status,
-      updated_at = now()
-  where id = p_task_id;
-
-  insert into public.audit_events (
-    organization_id, client_id, project_id, actor_user_id,
-    event_type, entity_type, entity_id, summary, metadata
-  ) values (
-    v_project_org_id, v_project_client_id, v_task_project_id, v_user_id,
-    'task.status_updated', 'task', p_task_id::text,
-    'Aufgabenstatus aktualisiert',
-    jsonb_build_object(
-      'from', v_old_status,
-      'to', p_status,
-      'responsible_party', v_task_responsible,
-      'actor_role', v_role
-    )
-  );
-
-  return true;
-end;
-$$;
-
-revoke all on function public.update_task_status(uuid, text) from public;
-revoke all on function public.update_task_status(uuid, text) from anon;
-grant execute on function public.update_task_status(uuid, text) to authenticated;
-
--- Browserrollen ändern Aufgaben nie mehr direkt. Alle Statusänderungen laufen über
--- update_task_status(), das Rolle, Mandant, Zuständigkeit und erlaubte Statuswerte prüft.
+-- Kein tabellenweites UPDATE für Browserrollen. Nur die Statusspalte ist schreibbar.
 revoke update on table public.tasks from authenticated;
+grant update (status) on table public.tasks to authenticated;
 
+-- Ein gemeinsamer UPDATE-Vertrag für Staff/Admin und Kunden.
 drop policy if exists tasks_update on public.tasks;
 drop policy if exists tasks_staff_update on public.tasks;
-create policy tasks_staff_update
+drop policy if exists tasks_status_update on public.tasks;
+create policy tasks_status_update
 on public.tasks
 for update
 to authenticated
@@ -105,8 +26,17 @@ using (
     join public.clients c on c.id = pr.client_id
     join public.profiles p on p.id = (select auth.uid())
     where pr.id = tasks.project_id
-      and p.role in ('intern', 'admin')
-      and p.organization_id = c.organization_id
+      and (
+        (
+          p.role in ('intern', 'admin')
+          and p.organization_id = c.organization_id
+        )
+        or (
+          p.role = 'kunde'
+          and p.client_id = pr.client_id
+          and tasks.responsible_party = 'kunde'
+        )
+      )
   )
 )
 with check (
@@ -116,7 +46,86 @@ with check (
     join public.clients c on c.id = pr.client_id
     join public.profiles p on p.id = (select auth.uid())
     where pr.id = tasks.project_id
-      and p.role in ('intern', 'admin')
-      and p.organization_id = c.organization_id
+      and (
+        (
+          p.role in ('intern', 'admin')
+          and p.organization_id = c.organization_id
+        )
+        or (
+          p.role = 'kunde'
+          and p.client_id = pr.client_id
+          and tasks.responsible_party = 'kunde'
+        )
+      )
   )
 );
+
+create schema if not exists private;
+revoke all on schema private from public;
+
+create or replace function private.audit_task_status_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, pg_temp
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_role text;
+begin
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  new.updated_at := now();
+
+  select p.role
+    into v_role
+  from public.profiles p
+  where p.id = v_actor;
+
+  insert into public.audit_events (
+    organization_id,
+    client_id,
+    project_id,
+    actor_user_id,
+    event_type,
+    entity_type,
+    entity_id,
+    summary,
+    metadata
+  )
+  select
+    c.organization_id,
+    pr.client_id,
+    new.project_id,
+    v_actor,
+    'task.status_updated',
+    'task',
+    new.id::text,
+    'Aufgabenstatus aktualisiert',
+    jsonb_build_object(
+      'from', old.status,
+      'to', new.status,
+      'responsible_party', new.responsible_party,
+      'actor_role', v_role
+    )
+  from public.projects pr
+  join public.clients c on c.id = pr.client_id
+  where pr.id = new.project_id;
+
+  return new;
+end;
+$$;
+
+-- Triggerfunktionen werden nur durch den Datenbank-Trigger ausgeführt und sind
+-- weder als RPC noch anderweitig für Browserrollen aufrufbar.
+revoke all on function private.audit_task_status_update() from public;
+revoke all on function private.audit_task_status_update() from anon;
+revoke all on function private.audit_task_status_update() from authenticated;
+
+drop trigger if exists tasks_status_audit on public.tasks;
+create trigger tasks_status_audit
+before update of status on public.tasks
+for each row
+execute function private.audit_task_status_update();
