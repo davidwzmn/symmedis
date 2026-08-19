@@ -7,12 +7,15 @@ import { useToast } from '../../hooks/useToast.js'
 import { Button, Chip } from '../ui/primitives.jsx'
 import { Card, CardBody, CardHeader, EmptyState, Banner } from '../ui/layout.jsx'
 import { Drawer } from '../ui/overlays.jsx'
-import { Select, Textarea, Segmented } from '../ui/forms.jsx'
+import { Input, Select, Textarea, Segmented } from '../ui/forms.jsx'
 import { RadarChart, ScoreBar } from '../viz/charts.jsx'
 import { IconAlert, IconCheckCircle, IconEye, IconEyeOff, IconLock, IconNote, IconSparkles } from '../ui/Icons.jsx'
 
 const STANDARD_PRIORITAET = { label: 'Nicht klassifiziert', tone: 'neutral' }
 const STANDARD_FREIGABE = { label: 'Status unbekannt', kurz: 'Unbekannt', tone: 'neutral' }
+const OUTCOME_LABELS = { pending: 'Noch nicht gemessen', confirmed: 'Hypothese bestätigt', refuted: 'Hypothese widerlegt', mixed: 'Gemischtes Ergebnis', unknown: 'Nicht eindeutig' }
+const EVIDENZ_RICHTUNGEN = { supports: ['Stützt', 'ok'], contradicts: ['Widerspricht', 'danger'], neutral: ['Neutral', 'neutral'] }
+const QUELLENQUALITAET = { high: 'Hoch', medium: 'Mittel', low: 'Niedrig' }
 
 function kategorieInfo(id) {
   return KATEGORIE_MAP[id] || { id, label: id || 'Unbekannte Dimension', kurz: '–', gruppe: 'Nicht zugeordnet', frage: 'Für diese Dimension liegen noch keine Kataloginformationen vor.' }
@@ -59,13 +62,17 @@ export function AnalysisModule({ kunde, rolle = 'kunde' }) {
                   const kategorie = kategorieInfo(eintrag.kategorieId)
                   const freigabe = freigabeInfo(eintrag.freigabe)
                   const prio = prioritaetInfo(eintrag.prioritaet)
+                  const evidenz = Array.isArray(eintrag.evidenzBewertung) ? eintrag.evidenzBewertung : []
                   return (
                     <li key={eintrag.kategorieId}>
                       <button type="button" onClick={() => setAuswahl(eintrag.kategorieId)} className="w-full px-4 py-3.5 text-left transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand sm:px-5">
-                        <div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><ScoreBar score={Number(eintrag.score || 0)} label={kategorie.label} sublabel={eintrag.beobachtung || 'Noch keine Beobachtung hinterlegt.'} /></div></div>
+                        <div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><ScoreBar score={Number(eintrag.score || 0)} label={kategorie.label} sublabel={eintrag.hypothese || eintrag.beobachtung || 'Noch keine Beobachtung hinterlegt.'} /></div></div>
                         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                           <Chip size="sm" toneName={prio.tone}>Priorität {prio.label}</Chip>
                           <Chip size="sm" toneName="neutral">{kategorie.gruppe}</Chip>
+                          {Number(eintrag.confidence) > 0 ? <Chip size="sm" toneName="info">Confidence {Number(eintrag.confidence)}%</Chip> : null}
+                          {evidenz.length ? <Chip size="sm" toneName="neutral">{evidenz.length} Evidenzen</Chip> : null}
+                          {eintrag.outcomeStatus && eintrag.outcomeStatus !== 'pending' ? <Chip size="sm" toneName="accent">{OUTCOME_LABELS[eintrag.outcomeStatus] || eintrag.outcomeStatus}</Chip> : null}
                           {rolle === 'intern' ? <Chip size="sm" toneName={freigabe.tone}>{freigabe.kurz}</Chip> : null}
                           {rolle === 'intern' && eintrag.internNotiz ? <Chip size="sm" toneName="warn" icon={IconNote}>Interne Notiz</Chip> : null}
                         </div>
@@ -99,6 +106,50 @@ export function AnalysisModule({ kunde, rolle = 'kunde' }) {
   )
 }
 
+function EvidenzEditor({ value, saving, onSave }) {
+  const [rows, setRows] = useState(Array.isArray(value) ? value : [])
+
+  useEffect(() => { setRows(Array.isArray(value) ? value : []) }, [value])
+
+  const update = (index, patch) => setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
+  const remove = (index) => {
+    const next = rows.filter((_, rowIndex) => rowIndex !== index)
+    setRows(next)
+    onSave(next)
+  }
+  const add = () => setRows((current) => [...current, { source: '', direction: 'supports', reliability: 'medium', note: '' }])
+
+  return (
+    <div className="rounded-xl border border-line bg-surface-muted p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><h3 className="text-xs font-semibold text-ink">Evidenzbewertung</h3><p className="mt-1 text-xs leading-relaxed text-ink-3">Jede Quelle bekommt Richtung und Vertrauensniveau. Widersprechende Evidenz wird bewusst sichtbar gehalten.</p></div>
+        <Button type="button" variant="secondary" size="sm" onClick={add}>Quelle hinzufügen</Button>
+      </div>
+      <div className="mt-3 space-y-3">
+        {rows.length === 0 ? <p className="text-xs text-ink-3">Noch keine Evidenz einzeln bewertet.</p> : rows.map((row, index) => (
+          <div key={`${index}-${row.source || 'quelle'}`} className="rounded-lg border border-line bg-surface p-3">
+            <div className="grid gap-3 sm:grid-cols-[1.3fr_0.8fr_0.7fr]">
+              <Input label="Quelle" value={row.source || row.sourceId || ''} onChange={(event) => update(index, { source: event.target.value })} onBlur={() => onSave(rows.map((entry, i) => i === index ? { ...entry, source: row.source || row.sourceId || '' } : entry))} placeholder="z. B. CRM-Auswertung Q2" />
+              <Select label="Richtung" value={row.direction || 'neutral'} onChange={(event) => { const next = rows.map((entry, i) => i === index ? { ...entry, direction: event.target.value } : entry); setRows(next); onSave(next) }}>
+                {Object.entries(EVIDENZ_RICHTUNGEN).map(([key, [label]]) => <option key={key} value={key}>{label}</option>)}
+              </Select>
+              <Select label="Quellenvertrauen" value={row.reliability || 'medium'} onChange={(event) => { const next = rows.map((entry, i) => i === index ? { ...entry, reliability: event.target.value } : entry); setRows(next); onSave(next) }}>
+                {Object.entries(QUELLENQUALITAET).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </Select>
+            </div>
+            <Textarea rows={2} value={row.note || ''} onChange={(event) => update(index, { note: event.target.value })} onBlur={() => onSave(rows)} className="mt-3" aria-label={`Evidenznotiz ${index + 1}`} placeholder="Was genau zeigt oder widerlegt diese Quelle?" />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <Chip size="sm" toneName={EVIDENZ_RICHTUNGEN[row.direction]?.[1] || 'neutral'}>{EVIDENZ_RICHTUNGEN[row.direction]?.[0] || 'Neutral'}</Chip>
+              <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>Entfernen</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {saving === 'evidenzBewertung' ? <p className="mt-2 text-xs text-ink-3" role="status">Evidenz wird gespeichert …</p> : null}
+    </div>
+  )
+}
+
 function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
   const { setAnalyseFeld, setFreigabe } = useWorkspace()
   const toast = useToast()
@@ -110,7 +161,10 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
 
   useEffect(() => {
     if (!eintrag) return
-    setEntwurf({ beobachtung: eintrag.beobachtung ?? '', ursache: eintrag.ursache ?? '', auswirkung: eintrag.auswirkung ?? '', beleg: eintrag.beleg ?? '', empfehlung: eintrag.empfehlung ?? '', internNotiz: eintrag.internNotiz ?? '' })
+    setEntwurf({
+      beobachtung: eintrag.beobachtung ?? '', ursache: eintrag.ursache ?? '', auswirkung: eintrag.auswirkung ?? '', beleg: eintrag.beleg ?? '', empfehlung: eintrag.empfehlung ?? '', internNotiz: eintrag.internNotiz ?? '',
+      hypothese: eintrag.hypothese ?? '', gegenhypothese: eintrag.gegenhypothese ?? '', confidenceBegruendung: eintrag.confidenceBegruendung ?? '', intervention: eintrag.intervention ?? '', outcomeNotiz: eintrag.outcomeNotiz ?? '',
+    })
   }, [eintrag])
 
   if (!eintrag || !kategorie) return <Drawer open={false} onClose={onClose} title="" />
@@ -148,16 +202,52 @@ function AnalyseDetail({ kunde, kategorieId, rolle, onClose }) {
     } finally { setFeldSaving(null) }
   }
 
+  const evidenzSpeichern = async (next) => {
+    setFeldSaving('evidenzBewertung')
+    try {
+      const gespeichert = await setAnalyseFeld(kunde.id, kategorie.id, { evidenzBewertung: next })
+      if (!gespeichert) toast.show({ title: 'Evidenz nicht gespeichert', description: 'Der vorherige Stand wurde wiederhergestellt.', variant: 'danger' })
+    } finally { setFeldSaving(null) }
+  }
+
+  const outcomeSetzen = async (status) => {
+    const patch = { outcomeStatus: status, outcomeGemessenAm: status === 'pending' ? null : new Date().toISOString() }
+    setFeldSaving('outcomeStatus')
+    try {
+      await setAnalyseFeld(kunde.id, kategorie.id, patch)
+    } finally { setFeldSaving(null) }
+  }
+
   return (
     <Drawer open={Boolean(kategorieId)} onClose={onClose} width="lg" title={kategorie.label} subtitle={kategorie.frage} footer={bearbeitbar ? (
       <div className="flex flex-wrap items-center justify-between gap-3" aria-busy={freigabeSaving}><p className="text-xs text-ink-3" role="status" aria-live="polite">{freigabeSaving ? 'Freigabe wird gespeichert …' : 'Interne Notizen erscheinen nie im Kundenportal.'}</p><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={freigabeSaving} onClick={() => freigabeSetzen('intern', { title: 'Intern freigegeben', variant: 'success' })}>{freigabeSaving ? 'Speichert …' : 'Intern freigeben'}</Button><Button size="sm" disabled={freigabeSaving} onClick={() => freigabeSetzen('kunde', { title: 'Für Kunden freigegeben', description: `${kategorie.label} ist jetzt im Kundenportal sichtbar.`, variant: 'success' })}>{freigabeSaving ? 'Speichert …' : 'Für Kunden freigeben'}</Button></div></div>
     ) : <p className="text-xs text-ink-3">Bewertung durch das SYMMEDIS-Team geprüft{eintrag.beleg ? ` · Beleg: ${eintrag.beleg}` : ''}</p>}>
       <div className="space-y-5 px-5 py-5" aria-busy={Boolean(feldSaving)}>
-        <div className="flex flex-wrap items-center gap-2"><Chip toneName={stufe.tone}>{stufe.label}</Chip><Chip toneName={prio.tone}>Priorität {prio.label}</Chip><Chip toneName="neutral">{kategorie.gruppe}</Chip>{rolle === 'intern' ? <Chip toneName={freigabe.tone} icon={eintrag.sichtbarKunde ? IconEye : IconEyeOff}>{freigabe.label}</Chip> : null}</div>
+        <div className="flex flex-wrap items-center gap-2"><Chip toneName={stufe.tone}>{stufe.label}</Chip><Chip toneName={prio.tone}>Priorität {prio.label}</Chip><Chip toneName="neutral">{kategorie.gruppe}</Chip>{Number(eintrag.confidence) > 0 ? <Chip toneName="info">Confidence {Number(eintrag.confidence)}%</Chip> : null}{rolle === 'intern' ? <Chip toneName={freigabe.tone} icon={eintrag.sichtbarKunde ? IconEye : IconEyeOff}>{freigabe.label}</Chip> : null}</div>
         <div className="rounded-lg border border-line bg-surface-muted p-4"><div className="flex items-baseline justify-between"><span className="text-xs text-ink-2">Reifegrad</span><span className="tabular text-2xl font-semibold text-ink">{Number(eintrag.score || 0)}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-viz-track"><div className={cn('h-full rounded-full', tone(stufe.tone).bar)} style={{ width: `${Math.max(0, Math.min(100, Number(eintrag.score || 0)))}%` }} /></div><p className="mt-2 text-xs text-ink-3">0–39 kritisch · 40–57 auffällig · 58–74 solide · ab 75 stark</p></div>
+
+        <section className="rounded-xl border border-brand-border bg-brand-soft p-4">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-brand-ink">Diagnostische Logik</p>
+          <div className="mt-3 space-y-4">
+            <div><h3 className="text-xs font-semibold text-ink-2">Arbeitshypothese</h3>{bearbeitbar ? <Textarea rows={3} value={entwurf.hypothese ?? ''} onChange={(event) => setEntwurf((current) => ({ ...current, hypothese: event.target.value }))} onBlur={() => feldSpeichern('hypothese', 'Hypothese')} className="mt-1.5" placeholder="Welche prüfbare Ursache erklärt die Beobachtung am besten?" /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag.hypothese || eintrag.ursache || 'Noch nicht formuliert.'}</p>}</div>
+            <div><h3 className="text-xs font-semibold text-ink-2">Stärkste Gegenhypothese</h3>{bearbeitbar ? <Textarea rows={3} value={entwurf.gegenhypothese ?? ''} onChange={(event) => setEntwurf((current) => ({ ...current, gegenhypothese: event.target.value }))} onBlur={() => feldSpeichern('gegenhypothese', 'Gegenhypothese')} className="mt-1.5" placeholder="Welche alternative Erklärung wäre ebenfalls plausibel?" /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag.gegenhypothese || 'Keine Gegenhypothese freigegeben.'}</p>}</div>
+            <div><h3 className="text-xs font-semibold text-ink-2">Warum diese Confidence?</h3>{bearbeitbar ? <Textarea rows={2} value={entwurf.confidenceBegruendung ?? ''} onChange={(event) => setEntwurf((current) => ({ ...current, confidenceBegruendung: event.target.value }))} onBlur={() => feldSpeichern('confidenceBegruendung', 'Confidence-Begründung')} className="mt-1.5" placeholder="Welche Evidenz und Unsicherheit rechtfertigen den Confidence-Wert?" /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag.confidenceBegruendung || 'Die Begründung wird noch konkretisiert.'}</p>}</div>
+          </div>
+        </section>
+
+        {bearbeitbar ? <EvidenzEditor value={eintrag.evidenzBewertung} saving={feldSaving} onSave={evidenzSpeichern} /> : Array.isArray(eintrag.evidenzBewertung) && eintrag.evidenzBewertung.length ? <div className="space-y-2"><h3 className="text-xs font-semibold text-ink-2">Evidenzlage</h3>{eintrag.evidenzBewertung.map((row, index) => <div key={index} className="rounded-lg border border-line bg-surface-muted p-3"><div className="flex flex-wrap gap-2"><Chip size="sm" toneName={EVIDENZ_RICHTUNGEN[row.direction]?.[1] || 'neutral'}>{EVIDENZ_RICHTUNGEN[row.direction]?.[0] || 'Neutral'}</Chip><Chip size="sm" toneName="neutral">Vertrauen {QUELLENQUALITAET[row.reliability] || 'Mittel'}</Chip></div><p className="mt-2 text-[0.8125rem] font-medium text-ink">{row.source || row.sourceId || `Quelle ${index + 1}`}</p>{row.note ? <p className="mt-1 text-xs leading-relaxed text-ink-2">{row.note}</p> : null}</div>)}</div> : null}
+
         {felder.map((feld) => <div key={feld.key}><h3 className="text-xs font-semibold text-ink-2">{feld.label}</h3>{bearbeitbar ? <><Textarea rows={feld.key === 'beleg' ? 2 : 3} value={entwurf[feld.key] ?? ''} onChange={(e) => setEntwurf((aktuell) => ({ ...aktuell, [feld.key]: e.target.value }))} onBlur={() => feldSpeichern(feld.key, feld.label)} disabled={feldSaving === feld.key} className="mt-1.5" aria-label={feld.label} /><p className="mt-1 min-h-4 text-xs text-ink-3" role="status" aria-live="polite">{feldSaving === feld.key ? 'Wird gespeichert …' : ''}</p></> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag[feld.key] || 'Noch nicht hinterlegt.'}</p>}</div>)}
+
+        <section className="rounded-xl border border-line bg-surface-muted p-4">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">Intervention → Outcome</p>
+          <div className="mt-3"><h3 className="text-xs font-semibold text-ink-2">Konkrete Intervention</h3>{bearbeitbar ? <Textarea rows={3} value={entwurf.intervention ?? ''} onChange={(event) => setEntwurf((current) => ({ ...current, intervention: event.target.value }))} onBlur={() => feldSpeichern('intervention', 'Intervention')} className="mt-1.5" placeholder="Welche Veränderung adressiert genau diese Ursache?" /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag.intervention || eintrag.empfehlung || 'Noch nicht hinterlegt.'}</p>}</div>
+          {bearbeitbar ? <div className="mt-4 grid gap-4 sm:grid-cols-2"><Select label="Outcome der Diagnose" value={eintrag.outcomeStatus || 'pending'} disabled={feldSaving === 'outcomeStatus'} onChange={(event) => outcomeSetzen(event.target.value)}>{Object.entries(OUTCOME_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select><div className="self-end text-xs text-ink-3">{eintrag.outcomeGemessenAm ? `Gemessen: ${new Date(eintrag.outcomeGemessenAm).toLocaleDateString('de-DE')}` : 'Outcome noch offen'}</div></div> : <div className="mt-4"><Chip toneName={eintrag.outcomeStatus === 'confirmed' ? 'ok' : eintrag.outcomeStatus === 'refuted' ? 'danger' : 'neutral'}>{OUTCOME_LABELS[eintrag.outcomeStatus] || OUTCOME_LABELS.pending}</Chip></div>}
+          <div className="mt-4"><h3 className="text-xs font-semibold text-ink-2">Outcome-Notiz</h3>{bearbeitbar ? <Textarea rows={3} value={entwurf.outcomeNotiz ?? ''} onChange={(event) => setEntwurf((current) => ({ ...current, outcomeNotiz: event.target.value }))} onBlur={() => feldSpeichern('outcomeNotiz', 'Outcome-Notiz')} className="mt-1.5" placeholder="Was ist nach 30/60/90 Tagen tatsächlich passiert?" /> : <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink">{eintrag.outcomeNotiz || 'Noch kein Outcome dokumentiert.'}</p>}</div>
+        </section>
+
         {bearbeitbar ? <><div className="grid gap-4 sm:grid-cols-2"><Select label="Priorität" value={PRIORITAETEN[eintrag.prioritaet] ? eintrag.prioritaet : ''} disabled={feldSaving === 'prioritaet'} onChange={(e) => feldSpeichern('prioritaet', 'Priorität', e.target.value)}><option value="" disabled>Bitte wählen</option>{Object.entries(PRIORITAETEN).map(([key, wert]) => <option key={key} value={key}>{wert.label}</option>)}</Select><Select label="Freigabestatus" value={FREIGABE[eintrag.freigabe] ? eintrag.freigabe : ''} disabled={freigabeSaving} onChange={(e) => freigabeSetzen(e.target.value)}><option value="" disabled>Bitte wählen</option>{Object.entries(FREIGABE).map(([key, wert]) => <option key={key} value={key}>{wert.label}</option>)}</Select></div><div className="rounded-lg border border-warn-border bg-warn-soft p-4"><h3 className="flex items-center gap-2 text-xs font-semibold text-warn-ink"><IconLock className="size-3.5" />Interne Notiz – nicht für den Kunden sichtbar</h3><Textarea rows={3} value={entwurf.internNotiz ?? ''} placeholder="Nur für das SYMMEDIS-Team …" onChange={(e) => setEntwurf((aktuell) => ({ ...aktuell, internNotiz: e.target.value }))} onBlur={() => feldSpeichern('internNotiz', 'Interne Notiz')} disabled={feldSaving === 'internNotiz'} className="mt-2" aria-label="Interne Notiz" /><p className="mt-1 min-h-4 text-xs text-warn-ink/70" role="status" aria-live="polite">{feldSaving === 'internNotiz' ? 'Wird gespeichert …' : ''}</p></div></> : null}
-        {rolle === 'kunde' ? <div className="rounded-lg border border-brand-border bg-brand-soft p-4"><h3 className="flex items-center gap-2 text-xs font-semibold text-brand-ink"><IconCheckCircle className="size-3.5" />Menschlich geprüft</h3><p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-2">Diese Bewertung wurde durch die Software strukturiert und anschließend vom SYMMEDIS-Team geprüft und freigegeben.</p></div> : null}
+        {rolle === 'kunde' ? <div className="rounded-lg border border-brand-border bg-brand-soft p-4"><h3 className="flex items-center gap-2 text-xs font-semibold text-brand-ink"><IconCheckCircle className="size-3.5" />Menschlich geprüft</h3><p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-2">Diese Bewertung wurde durch die Software strukturiert und anschließend vom SYMMEDIS-Team geprüft und freigegeben. Gegenhypothesen und widersprechende Evidenz bleiben Teil der internen Qualitätsprüfung.</p></div> : null}
         {rolle === 'demo' ? <Banner toneName="neutral" icon={IconSparkles}>Demo-Ansicht: Bearbeitung und Freigabe stehen nur im Mitarbeiterportal zur Verfügung.</Banner> : null}
       </div>
     </Drawer>
