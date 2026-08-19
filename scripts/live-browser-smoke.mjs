@@ -84,7 +84,6 @@ async function pageSocket(port) {
 
 async function verifyTeamPortraits(cdp, scenarioName) {
   await cdp.evaluate(`document.querySelector('[data-team-portrait="David Constantin Waizmann"]')?.scrollIntoView({ block: 'center' }); true`)
-
   const portraits = await waitFor(() => cdp.evaluate(`(() => {
     const expected = ['Alfred Michael Waizmann', 'David Constantin Waizmann'];
     const result = expected.map((name) => {
@@ -93,20 +92,16 @@ async function verifyTeamPortraits(cdp, scenarioName) {
     });
     return result.every((item) => !item.missing && item.complete && item.naturalWidth > 0 && item.naturalHeight > 0) ? result : null;
   })()`), 30000)
-
   const david = portraits.find((portrait) => portrait.name === 'David Constantin Waizmann')
-  if (!david || david.naturalWidth <= 0 || david.naturalHeight <= 0) {
-    throw new Error(`${scenarioName}: David-Porträt wurde nicht erfolgreich decodiert.`)
-  }
-
+  if (!david || david.naturalWidth <= 0 || david.naturalHeight <= 0) throw new Error(`${scenarioName}: David-Porträt wurde nicht erfolgreich decodiert.`)
   console.log(`✓ live ${scenarioName}: Team-Porträts geladen (${portraits.map((portrait) => `${portrait.name} ${portrait.naturalWidth}x${portrait.naturalHeight}`).join(', ')})`)
 }
 
-async function runScenario(scenario, index) {
-  const port = 9340 + index
-  const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-`))
+async function runScenarioAttempt(scenario, index, attempt) {
+  const port = 9340 + (index * 2) + attempt
+  const profile = await mkdtemp(join(tmpdir(), `symmedis-live-${scenario.name}-${attempt}-`))
   const targetUrl = `${BASE}/${scenario.hash}?smoke=${Date.now()}`
-  console.log(`→ live ${scenario.name}: starte ${targetUrl}`)
+  console.log(`→ live ${scenario.name}: starte Versuch ${attempt + 1} ${targetUrl}`)
   const chrome = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
     '--window-size=390,844', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
@@ -122,7 +117,6 @@ async function runScenario(scenario, index) {
     await cdp.ready()
     await cdp.send('Runtime.enable')
     await cdp.send('Page.enable')
-
     await waitFor(() => cdp.evaluate(`document.readyState === 'complete' && Boolean(document.querySelector('#root'))`), 45000)
     await cdp.evaluate(`localStorage.setItem('symmedis-theme', ${JSON.stringify(scenario.theme)}); location.reload(); true`)
 
@@ -167,14 +161,31 @@ async function runScenario(scenario, index) {
     if (state.body.includes('Interaktive Beta-Demo')) throw new Error(`${scenario.name}: veraltete Beta-Copy ist wieder sichtbar.`)
     if (scenario.name.startsWith('home-') && state.tinyVisibleText.length) throw new Error(`${scenario.name}: sichtbarer Text unter 10.5px gefunden: ${JSON.stringify(state.tinyVisibleText)}`)
     if (scenario.name.startsWith('home-')) await verifyTeamPortraits(cdp, scenario.name)
-
     console.log(`✓ live ${scenario.name}: ${state.width}px viewport, ${state.scrollWidth}px content, ${scenario.theme}, build ${state.build.slice(0, 7) || 'n/a'}`)
     cdp.close()
   } finally {
     chrome.kill('SIGTERM')
-    await sleep(200)
+    await sleep(250)
     await rm(profile, { recursive: true, force: true })
     if (chrome.exitCode && chrome.exitCode !== 0 && stderr) console.error(stderr.slice(-1500))
+  }
+}
+
+async function runScenario(scenario, index) {
+  let firstError
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await runScenarioAttempt(scenario, index, attempt)
+      return
+    } catch (error) {
+      if (!firstError) firstError = error
+      if (attempt === 0) {
+        console.warn(`↻ live ${scenario.name}: erster Browser-Versuch fehlgeschlagen (${error instanceof Error ? error.message : error}); neuer isolierter Versuch.`)
+        await sleep(750)
+        continue
+      }
+      throw error instanceof Error ? error : firstError
+    }
   }
 }
 
@@ -182,12 +193,8 @@ if (!CHROME) {
   console.error('CHROME_BIN fehlt.')
   process.exit(1)
 }
-
 if (!EXPECTED_BUILD) {
   console.error('LIVE_EXPECTED_BUILD fehlt.')
   process.exit(1)
 }
-
-for (let index = 0; index < scenarios.length; index += 1) {
-  await runScenario(scenarios[index], index)
-}
+for (let index = 0; index < scenarios.length; index += 1) await runScenario(scenarios[index], index)
