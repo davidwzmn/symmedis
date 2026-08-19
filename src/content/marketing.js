@@ -345,7 +345,7 @@ export const FAQ = [
       'In der Regel 10 bis 14 Arbeitstage ab dem Zeitpunkt, an dem die Unterlagen vollständig vorliegen. Der Ergebnistermin steht von Beginn an im Portal.',
   },
   {
-    frage: 'Was brauchen Sie von uns?',
+    frage: 'Was brauchen wir von Ihnen?',
     antwort:
       'Vertriebsunterlagen, Produktkatalog, Website-Zugang zur Struktur, vorhandene Studien oder Belege sowie ein Gespräch mit Vertrieb und Geschäftsführung. Mehr ist nicht nötig.',
   },
