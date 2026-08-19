@@ -17,7 +17,7 @@ concurrency:
 jobs:
   staff-customer-handover:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 24
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -83,6 +83,17 @@ jobs:
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
           test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
           CHROME_BIN="$chrome" E2E_BASE_URL="http://127.0.0.1:4176" node scripts/cross-role-browser-e2e.mjs 2>&1 | tee /tmp/symmedis-cross-role-e2e.log
+      - name: Run secretless portal navigation and logout smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
+          CHROME_BIN="$chrome" \
+            E2E_BASE_URL="http://127.0.0.1:4176" \
+            E2E_REQUIRE_AUTH="true" \
+            E2E_STAFF_EXPECTED_TEXT="SYMMEDIS Staging Lab" \
+            node scripts/auth-browser-e2e.mjs 2>&1 | tee /tmp/symmedis-auth-e2e.log
       - name: Stop preview
         if: always()
         shell: bash
@@ -115,5 +126,6 @@ jobs:
           path: |
             /tmp/symmedis-cross-role-preview.log
             /tmp/symmedis-cross-role-e2e.log
+            /tmp/symmedis-auth-e2e.log
           if-no-files-found: ignore
           retention-days: 7
