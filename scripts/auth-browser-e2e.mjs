@@ -6,6 +6,7 @@ import { join } from 'node:path'
 const BASE_URL = (process.env.E2E_BASE_URL || 'http://127.0.0.1:4176').replace(/\/$/, '')
 const CHROME = process.env.CHROME_BIN || ''
 const REQUIRE_AUTH = process.env.E2E_REQUIRE_AUTH === 'true'
+const INTERNAL_NOTE_CANARY = 'E2E: Diese interne Notiz darf niemals im Kundenportal erscheinen.'
 
 const scenarios = [
   {
@@ -32,7 +33,7 @@ const scenarios = [
     expectedPath: '/portal/',
     expectedText: process.env.E2E_CUSTOMER_EXPECTED_TEXT || '',
     requiredTexts: ['Wo stehen wir, was bremst, was jetzt?', 'Menschlich geprüft'],
-    forbiddenText: 'Interne Notizen',
+    forbiddenText: INTERNAL_NOTE_CANARY,
     routeChecks: [
       { path: '/portal/aufgaben', requiredTexts: ['Aufgaben', 'Maßnahmen aus dem 90-Tage-Plan'] },
       { path: '/portal/dokumente', requiredTexts: ['Dokumente', 'Ihre Unterlagen'] },
@@ -56,7 +57,7 @@ async function waitFor(fn, timeoutMs = 15000, intervalMs = 200) {
     }
     await sleep(intervalMs)
   }
-  throw lastError || new Error(`Zeitüberschitung nach ${timeoutMs} ms`)
+  throw lastError || new Error(`Zeitüberschreitung nach ${timeoutMs} ms`)
 }
 
 class Cdp {
@@ -224,7 +225,7 @@ async function runScenario(scenario, port) {
       return state.href.includes(scenario.expectedPath) ? state : null
     }, 20000)
 
-    const state = await waitFor(async () => {
+    await waitFor(async () => {
       const value = await cdp.evaluate(`({
         href: location.href,
         body: document.body.innerText,
