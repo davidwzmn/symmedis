@@ -1,0 +1,82 @@
+name: Cross-Role E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/supabase-auth-foundation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-role-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  staff-customer-handover:
+    if: github.event_name == 'workflow_dispatch' || vars.E2E_CROSS_ROLE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+      E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+      E2E_CUSTOMER_EMAIL: ${{ secrets.E2E_CUSTOMER_EMAIL }}
+      E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Release guards
+        run: npm run release:guard
+      - name: Build authenticated preview
+        run: npm run build
+      - name: Require isolated Staff and Customer credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in E2E_STAFF_EMAIL E2E_STAFF_PASSWORD E2E_CUSTOMER_EMAIL E2E_CUSTOMER_PASSWORD; do
+            test -n "${!name}" || { echo "${name} secret fehlt." >&2; exit 1; }
+          done
+      - name: Start authenticated preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT=4176 HOST=127.0.0.1 npm run preview > /tmp/symmedis-cross-role-preview.log 2>&1 &
+          echo $! > /tmp/symmedis-cross-role-preview.pid
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:4176/login > /dev/null; then exit 0; fi
+            sleep 0.3
+          done
+          cat /tmp/symmedis-cross-role-preview.log >&2
+          exit 1
+      - name: Run full Staff Customer handover
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "No Chrome/Chromium binary available on runner." >&2; exit 1; }
+          CHROME_BIN="$chrome" E2E_BASE_URL="http://127.0.0.1:4176" node scripts/cross-role-browser-e2e.mjs 2>&1 | tee /tmp/symmedis-cross-role-e2e.log
+      - name: Stop preview
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/symmedis-cross-role-preview.pid ]]; then
+            kill "$(cat /tmp/symmedis-cross-role-preview.pid)" 2>/dev/null || true
+          fi
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-role-e2e-${{ github.sha }}
+          path: |
+            /tmp/symmedis-cross-role-preview.log
+            /tmp/symmedis-cross-role-e2e.log
+          if-no-files-found: ignore
+          retention-days: 7
