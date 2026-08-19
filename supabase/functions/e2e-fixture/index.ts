@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
       ] = await Promise.all([
         admin.from("tasks").select("id,title,status,responsible_party").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("analysis_items").select("id,category_id,approval_status,customer_visible,observation").eq("project_id", FIXTURE_PROJECT_ID).order("category_id"),
-        admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
+        admin.from("reports").select("id,title,state,report_date").eq("project_id", FIXTURE_PROJECT_ID).order("report_date").order("id"),
         admin.from("documents").select("id,name,storage_path,status,source,customer_visible").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
         admin.from("report_versions").select("id,report_id,version_number,state").eq("project_id", FIXTURE_PROJECT_ID).order("created_at"),
       ]);
