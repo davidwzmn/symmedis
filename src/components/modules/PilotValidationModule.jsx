@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
 import { fetchPilotValidationReviews, fetchPilotValidationScorecard, savePilotValidationReview } from '../../lib/pilotValidationApi.js'
 import { Button, Chip } from '../ui/primitives.jsx'
+import { Input, Select, Textarea } from '../ui/forms.jsx'
 import { Card, CardBody, CardHeader, EmptyState, MetricCard } from '../ui/layout.jsx'
 import { IconCheckSquare, IconHistory, IconShield, IconTarget } from '../ui/Icons.jsx'
 
@@ -41,12 +42,8 @@ const emptyReview = {
   interviewerNote: '',
 }
 
-function SelectField({ label, value, onChange, children }) {
-  return <label className="space-y-1.5 text-sm font-medium text-ink"><span>{label}</span><select className="input w-full" value={value} onChange={(e) => onChange(e.target.value)}>{children}</select></label>
-}
-
 function BooleanField({ label, value, onChange }) {
-  return <SelectField label={label} value={value == null ? '' : value ? 'yes' : 'no'} onChange={(next) => onChange(next === '' ? null : next === 'yes')}><option value="">Noch offen</option><option value="yes">Ja</option><option value="no">Nein</option></SelectField>
+  return <Select label={label} value={value == null ? '' : value ? 'yes' : 'no'} onChange={(event) => onChange(event.target.value === '' ? null : event.target.value === 'yes')}><option value="">Noch offen</option><option value="yes">Ja</option><option value="no">Nein</option></Select>
 }
 
 export function PilotValidationModule({ kunde }) {
@@ -58,7 +55,7 @@ export function PilotValidationModule({ kunde }) {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyReview)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!accessToken || !kunde?.projectId) return
     setLoading(true)
     try {
@@ -75,9 +72,9 @@ export function PilotValidationModule({ kunde }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [accessToken, kunde?.projectId, toast])
 
-  useEffect(() => { void load() }, [accessToken, kunde?.projectId])
+  useEffect(() => { void load() }, [load])
 
   const latest = reviews[0] || null
   const evidenceLabel = useMemo(() => `${scorecard?.evidenceReadyFindings ?? 0}/${scorecard?.customerFindings ?? 0}`, [scorecard])
@@ -117,9 +114,9 @@ export function PilotValidationModule({ kunde }) {
         <CardBody>
           <form className="space-y-4" onSubmit={save}>
             <div className="grid gap-4 sm:grid-cols-3">
-              <label className="space-y-1.5 text-sm font-medium text-ink"><span>Review-Runde</span><input className="input w-full" type="number" min="1" max="12" value={form.reviewRound} onChange={(e) => setForm({ ...form, reviewRound: Number(e.target.value) })} /></label>
-              <SelectField label="Verständnis: Warum stockt Wachstum?" value={form.understandingScore} onChange={(value) => setForm({ ...form, understandingScore: value })}><option value="">Noch offen</option>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{n} / 5</option>)}</SelectField>
-              <SelectField label="Entscheidungsklarheit" value={form.decisionClarityScore} onChange={(value) => setForm({ ...form, decisionClarityScore: value })}><option value="">Noch offen</option>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{n} / 5</option>)}</SelectField>
+              <Input label="Review-Runde" type="number" min="1" max="12" value={form.reviewRound} onChange={(event) => setForm({ ...form, reviewRound: Number(event.target.value) })} />
+              <Select label="Verständnis: Warum stockt Wachstum?" value={form.understandingScore} onChange={(event) => setForm({ ...form, understandingScore: event.target.value })}><option value="">Noch offen</option>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{n} / 5</option>)}</Select>
+              <Select label="Entscheidungsklarheit" value={form.decisionClarityScore} onChange={(event) => setForm({ ...form, decisionClarityScore: event.target.value })}><option value="">Noch offen</option>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{n} / 5</option>)}</Select>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -128,14 +125,14 @@ export function PilotValidationModule({ kunde }) {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <label className="space-y-1.5 text-sm font-medium text-ink"><span>Portal-Rückkehr zwischen Meetings</span><input className="input w-full" type="number" min="0" value={form.portalReturnCount} onChange={(e) => setForm({ ...form, portalReturnCount: Number(e.target.value) })} /></label>
-              <SelectField label="Zahlungsbereitschaft" value={form.willingnessToPay} onChange={(value) => setForm({ ...form, willingnessToPay: value })}>{SIGNALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectField>
-              <SelectField label="Renewal-Signal" value={form.renewalSignal} onChange={(value) => setForm({ ...form, renewalSignal: value })}>{SIGNALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectField>
+              <Input label="Portal-Rückkehr zwischen Meetings" type="number" min="0" value={form.portalReturnCount} onChange={(event) => setForm({ ...form, portalReturnCount: Number(event.target.value) })} />
+              <Select label="Zahlungsbereitschaft" value={form.willingnessToPay} onChange={(event) => setForm({ ...form, willingnessToPay: event.target.value })}>{SIGNALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select>
+              <Select label="Renewal-Signal" value={form.renewalSignal} onChange={(event) => setForm({ ...form, renewalSignal: event.target.value })}>{SIGNALS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select>
             </div>
 
-            <label className="block space-y-1.5 text-sm font-medium text-ink"><span>„Verstehen Sie jetzt besser, warum Wachstum stockt?“</span><textarea className="input min-h-24 w-full" maxLength={2000} value={form.customerUnderstandingNote} onChange={(e) => setForm({ ...form, customerUnderstandingNote: e.target.value })} /></label>
-            <label className="block space-y-1.5 text-sm font-medium text-ink"><span>„Welche Entscheidung haben Sie durch SYMMEDIS anders getroffen?“</span><textarea className="input min-h-24 w-full" maxLength={2000} value={form.decisionChangeNote} onChange={(e) => setForm({ ...form, decisionChangeNote: e.target.value })} /></label>
-            <label className="block space-y-1.5 text-sm font-medium text-ink"><span>Interne Pilotnotiz</span><textarea className="input min-h-20 w-full" maxLength={4000} value={form.interviewerNote} onChange={(e) => setForm({ ...form, interviewerNote: e.target.value })} /></label>
+            <Textarea rows={4} maxLength={2000} label="„Verstehen Sie jetzt besser, warum Wachstum stockt?“" value={form.customerUnderstandingNote} onChange={(event) => setForm({ ...form, customerUnderstandingNote: event.target.value })} />
+            <Textarea rows={4} maxLength={2000} label="„Welche Entscheidung haben Sie durch SYMMEDIS anders getroffen?“" value={form.decisionChangeNote} onChange={(event) => setForm({ ...form, decisionChangeNote: event.target.value })} />
+            <Textarea rows={3} maxLength={4000} label="Interne Pilotnotiz" value={form.interviewerNote} onChange={(event) => setForm({ ...form, interviewerNote: event.target.value })} />
             <div className="flex justify-end"><Button type="submit" disabled={saving} aria-busy={saving || undefined}>{saving ? 'Wird gespeichert …' : 'Pilot-Review speichern'}</Button></div>
           </form>
         </CardBody>
