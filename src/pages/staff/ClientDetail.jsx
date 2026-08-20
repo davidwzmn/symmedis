@@ -25,6 +25,7 @@ import { AppointmentsModule } from '../../components/modules/AppointmentsModule.
 import { ChatModule } from '../../components/modules/ChatModule.jsx'
 import { ActivityFeed } from '../../components/modules/ActivityFeed.jsx'
 import { InternalNotes } from '../../components/modules/InternalNotes.jsx'
+import { PilotValidationModule } from '../../components/modules/PilotValidationModule.jsx'
 import {
   IconAlert, IconCalendar, IconChart, IconChat, IconCheckSquare, IconDocument, IconFolder,
   IconGrid, IconHistory, IconLayers, IconLock, IconMail, IconRoute, IconShare, IconShield, IconTarget,
@@ -42,6 +43,7 @@ const TABS = [
   { id: 'dokumente', label: 'Dokumente', icon: IconFolder, section: 'Zusammenarbeit' },
   { id: 'termine', label: 'Termine', icon: IconCalendar, section: 'Zusammenarbeit' },
   { id: 'nachrichten', label: 'Nachrichten', icon: IconChat, section: 'Zusammenarbeit' },
+  { id: 'pilot', label: 'Pilot-Evidenz', icon: IconTarget, section: 'Intern' },
   { id: 'notizen', label: 'Interne Notizen', icon: IconLock, section: 'Intern' },
   { id: 'verlauf', label: 'Verlauf', icon: IconHistory, section: 'Intern' },
 ]
@@ -145,6 +147,7 @@ export function ClientDetail() {
       {tab === 'berichte' ? <ReportsModule kunde={kunde} rolle="intern" /> : null}
       {tab === 'termine' ? <AppointmentsModule kunde={kunde} /> : null}
       {tab === 'nachrichten' ? <ChatModule kunde={kunde} rolle="intern" /> : null}
+      {tab === 'pilot' ? <PilotValidationModule kunde={kunde} /> : null}
       {tab === 'notizen' ? <InternalNotes kunde={kunde} /> : null}
       {tab === 'verlauf' ? <ActivityFeed kunde={kunde} titel="Prüfpfad" alsPruefpfad /> : null}
     </div>
