@@ -7,6 +7,9 @@ function read(path) {
 function requireText(content, needle, label) {
   if (!content.includes(needle)) throw new Error(`Launch readiness guard: ${label} fehlt.`)
 }
+function forbidText(content, needle, label) {
+  if (content.includes(needle)) throw new Error(`Launch readiness guard: veralteter Vertrag '${label}' ist noch vorhanden.`)
+}
 
 const baseMigration = read('supabase/migrations/20260820083400_launch_and_pilot_readiness_gates.sql')
 const adminMigration = read('supabase/migrations/20260820085100_restrict_launch_gate_manual_writes_to_admins.sql')
@@ -15,6 +18,7 @@ const edge = read('supabase/functions/auth-email-evidence/index.ts')
 const session = read('src/state/SessionProvider.jsx')
 const api = read('src/lib/launchReadinessApi.js')
 const card = read('src/components/modules/LaunchReadinessCard.jsx')
+const settings = read('src/pages/staff/SettingsPage.jsx')
 const runbook = read('docs/release/PRODUCTION_LAUNCH_RUNBOOK.md')
 
 for (const [needle, label] of [
@@ -48,6 +52,18 @@ requireText(api, "['custom_smtp', 'restore_drill']", 'nur manuell zulässige Gat
 requireText(card, "const MANUAL_GATES = new Set(['custom_smtp', 'restore_drill'])", 'UI ohne manuelle Invite/Login-Freigabe')
 requireText(card, 'Nachweis als verifiziert speichern', 'explizite Admin-Verifikation')
 requireText(card, 'session?.istAdmin', 'Admin-only UI')
+
+for (const [needle, label] of [
+  ['Technische Release Readiness', 'separate technische Readiness'],
+  ['6/6', 'vollständige technische Readiness'],
+  ['Externe Produktionsnachweise separat', 'separate externe Produktionsnachweise'],
+  ['Bezahlte KI ist kein Pflichtgate', 'KI nicht als Pflichtgate'],
+  ['Customer-Login → freigegebenes Finding', 'technisch abgesicherter Customer-E2E'],
+]) requireText(settings, needle, label)
+for (const [needle, label] of [
+  ['Staff- und Customer-Browser-E2E sowie die kontrollierte KI-Aktivierung', 'alte offene Browser-/KI-Gate-Aussage'],
+  ['erfordert eine sichere echte Testadresse', 'alte Vermischung von technischem E2E und realer Mail-Evidenz'],
+]) forbidText(settings, needle, label)
 
 for (const [needle, label] of [
   ['Custom SMTP / Absenderdomain', 'SMTP-Runbook'],
