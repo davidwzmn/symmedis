@@ -2,7 +2,10 @@ import { readFile } from 'node:fs/promises'
 
 const migration = await readFile('supabase/migrations/20260820073159_aggregate_operational_health_metrics.sql', 'utf8')
 const hardening = await readFile('supabase/migrations/20260820073530_harden_operational_metric_access.sql', 'utf8')
+const leadMigration = await readFile('supabase/migrations/20260820074220_measure_lead_ingress_reliability.sql', 'utf8')
 const edge = await readFile('supabase/functions/operational-telemetry/index.ts', 'utf8')
+const lead = await readFile('supabase/functions/submit-lead/index.ts', 'utf8')
+const snapshot = await readFile('supabase/functions/operations-health-snapshot/index.ts', 'utf8')
 const client = await readFile('src/lib/supabase.js', 'utf8')
 const failures = []
 
@@ -27,11 +30,30 @@ for (const signature of [
   'grant execute on function private.get_operational_metric_summary(integer) to service_role',
 ]) requireText(hardening, signature, 'Operational metric access hardening missing')
 
+for (const signature of [
+  "'lead_ingress'",
+  'create or replace function public.record_operational_metric',
+]) requireText(leadMigration, signature, 'Lead ingress metric schema missing')
+
 for (const event of ['auth_action', 'edge_function']) requireText(edge, `'${event}'`, 'Edge telemetry event missing')
 requireText(edge, "client.rpc('record_operational_metric'", 'Edge function does not persist aggregate metrics')
 requireText(edge, "kind: 'SYMMEDIS_OPERATION_STORE_FAILURE'", 'Store failure marker missing')
 requireText(client, "eventType: 'auth_action'", 'Auth telemetry missing')
 requireText(client, "trackedOperation('edge_function'", 'Edge function telemetry wrapper missing')
+
+for (const signature of [
+  'recordLeadMetric',
+  'p_event_type: "lead_ingress"',
+  'p_surface: "system"',
+  'p_operation: "submit"',
+  'validIngestionAttempt',
+]) requireText(lead, signature, 'Lead ingress reliability instrumentation missing')
+
+for (const signature of [
+  'item.eventType === "lead_ingress"',
+  'item.samples >= 5',
+  'item.failureRate > 0.10',
+]) requireText(snapshot, signature, 'Lead ingress alert threshold missing')
 
 for (const sensitive of ['email text', 'project_id uuid', 'client_id uuid', 'user_id uuid', 'request_body', 'payload jsonb']) {
   forbidText(migration, sensitive, 'Aggregate table must not contain identifying/raw payload fields')
@@ -48,3 +70,4 @@ console.log('✓ Operational events persist only privacy-safe aggregate buckets'
 console.log('✓ Browser roles cannot read or write metric buckets directly')
 console.log('✓ Summary access stays private and service-role-only')
 console.log('✓ Auth and selected Edge Function reliability are instrumented')
+console.log('✓ Valid lead ingestion attempts are measured server-side without exposing lead payloads')
