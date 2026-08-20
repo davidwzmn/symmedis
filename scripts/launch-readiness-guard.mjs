@@ -52,6 +52,14 @@ requireText(api, "['custom_smtp', 'restore_drill']", 'nur manuell zulässige Gat
 requireText(card, "const MANUAL_GATES = new Set(['custom_smtp', 'restore_drill'])", 'UI ohne manuelle Invite/Login-Freigabe')
 requireText(card, 'Nachweis als verifiziert speichern', 'explizite Admin-Verifikation')
 requireText(card, 'session?.istAdmin', 'Admin-only UI')
+for (const [needle, label] of [
+  ['const nextGate = openGates[0] || null', 'dynamische Priorisierung des nächsten offenen Gates'],
+  ['Als Nächstes: Custom SMTP produktiv konfigurieren', 'SMTP als nächster konkreter Schritt'],
+  ['Site URL und erlaubte Redirect-URLs', 'Auth-Redirect-Hinweis'],
+  ['Link-Tracking beim Mailprovider deaktivieren', 'Schutz vor veränderten Auth-Links'],
+  ['Keine @example.invalid-Adresse verwenden', 'reale Mailbox statt E2E-Identität'],
+  ['keine kosten- oder betriebsrelevante Restore-Aktion', 'Restore-Kosten-/Betriebsgrenze'],
+]) requireText(card, needle, label)
 
 for (const [needle, label] of [
   ['Technische Release Readiness', 'separate technische Readiness'],
