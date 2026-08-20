@@ -15,6 +15,8 @@ const baseMigration = read('supabase/migrations/20260820083400_launch_and_pilot_
 const adminMigration = read('supabase/migrations/20260820085100_restrict_launch_gate_manual_writes_to_admins.sql')
 const strictMigration = read('supabase/migrations/20260820085230_require_verified_external_launch_evidence.sql')
 const edge = read('supabase/functions/auth-email-evidence/index.ts')
+const invite = read('supabase/functions/invite-user/index.ts')
+const supabaseClient = read('src/lib/supabase.js')
 const session = read('src/state/SessionProvider.jsx')
 const api = read('src/lib/launchReadinessApi.js')
 const card = read('src/components/modules/LaunchReadinessCard.jsx')
@@ -46,6 +48,24 @@ for (const [needle, label] of [
   ['userResponse.ok', 'serverseitige Sessionvalidierung'],
   ['req.method === "OPTIONS"', 'Browser-CORS-Preflight'],
 ]) requireText(edge, needle, label)
+
+for (const [needle, label] of [
+  ['https://davidwzmn.github.io/symmedis/', 'kanonische produktive Invite-URL'],
+  ['NON_PRODUCTION_EMAIL_DOMAINS', 'serverseitige Sperre synthetischer Kundenadressen'],
+  ['example.invalid', 'Sperre der E2E-Testdomain'],
+  ['example.com', 'Sperre reservierter Beispiel-Domain'],
+  ['example.org', 'Sperre reservierter Beispiel-Domain'],
+  ['example.net', 'Sperre reservierter Beispiel-Domain'],
+  ['inviteUserByEmail', 'produktiver Supabase-Invite'],
+  ['redirectTo:', 'expliziter Invite-Redirect'],
+]) requireText(invite, needle, label)
+
+for (const [needle, label] of [
+  ["const DEFAULT_APP_URL = 'https://davidwzmn.github.io/symmedis/'", 'kanonische produktive Frontend-URL'],
+  ['const AUTH_REDIRECT_URL = APP_URL', 'gemeinsame Auth-Redirect-Quelle'],
+  ['redirect_to: AUTH_REDIRECT_URL', 'Magic-Link auf produktive App-URL'],
+  ['create_user: false', 'kein implizites Benutzer-Anlegen via Magic Link'],
+]) requireText(supabaseClient, needle, label)
 
 requireText(session, "invokeEdgeFunction('auth-email-evidence'", 'automatische Customer-Session-Verifikation')
 requireText(api, "['custom_smtp', 'restore_drill']", 'nur manuell zulässige Gates')
