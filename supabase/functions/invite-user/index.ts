@@ -6,8 +6,10 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const APP_URL = Deno.env.get("SYMMEDIS_APP_URL") || "https://davidwzmn.github.io/symmedis/";
 const MAX_INVITES_PER_HOUR = 20;
+const NON_PRODUCTION_EMAIL_DOMAINS = new Set(["example.invalid", "example.com", "example.org", "example.net"]);
 
 function originOf(value: string) { try { return new URL(value).origin; } catch { return ""; } }
+function emailDomain(value: string) { return value.split("@")[1]?.trim().toLowerCase() || ""; }
 function cors(req: Request) {
   const origin = req.headers.get("Origin") || "";
   const allowed = new Set([originOf(APP_URL), "https://davidwzmn.github.io"]);
@@ -52,7 +54,9 @@ Deno.serve(async (req: Request) => {
     const projectId = body?.projectId ? String(body.projectId) : null;
     const email = String(body?.email || "").trim().toLowerCase();
     const fullName = String(body?.fullName || "").trim().slice(0, 160);
-    if (!clientId || !email.includes("@") || email.length > 254) return json(req, 400, { error: "Kunde und gültige E-Mail-Adresse sind erforderlich." });
+    const domain = emailDomain(email);
+    if (!clientId || !email.includes("@") || email.length > 254 || !domain) return json(req, 400, { error: "Kunde und gültige E-Mail-Adresse sind erforderlich." });
+    if (NON_PRODUCTION_EMAIL_DOMAINS.has(domain)) return json(req, 400, { error: "Für produktive Kundeneinladungen ist eine reale erreichbare E-Mail-Adresse erforderlich." });
 
     const { data: client, error: clientError } = await userClient.from("clients").select("id,organization_id,name").eq("id", clientId).maybeSingle();
     if (clientError || !client || client.organization_id !== caller.organization_id) return json(req, 404, { error: "Kunde nicht gefunden." });
@@ -83,7 +87,7 @@ Deno.serve(async (req: Request) => {
     }
 
     await admin.from("activities").insert({ project_id: projectId, title: `Kunden-Zugang eingeladen: ${email}`, actor: "SYMMEDIS", tone: "info", happened_at: new Date().toISOString() }).then(() => undefined).catch(() => undefined);
-    await admin.from("audit_events").insert({ organization_id: client.organization_id, client_id: client.id, project_id: projectId, actor_user_id: caller.id, event_type: "access.invited", entity_type: "profile", entity_id: invited.user.id, summary: "Kundenzugang eingeladen", metadata: { invited_email_domain: email.split("@")[1] || "", redirect_origin: originOf(APP_URL) } }).then(() => undefined).catch(() => undefined);
+    await admin.from("audit_events").insert({ organization_id: client.organization_id, client_id: client.id, project_id: projectId, actor_user_id: caller.id, event_type: "access.invited", entity_type: "profile", entity_id: invited.user.id, summary: "Kundenzugang eingeladen", metadata: { invited_email_domain: domain, redirect_origin: originOf(APP_URL) } }).then(() => undefined).catch(() => undefined);
 
     return json(req, 200, { ok: true, userId: invited.user.id, email });
   } catch (error) {
