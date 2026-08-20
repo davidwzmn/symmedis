@@ -228,7 +228,7 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
           const findingRows = grouped[finding.id] || []
           const suggestion = outcomeSuggestion(findingRows)
           return (
-            <section key={finding.id} className="rounded-xl border border-line bg-surface-muted p-4">
+            <section key={finding.id} data-finding-id={finding.id} className="rounded-xl border border-line bg-surface-muted p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-3">{finding.hypothese || finding.ursache || finding.kategorieId}</p>
@@ -244,15 +244,15 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
                 {HORIZONS.map((horizon) => {
                   const horizonRows = findingRows.filter((row) => row.horizonDays === horizon)
                   return (
-                    <div key={horizon} className="rounded-lg border border-line bg-surface p-3">
+                    <div key={horizon} data-horizon={horizon} className="rounded-lg border border-line bg-surface p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-ink">Tag {horizon}</p>
-                        {rolle === 'intern' ? <Button size="sm" variant="ghost" disabled={Boolean(addingFindingId)} onClick={() => addMeasurement(finding, horizon)}>Messpunkt +</Button> : null}
+                        {rolle === 'intern' ? <Button size="sm" variant="ghost" data-action="add-measurement" disabled={Boolean(addingFindingId)} onClick={() => addMeasurement(finding, horizon)}>Messpunkt +</Button> : null}
                       </div>
                       {horizonRows.length === 0 ? <p className="mt-3 text-xs leading-relaxed text-ink-3">Noch kein Messpunkt definiert.</p> : (
                         <div className="mt-3 space-y-3">
                           {horizonRows.map((row) => (
-                            <div key={row.id} className="rounded-lg border border-line bg-surface-muted p-3">
+                            <div key={row.id} data-measurement-id={row.id} className="rounded-lg border border-line bg-surface-muted p-3">
                               {rolle === 'intern' ? (
                                 <div className="space-y-3">
                                   <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -268,7 +268,7 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
                                   <Select label="Bewertung" value={row.assessment} onChange={(event) => updateLocal(row.id, { assessment: event.target.value })}>{Object.entries(ASSESSMENTS).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</Select>
                                   <Textarea rows={2} label="Begründung" value={row.assessmentNote} onChange={(event) => updateLocal(row.id, { assessmentNote: event.target.value })} placeholder="Warum stützt oder widerlegt dieser Messpunkt die Diagnose?" />
                                   <label className="flex items-center gap-2 text-xs text-ink-2"><input type="checkbox" checked={row.sichtbarKunde} onChange={(event) => updateLocal(row.id, { sichtbarKunde: event.target.checked })} /> Für Kunden sichtbar</label>
-                                  <Button size="sm" onClick={() => save(row)} disabled={savingId === row.id}>{savingId === row.id ? 'Speichert …' : 'Messpunkt speichern'}</Button>
+                                  <Button size="sm" data-action="save-measurement" onClick={() => save(row)} disabled={savingId === row.id}>{savingId === row.id ? 'Speichert …' : 'Messpunkt speichern'}</Button>
                                 </div>
                               ) : (
                                 <div>
@@ -288,7 +288,7 @@ export function FindingOutcomeMeasurements({ kunde, rolle = 'kunde' }) {
 
               <div className="mt-4 flex flex-col gap-3 rounded-lg border border-line bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div><p className="text-xs font-semibold text-ink">Outcome-Vorschlag</p><p className="mt-1 text-xs leading-relaxed text-ink-3">{suggestion.reason}</p></div>
-                {rolle === 'intern' && suggestion.status !== 'pending' ? <Button size="sm" variant="secondary" icon={IconCheckCircle} disabled={savingId === `outcome-${finding.id}`} onClick={() => adoptOutcome(finding, suggestion)}>{savingId === `outcome-${finding.id}` ? 'Übernimmt …' : 'Outcome bewusst übernehmen'}</Button> : null}
+                {rolle === 'intern' && suggestion.status !== 'pending' ? <Button size="sm" variant="secondary" icon={IconCheckCircle} data-action="adopt-outcome" disabled={savingId === `outcome-${finding.id}`} onClick={() => adoptOutcome(finding, suggestion)}>{savingId === `outcome-${finding.id}` ? 'Übernimmt …' : 'Outcome bewusst übernehmen'}</Button> : null}
               </div>
             </section>
           )
