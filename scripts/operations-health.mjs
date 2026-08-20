@@ -10,6 +10,7 @@ const MIN_HISTORY_RUNS = Number(process.env.SYMMEDIS_HEALTH_MIN_RUNS || 5)
 const MIN_SUCCESS_RATE = Number(process.env.SYMMEDIS_HEALTH_MIN_SUCCESS_RATE || 0.95)
 const MAX_AGE_HOURS = Number(process.env.SYMMEDIS_HEALTH_MAX_AGE_HOURS || 48)
 const ENFORCE_HISTORY = process.env.SYMMEDIS_HEALTH_ENFORCE_HISTORY === 'true'
+const SIGNAL_CONCLUSIONS = new Set(['success', 'failure', 'timed_out', 'startup_failure', 'action_required'])
 
 function pct(value) {
   return `${(value * 100).toFixed(1)}%`
@@ -36,7 +37,9 @@ async function workflowHealth(workflowFile) {
   const payload = await githubJson(`/actions/workflows/${workflowFile}/runs?branch=${encodeURIComponent(BRANCH)}&per_page=100`)
   const cutoff = Date.now() - WINDOW_DAYS * 86_400_000
   const completed = (payload.workflow_runs || [])
-    .filter((run) => run.status === 'completed' && new Date(run.created_at).getTime() >= cutoff)
+    .filter((run) => run.status === 'completed')
+    .filter((run) => SIGNAL_CONCLUSIONS.has(run.conclusion))
+    .filter((run) => new Date(run.created_at).getTime() >= cutoff)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   const successful = completed.filter((run) => run.conclusion === 'success')
   const rate = completed.length ? successful.length / completed.length : 0
@@ -91,7 +94,7 @@ async function telemetryAuthWallHealth() {
 }
 
 function assessWorkflow(name, health, failures, warnings) {
-  if (health.latestConclusion !== 'success') failures.push(`${name}: latest completed run is ${health.latestConclusion}`)
+  if (health.latestConclusion !== 'success') failures.push(`${name}: latest signal-bearing run is ${health.latestConclusion}`)
   if (!health.latestCreatedAt || hoursSince(health.latestCreatedAt) > MAX_AGE_HOURS) {
     failures.push(`${name}: no successful freshness proof within ${MAX_AGE_HOURS}h`)
   }
@@ -123,6 +126,7 @@ const result = {
   branch: BRANCH,
   windowDays: WINDOW_DAYS,
   historyEnforced: ENFORCE_HISTORY,
+  ignoredConclusions: ['cancelled', 'skipped', 'neutral', 'stale'],
   thresholds: {
     minHistoryRuns: MIN_HISTORY_RUNS,
     minSuccessRate: MIN_SUCCESS_RATE,
@@ -151,7 +155,8 @@ const summary = [
   `| Lead ingress | HTTP ${lead.status} |`,
   `| Telemetry auth wall | HTTP ${telemetryAuthWall.status} (expected 401) |`,
   '',
-  `Thresholds: success rate ≥ ${pct(MIN_SUCCESS_RATE)} once ≥ ${MIN_HISTORY_RUNS} runs exist; latest completed CI/E2E proof ≤ ${MAX_AGE_HOURS}h old.`,
+  'Cancelled/skipped/neutral/stale runs are excluded because they do not represent a completed reliability outcome.',
+  `Thresholds: success rate ≥ ${pct(MIN_SUCCESS_RATE)} once ≥ ${MIN_HISTORY_RUNS} signal-bearing runs exist; latest signal-bearing CI/E2E proof ≤ ${MAX_AGE_HOURS}h old.`,
   ...(warnings.length ? ['', '## Warnings', ...warnings.map((warning) => `- ${warning}`)] : []),
   ...(failures.length ? ['', '## Failures', ...failures.map((failure) => `- ${failure}`)] : []),
 ].join('\n')
