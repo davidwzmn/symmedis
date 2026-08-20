@@ -65,25 +65,42 @@ Der Workflow `.github/workflows/operations-watch.yml` wertet aus:
 - Live-Staging HTTP + Build-Marker
 - öffentlichen Lead-Ingress über Honeypot-Smoke
 - JWT-Schutz der `operational-telemetry` Function
+- private, aggregierte 24h-Betriebsmetriken über `operations-health-snapshot` mit kurzlebigem GitHub OIDC
 
-Standardgrenzen:
+CI-/Live-Standardgrenzen:
 
-- mindestens **95 %** Erfolg, sobald mindestens **5** abgeschlossene Läufe im 30-Tage-Fenster existieren
-- letzter abgeschlossener CI-/E2E-Nachweis höchstens **48 Stunden** alt
+- mindestens **95 %** Erfolg, sobald mindestens **5** signaltragende Läufe im 30-Tage-Fenster existieren
+- letzter signaltragender CI-/E2E-Nachweis höchstens **48 Stunden** alt
 - Live-Staging und Lead-Ingress müssen erfolgreich antworten
 - `operational-telemetry` muss ohne JWT mit **401** ablehnen
 
-Jeder Lauf speichert `operations-health.json` und `operations-health.md` für 90 Tage als Actions-Artefakt. Ein Grenzbruch lässt den Job fehlschlagen und nutzt damit GitHubs bestehende Actions-Benachrichtigung statt eines zusätzlichen kostenpflichtigen Alerting-Dienstes.
+24h-Betriebsmetriken:
 
-> GitHub-Schedules laufen nur vom Default-Branch. Auf dem aktiven PR-Branch wird derselbe Evaluator in CI validiert; der 6-Stunden-Zeitplan wird nach Merge auf den Default-Branch wirksam.
+- **SEV-2:** jeder gemessene `render_failure`
+- **SEV-2:** Save-Fehlerrate > **2 %** bei mindestens **10** Samples je Operation/Oberfläche
+- **SEV-2:** Upload-/Download-Fehlerrate > **5 %** bei mindestens **5** Samples
+- **SEV-2:** gemessene Auth-Fehlerrate > **5 %** bei mindestens **5** Samples
+- **SEV-2:** gemessene Edge-Function-Fehlerrate > **5 %** bei mindestens **5** Samples
+- **SEV-2:** Workspace-Load-Fehlerrate > **5 %** bei mindestens **10** Samples
+- **SEV-2:** Lead-Ingress-Fehlerrate > **10 %** bei mindestens **5** echten Ingestion-Versuchen
+- **SEV-3:** maximale Workspace-/Edge-Latenz > **10.000 ms**
+- **SEV-3:** durchschnittliches LCP > **4.000 ms**, CLS > **0,25** oder INP > **500 ms**
+
+SEV-2 lässt `symmedis/operations-health` fehlschlagen. SEV-3 bleibt als sichtbare Degradation im Actions-Run und im Health-Artefakt, ohne automatisch einen ansonsten funktionierenden Releasepfad zu blockieren.
+
+**Messgrenze:** Fehlgeschlagene Passwort-Logins vor erfolgreicher Authentifizierung werden nicht durch Client-Telemetrie persistiert, weil zu diesem Zeitpunkt bewusst noch kein vertrauenswürdiger User-JWT existiert. Login-Erfolg, Refresh und Logout werden gemessen. Diese Lücke darf nicht durch einen anonymen, ungeschützten Telemetrie-Endpunkt geschlossen werden.
+
+Jeder Lauf speichert `operations-health.json`, `operations-health.md` und `operations-metrics.json` für 90 Tage als Actions-Artefakt. Ein harter Grenzbruch lässt den Job fehlschlagen und nutzt damit GitHubs bestehende Actions-Benachrichtigung statt eines zusätzlichen kostenpflichtigen Alerting-Dienstes.
+
+> GitHub-Schedules laufen nur vom Default-Branch. Auf dem aktiven PR-Branch wird derselbe Evaluator bei Pushes validiert; der 6-Stunden-Zeitplan wird nach Merge auf dem Default-Branch wirksam.
 
 ## Triage in 10 Minuten
 
 1. Exakten betroffenen Build-SHA feststellen.
-2. Prüfen, welches Gate zuerst rot wurde: Quality, Live-Staging oder Cross-Role.
+2. Prüfen, welches Gate zuerst rot wurde: Quality, Live-Staging, Cross-Role oder Operations-Health.
 3. Bei Browser-/Produktfehlern: Route + Rolle + Aktion notieren, keine Kundendaten kopieren.
 4. Bei Backendfehlern: Supabase-Logs nach Zeitfenster, Function und HTTP-Status filtern.
-5. Bei Save/File-Fehlern: Trace-ID aus Operational Telemetry mit API-/Function-Zeitfenster korrelieren.
+5. Bei Save/File/Auth/Edge-Fehlern: zuerst das 24h-Aggregat und anschließend das engste passende Log-Zeitfenster prüfen.
 6. Bei Security-Verdacht: Security Advisor + relevante RLS/Grants prüfen.
 7. Reproduktion auf kanonischem E2E-Fixture statt auf Kundendaten.
 
@@ -96,6 +113,7 @@ Ein Incident gilt erst als technisch behoben, wenn:
 - CI/Quality grün ist,
 - exaktes Live-Staging grün ist,
 - Cross-Role-E2E grün ist,
+- Operations-Health wieder ohne SEV-2 ist,
 - bei Daten-/Security-Themen zusätzlich Security Advisor und der betroffene direkte Policy-Test grün sind.
 
 ## Externe Launch-Gates bleiben separat
