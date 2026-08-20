@@ -1,0 +1,55 @@
+name: Operations Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: symmedis-operations-watch
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: agent/supabase-auth-foundation
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Evaluate operations health
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYMMEDIS_RELEASE_BRANCH: agent/supabase-auth-foundation
+          SYMMEDIS_LIVE_URL: https://davidwzmn.github.io/symmedis/
+          SYMMEDIS_HEALTH_WINDOW_DAYS: '30'
+          SYMMEDIS_HEALTH_MIN_RUNS: '5'
+          SYMMEDIS_HEALTH_MIN_SUCCESS_RATE: '0.95'
+          SYMMEDIS_HEALTH_MAX_AGE_HOURS: '48'
+        run: node scripts/operations-health.mjs
+      - name: Publish health summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f operations-health.md ]]; then
+            cat operations-health.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve health history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operations-health-${{ github.run_id }}
+          path: |
+            operations-health.json
+            operations-health.md
+          if-no-files-found: warn
+          retention-days: 90
