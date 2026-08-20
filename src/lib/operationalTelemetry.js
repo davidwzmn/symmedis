@@ -18,6 +18,13 @@ function observe(name, callback) {
   }
 }
 
+function authenticatedSurface() {
+  const path = `${window.location.pathname}${window.location.hash}`
+  if (/(?:\/|#\/)intern(?:\/|$)/.test(path)) return 'staff'
+  if (/(?:\/|#\/)portal(?:\/|$)/.test(path)) return 'customer'
+  return null
+}
+
 export function recordRenderFailure() {
   void sendOperationalTelemetry({ eventType: 'render_failure', outcome: 'failure' })
 }
@@ -36,13 +43,17 @@ export function installOperationalTelemetry() {
   if (installed || typeof window === 'undefined') return
   installed = true
 
+  const sentVitals = new Map()
   const sendVital = (metricName, metricValue) => {
     if (!Number.isFinite(metricValue)) return
+    const normalized = metricName === 'cls' ? rounded(metricValue, 4) : rounded(metricValue)
+    if (sentVitals.get(metricName) === normalized) return
+    sentVitals.set(metricName, normalized)
     void sendOperationalTelemetry({
       eventType: 'web_vital',
       outcome: 'observed',
       metricName,
-      metricValue,
+      metricValue: normalized,
     })
   }
 
@@ -67,10 +78,34 @@ export function installOperationalTelemetry() {
     }
   })
 
+  let workspaceStartedAt = null
+  let workspaceRecorded = false
+  const workspaceState = () => {
+    const surface = authenticatedSurface()
+    if (!surface || workspaceRecorded) return
+    const busy = Boolean(document.querySelector('main[aria-busy="true"]'))
+    const failure = document.body?.innerText?.includes('Workspace konnte nicht geladen werden') || false
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    if (busy && workspaceStartedAt == null) workspaceStartedAt = now
+    if (failure) {
+      workspaceRecorded = true
+      recordWorkspaceLoad('failure', workspaceStartedAt == null ? 0 : now - workspaceStartedAt)
+      return
+    }
+    if (!busy && workspaceStartedAt != null) {
+      workspaceRecorded = true
+      recordWorkspaceLoad('success', now - workspaceStartedAt)
+    }
+  }
+
+  const workspaceObserver = new MutationObserver(workspaceState)
+  workspaceObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-busy'] })
+  queueMicrotask(workspaceState)
+
   const flush = () => {
     if (lcp != null) sendVital('lcp', lcp)
-    if (cls > 0) sendVital('cls', rounded(cls, 4))
-    if (inp != null) sendVital('inp', rounded(inp))
+    if (cls > 0) sendVital('cls', cls)
+    if (inp != null) sendVital('inp', inp)
   }
 
   window.addEventListener('pagehide', flush, { once: true })
