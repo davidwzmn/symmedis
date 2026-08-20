@@ -15,6 +15,7 @@ const edge = read('supabase/functions/auth-email-evidence/index.ts')
 const session = read('src/state/SessionProvider.jsx')
 const api = read('src/lib/launchReadinessApi.js')
 const card = read('src/components/modules/LaunchReadinessCard.jsx')
+const runbook = read('docs/release/PRODUCTION_LAUNCH_RUNBOOK.md')
 
 for (const [needle, label] of [
   ['launch_gate_evidence', 'persistente Launch-Nachweise'],
@@ -47,5 +48,14 @@ requireText(api, "['custom_smtp', 'restore_drill']", 'nur manuell zulässige Gat
 requireText(card, "const MANUAL_GATES = new Set(['custom_smtp', 'restore_drill'])", 'UI ohne manuelle Invite/Login-Freigabe')
 requireText(card, 'Nachweis als verifiziert speichern', 'explizite Admin-Verifikation')
 requireText(card, 'session?.istAdmin', 'Admin-only UI')
+
+for (const [needle, label] of [
+  ['Custom SMTP / Absenderdomain', 'SMTP-Runbook'],
+  ['auth-email-evidence', 'automatischer realer Mail-Nachweis im Runbook'],
+  ['@example.invalid', 'Ausschluss synthetischer Identitäten im Runbook'],
+  ['docs/RECOVERY_RUNBOOK.md', 'Recovery-Verweis'],
+  ['Keine SMTP-Credentials', 'Secret-Hygiene'],
+  ['3-5 reale Pilotprojekte', 'Pilot-Handoff nach Launch'],
+]) requireText(runbook, needle, label)
 
 console.log('Launch readiness guard passed.')
