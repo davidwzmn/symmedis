@@ -4,6 +4,7 @@ import {
   clearStoredAuthSession,
   consumeAuthRedirectSession,
   fetchMyProfile,
+  invokeEdgeFunction,
   readStoredAuthSession,
   refreshAuthSession,
   signInWithPassword,
@@ -65,6 +66,9 @@ export function SessionProvider({ children }) {
     const next = mapProfile(profile, nextAuth.user)
     setAuthSession(nextAuth)
     setSession(next)
+    if (next.rolle === 'kunde') {
+      void invokeEdgeFunction('auth-email-evidence', nextAuth.access_token, {}).catch(() => undefined)
+    }
     return next
   }, [])
 
