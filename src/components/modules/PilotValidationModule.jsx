@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from '../../hooks/useSession.js'
 import { useToast } from '../../hooks/useToast.js'
-import { fetchPilotValidationReviews, fetchPilotValidationScorecard, savePilotValidationReview } from '../../lib/pilotValidationApi.js'
+import { fetchPilotStartReadiness, fetchPilotValidationReviews, fetchPilotValidationScorecard, savePilotValidationReview } from '../../lib/pilotValidationApi.js'
 import { Button, Chip } from '../ui/primitives.jsx'
 import { Input, Select, Textarea } from '../ui/forms.jsx'
-import { Card, CardBody, CardHeader, EmptyState, MetricCard } from '../ui/layout.jsx'
-import { IconCheckSquare, IconHistory, IconShield, IconTarget } from '../ui/Icons.jsx'
+import { Banner, Card, CardBody, CardHeader, EmptyState, MetricCard } from '../ui/layout.jsx'
+import { IconCheck, IconCheckSquare, IconClock, IconHistory, IconShield, IconTarget } from '../ui/Icons.jsx'
 
 const SIGNALS = [
   { value: 'unknown', label: 'Noch offen' }, { value: 'no', label: 'Nein' }, { value: 'weak', label: 'Schwach' },
@@ -21,17 +21,22 @@ export function PilotValidationModule({ kunde }) {
   const { accessToken, session } = useSession()
   const toast = useToast()
   const [scorecard, setScorecard] = useState(null)
+  const [readiness, setReadiness] = useState(null)
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyReview)
 
   const load = useCallback(async () => {
-    if (!accessToken || !kunde?.projectId) { setLoading(false); setScorecard(null); setReviews([]); return }
+    if (!accessToken || !kunde?.projectId) { setLoading(false); setScorecard(null); setReadiness(null); setReviews([]); return }
     setLoading(true)
     try {
-      const [nextScorecard, nextReviews] = await Promise.all([fetchPilotValidationScorecard(accessToken, kunde.projectId), fetchPilotValidationReviews(accessToken, kunde.projectId)])
-      setScorecard(nextScorecard || null); setReviews(nextReviews || [])
+      const [nextScorecard, nextReadiness, nextReviews] = await Promise.all([
+        fetchPilotValidationScorecard(accessToken, kunde.projectId),
+        fetchPilotStartReadiness(accessToken, kunde.projectId),
+        fetchPilotValidationReviews(accessToken, kunde.projectId),
+      ])
+      setScorecard(nextScorecard || null); setReadiness(nextReadiness || null); setReviews(nextReviews || [])
       setForm((current) => ({ ...current, reviewRound: Math.min(12, Math.max(1, Number(nextReviews?.[0]?.review_round || 0) + 1)) }))
     } catch (error) { toast.show({ title: 'Pilotmessung nicht geladen', description: error instanceof Error ? error.message : 'Die Validierungsdaten konnten nicht geladen werden.', variant: 'danger' }) }
     finally { setLoading(false) }
@@ -40,6 +45,8 @@ export function PilotValidationModule({ kunde }) {
 
   const latest = reviews[0] || null
   const evidenceLabel = useMemo(() => `${scorecard?.evidenceReadyFindings ?? 0}/${scorecard?.customerFindings ?? 0}`, [scorecard])
+  const passedReadiness = useMemo(() => readiness?.gates?.filter((gate) => gate.passed).length || 0, [readiness])
+  const totalReadiness = readiness?.gates?.length || 0
   const save = async (event) => {
     event.preventDefault(); if (!accessToken || !session?.userId || saving) return; setSaving(true)
     try {
@@ -53,6 +60,18 @@ export function PilotValidationModule({ kunde }) {
   if (!accessToken) return <EmptyState icon={IconTarget} title="Pilot-Evidenz nur im echten Staff-Workspace" description="Die Pilotmessung schreibt keine Daten aus Demo-Sitzungen." />
 
   return <div className="space-y-5">
+    <Card className={readiness?.ready ? 'border-ok-border' : 'border-brand-border'}>
+      <CardHeader title="Pilot-Startfreigabe" subtitle="Ein Pilot zählt erst als real gestartet, wenn die operativen Mindestbedingungen erfüllt sind." icon={IconShield} action={<Chip toneName={readiness?.ready ? 'ok' : 'warn'}>{passedReadiness}/{totalReadiness} erfüllt</Chip>} />
+      <CardBody className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(readiness?.gates || []).map((gate) => <div key={gate.key} className="flex items-center gap-3 rounded-lg border border-line bg-surface-muted p-3"><span className={`inline-flex size-8 shrink-0 items-center justify-center rounded-full ${gate.passed ? 'bg-ok-soft text-ok-ink' : 'bg-surface text-ink-3'}`}>{gate.passed ? <IconCheck className="size-4" /> : <IconClock className="size-4" />}</span><span className="text-[0.8125rem] font-medium text-ink">{gate.label}</span></div>)}
+        </div>
+        <Banner toneName={readiness?.ready ? 'ok' : 'warn'} icon={readiness?.ready ? IconCheck : IconClock} title={readiness?.ready ? 'Pilot kann als realer Validierungsfall starten' : 'Pilotstart noch nicht freigegeben'}>
+          {readiness?.ready ? 'Die Baseline ist vollständig. Ab jetzt nur tatsächlich beobachtete Kunden- und Outcome-Evidenz erfassen.' : 'Fehlende Punkte zuerst schließen. E2E-Fixtures oder unvollständige Kundenzugänge dürfen nicht als reale Validierung zählen.'}
+        </Banner>
+      </CardBody>
+    </Card>
+
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard label="Zeit bis erstes Finding" value={hours(scorecard?.timeToFirstCustomerFindingHours)} icon={IconTarget} toneName={scorecard?.timeToFirstCustomerFindingHours == null ? 'neutral' : 'ok'} hint="Erstes kundensichtbares, freigegebenes Finding" />
       <MetricCard label="Evidenzstarke Findings" value={evidenceLabel} icon={IconShield} toneName={(scorecard?.evidenceReadyFindings || 0) > 0 ? 'ok' : 'neutral'} hint={percent(scorecard?.evidenceReadyRate)} />
