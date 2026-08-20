@@ -95,6 +95,9 @@ for (const [needle, label] of [
 
 for (const [needle, label] of [
   ['Custom SMTP / Absenderdomain', 'SMTP-Runbook'],
+  ['Link-Tracking beim SMTP-/Mailprovider', 'Link-Tracking-Schutz im Runbook'],
+  ['Enterprise-Mail-Security-Test', 'Enterprise-Mailscanner-Test'],
+  ['OTP oder einen eigenen Zwischen-Link', 'Scanner-resistenter Fallback'],
   ['auth-email-evidence', 'automatischer realer Mail-Nachweis im Runbook'],
   ['@example.invalid', 'Ausschluss synthetischer Identitäten im Runbook'],
   ['docs/RECOVERY_RUNBOOK.md', 'Recovery-Verweis'],
