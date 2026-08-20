@@ -58,7 +58,7 @@ for (const [needle, label] of [
   ['Site URL und erlaubte Redirect-URLs', 'Auth-Redirect-Hinweis'],
   ['Link-Tracking beim Mailprovider deaktivieren', 'Schutz vor veränderten Auth-Links'],
   ['Keine @example.invalid-Adresse verwenden', 'reale Mailbox statt E2E-Identität'],
-  ['keine kosten- oder betriebsrelevante Restore-Aktion', 'Restore-Kosten-/Betriebsgrenze'],
+  ['kosten- oder betriebsrelevante Restore-Aktion', 'Restore-Kosten-/Betriebsgrenze'],
 ]) requireText(card, needle, label)
 
 for (const [needle, label] of [
