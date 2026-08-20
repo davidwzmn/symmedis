@@ -1,0 +1,1 @@
+create index pilot_validation_reviews_created_by_idx on public.pilot_validation_reviews(created_by);
