@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: symmedis-operations-watch
+  group: symmedis-operations-watch-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Checkout
+      - name: Checkout monitored branch
         uses: actions/checkout@v6
         with:
-          ref: agent/supabase-auth-foundation
+          ref: ${{ github.ref_name }}
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -29,12 +29,13 @@ jobs:
       - name: Evaluate operations health
         env:
           GH_TOKEN: ${{ github.token }}
-          SYMMEDIS_RELEASE_BRANCH: agent/supabase-auth-foundation
+          SYMMEDIS_RELEASE_BRANCH: ${{ github.ref_name }}
           SYMMEDIS_LIVE_URL: https://davidwzmn.github.io/symmedis/
           SYMMEDIS_HEALTH_WINDOW_DAYS: '30'
           SYMMEDIS_HEALTH_MIN_RUNS: '5'
           SYMMEDIS_HEALTH_MIN_SUCCESS_RATE: '0.95'
           SYMMEDIS_HEALTH_MAX_AGE_HOURS: '48'
+          SYMMEDIS_HEALTH_ENFORCE_HISTORY: 'true'
         run: node scripts/operations-health.mjs
       - name: Publish health summary
         if: always()
