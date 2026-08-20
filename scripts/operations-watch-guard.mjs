@@ -49,7 +49,7 @@ for (const signature of [
   'SEV-2 — Kernreise gestört',
   'SEV-3 — Degradation',
   'docs/RECOVERY_RUNBOOK.md',
-  'keine Release-Gates abschalten',
+  'Keine Release-Gates abschalten',
   '95 %',
   '48 Stunden',
 ]) requireText(runbook, signature, 'Incident runbook contract missing')
