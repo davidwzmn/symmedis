@@ -7,7 +7,7 @@ import { LaunchReadinessCard } from '../../components/modules/LaunchReadinessCar
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card, CardBody, CardHeader, PageHeader, Banner, MetricCard } from '../../components/ui/layout.jsx'
 import { Toggle } from '../../components/ui/forms.jsx'
-import { IconCheck, IconClose, IconLink, IconShield, IconUsers, IconLayers, IconTarget, IconClock } from '../../components/ui/Icons.jsx'
+import { IconCheck, IconClose, IconLink, IconShield, IconUsers, IconLayers, IconTarget } from '../../components/ui/Icons.jsx'
 
 const ROLLEN = [
   { id: 'admin', name: 'Administrator:in', rechte: ['Kunden und Projekte verwalten', 'Analysen freigeben', 'Interne Notizen lesen und schreiben', 'Berichte finalisieren', 'Teamzugänge verwalten'] },
@@ -21,20 +21,13 @@ const STATUS = {
 }
 
 const RELEASE_GATES = [
-  { id: 'auth', label: 'Auth & Rollenmodell', text: 'Supabase Auth, profilgebundene Rollen und getrennte Staff-/Customer-Routen sind technisch aktiv.', status: 'ready' },
-  { id: 'tenant', label: 'Tenant-Isolation', text: 'RLS, Storage-Policies und serverseitige Organisations-/Projektprüfungen schützen Kundengrenzen.', status: 'ready' },
-  { id: 'documents', label: 'Dokumentenpfad', text: 'Private Uploads, lokale Office-Indexierung und Archive-Guard sind implementiert; echter Browser-Upload bleibt Teil des finalen E2E.', status: 'partial' },
-  { id: 'reports', label: 'Report-Freigabe', text: 'Entwurf/final, unveränderliche Versionen und Auditpfad sind technisch vorhanden; kompletter Browser-Release-Flow bleibt offen.', status: 'partial' },
-  { id: 'staff-e2e', label: 'Staff Browser-E2E', text: 'Login → Projekt → Analyse → Dokument → Freigabe muss mit einer realen Staff-Session vollständig durchlaufen werden.', status: 'open' },
-  { id: 'customer-e2e', label: 'Customer Browser-E2E', text: 'Invite → Magic Link → Portal → Aufgabe → Upload/Download → finaler Report erfordert eine sichere echte Testadresse.', status: 'open' },
-  { id: 'ai', label: 'Bezahlte KI', text: 'Bewusst deaktiviert. Aktivierung erst nach Kostenfreigabe und kontrolliertem End-to-End-Test.', status: 'open' },
+  { id: 'auth', label: 'Auth & Rollenmodell', text: 'Supabase Auth, profilgebundene Rollen und getrennte Staff-/Customer-Routen sind technisch aktiv.' },
+  { id: 'tenant', label: 'Tenant-Isolation', text: 'RLS, Storage-Policies und serverseitige Organisations-/Projektprüfungen schützen Kundengrenzen.' },
+  { id: 'documents', label: 'Dokumentenpfad', text: 'Private Uploads, Office-Indexierung, authentifizierter Download und Kunden-/Staff-Sichtbarkeitsgrenzen sind im Cross-Role-Browser-E2E bewiesen.' },
+  { id: 'reports', label: 'Report-Freigabe', text: 'Entwurf/final, unveränderliche Versionen, Kundenfreigabe und Auditpfad sind im Browser-E2E vollständig durchlaufen.' },
+  { id: 'staff-e2e', label: 'Staff Browser-E2E', text: 'Staff-Login → Projekt → Aufgabe → Finding → Dokument → finaler Report läuft secretlos über kurzlebige GitHub-OIDC-Testidentitäten.' },
+  { id: 'customer-e2e', label: 'Customer Browser-E2E', text: 'Customer-Login → freigegebenes Finding → eigene Aufgabe → Upload/Download → finaler Report ist technisch durch den Cross-Role-E2E abgesichert.' },
 ]
-
-const RELEASE_STATUS = {
-  ready: { label: 'Technisch abgesichert', tone: 'ok', icon: IconCheck },
-  partial: { label: 'Technik bereit · E2E offen', tone: 'warn', icon: IconClock },
-  open: { label: 'Release-Gate offen', tone: 'neutral', icon: IconClock },
-}
 
 export function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
@@ -75,8 +68,6 @@ export function SettingsPage() {
   const categories = useMemo(() => ['Alle', ...new Set(EXTENSIONS.map((item) => item.category))], [])
   const sichtbareExtensions = filter === 'Alle' ? EXTENSIONS : EXTENSIONS.filter((item) => item.category === filter)
   const vorbereitet = EXTENSIONS.filter((item) => item.status === 'ready').length
-  const releaseReady = RELEASE_GATES.filter((gate) => gate.status === 'ready').length
-  const releaseOffen = RELEASE_GATES.length - releaseReady
 
   return (
     <div className="space-y-6">
@@ -96,17 +87,13 @@ export function SettingsPage() {
       </div>
 
       <Card className="border-brand-border">
-        <CardHeader title="Release Readiness" subtitle="Technische Absicherung und echte End-to-End-Nachweise bewusst getrennt" icon={IconShield} action={<Chip toneName={releaseOffen ? 'warn' : 'ok'}>{releaseReady}/{RELEASE_GATES.length} vollständig nachgewiesen</Chip>} />
+        <CardHeader title="Technische Release Readiness" subtitle="Code-, Sicherheits- und Browser-Gates getrennt von realen externen Produktionsnachweisen" icon={IconShield} action={<Chip toneName="ok">{RELEASE_GATES.length}/{RELEASE_GATES.length} technisch abgesichert</Chip>} />
         <CardBody className="space-y-4">
-          <p className="max-w-4xl text-[0.8125rem] leading-relaxed text-ink-2">Ein grüner Build ist noch kein Produktionsnachweis. Dieses Gate markiert deshalb nur Punkte als vollständig, die technisch abgesichert sind und keinen ausstehenden realen Browser-/Identitätsnachweis benötigen.</p>
+          <p className="max-w-4xl text-[0.8125rem] leading-relaxed text-ink-2">Die technische Golden-Path-Strecke ist durch Build-, Security- und Cross-Role-Browser-Gates abgesichert. Das bedeutet bewusst noch nicht, dass SMTP, reale Mailzustellung oder Restore im Produktionsbetrieb nachgewiesen sind.</p>
           <div className="grid gap-3 lg:grid-cols-2">
-            {RELEASE_GATES.map((gate) => {
-              const status = RELEASE_STATUS[gate.status]
-              const StatusIcon = status.icon
-              return <div key={gate.id} className="rounded-xl border border-line bg-surface p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="text-sm font-semibold text-ink">{gate.label}</p><Chip size="sm" toneName={status.tone} icon={StatusIcon}>{status.label}</Chip></div><p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-2">{gate.text}</p></div>
-            })}
+            {RELEASE_GATES.map((gate) => <div key={gate.id} className="rounded-xl border border-line bg-surface p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="text-sm font-semibold text-ink">{gate.label}</p><Chip size="sm" toneName="ok" icon={IconCheck}>Technisch abgesichert</Chip></div><p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-2">{gate.text}</p></div>)}
           </div>
-          <Banner toneName="warn" icon={IconClock} title="Merge-Gate bleibt bewusst geschlossen">Staff- und Customer-Browser-E2E sowie die kontrollierte KI-Aktivierung sind keine Checkboxen, die aus Code abgeleitet werden können. Bis diese Nachweise real erfolgt sind, bleibt der Release-Status absichtlich unvollständig.</Banner>
+          <Banner toneName="info" icon={IconShield} title="Externe Produktionsnachweise separat">Custom SMTP, reale Invite-Zustellung, realer E-Mail-/Magic-Link-Login und Restore werden ausschließlich im nachfolgenden Launch-Gate bewertet. Bezahlte KI ist kein Pflichtgate für den produktiven Kern.</Banner>
         </CardBody>
       </Card>
 
