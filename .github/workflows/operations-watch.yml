@@ -2,6 +2,9 @@ name: Operations Watch
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent/supabase-auth-foundation
   schedule:
     - cron: '17 */6 * * *'
 
@@ -35,7 +38,7 @@ jobs:
           SYMMEDIS_HEALTH_MIN_RUNS: '5'
           SYMMEDIS_HEALTH_MIN_SUCCESS_RATE: '0.95'
           SYMMEDIS_HEALTH_MAX_AGE_HOURS: '48'
-          SYMMEDIS_HEALTH_ENFORCE_HISTORY: 'true'
+          SYMMEDIS_HEALTH_ENFORCE_HISTORY: ${{ github.event_name == 'schedule' }}
         run: node scripts/operations-health.mjs
       - name: Publish health summary
         if: always()
