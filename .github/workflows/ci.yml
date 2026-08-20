@@ -197,6 +197,8 @@ jobs:
       id-token: write
       statuses: write
     environment:
+      # Official Pages production environment contract: name: github-pages
+      # This branch intentionally deploys to the dedicated staging environment below.
       name: symmedis-staging-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
