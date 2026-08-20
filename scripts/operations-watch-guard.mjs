@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 const failures = []
 const workflow = await readFile('.github/workflows/operations-watch.yml', 'utf8')
 const evaluator = await readFile('scripts/operations-health.mjs', 'utf8')
+const snapshot = await readFile('supabase/functions/operations-health-snapshot/index.ts', 'utf8')
 const runbook = await readFile('docs/INCIDENT_RUNBOOK.md', 'utf8')
 
 function requireText(haystack, needle, label) {
@@ -12,6 +13,7 @@ function requireText(haystack, needle, label) {
 for (const signature of [
   "cron: '17 */6 * * *'",
   'actions: read',
+  'id-token: write',
   'statuses: write',
   'symmedis/operations-health',
   'SYMMEDIS_HEALTH_MIN_SUCCESS_RATE:',
@@ -19,6 +21,9 @@ for (const signature of [
   'SYMMEDIS_HEALTH_MAX_AGE_HOURS:',
   "'48'",
   "SYMMEDIS_HEALTH_ENFORCE_HISTORY: ${{ github.event_name == 'schedule' }}",
+  'audience=symmedis-operations-watch',
+  '/functions/v1/operations-health-snapshot',
+  'operations-metrics.json',
   'retention-days: 90',
 ]) requireText(workflow, signature, 'Operations workflow contract missing')
 
@@ -32,6 +37,24 @@ for (const signature of [
   "website: 'operations-watch-honeypot'",
   "SYMMEDIS_HEALTH_ENFORCE_HISTORY === 'true'",
 ]) requireText(evaluator, signature, 'Operations evaluator contract missing')
+
+for (const signature of [
+  'EXPECTED_AUDIENCE = "symmedis-operations-watch"',
+  'EXPECTED_REPOSITORY = "davidwzmn/symmedis"',
+  'EXPECTED_REPOSITORY_ID = "1314992444"',
+  'operations-watch.yml@refs/heads/',
+  'runner_environment',
+  'operational_metric_buckets',
+  'render_failure',
+  'save_action',
+  'file_transfer',
+  'auth_action',
+  'edge_function',
+  'workspace_load',
+  'SEV-2',
+  'SEV-3',
+  'Pre-authentication login failures',
+]) requireText(snapshot, signature, 'Private metric snapshot contract missing')
 
 for (const forbidden of [
   'SUPABASE_SERVICE_ROLE_KEY',
@@ -63,6 +86,8 @@ if (failures.length) {
 console.log('SYMMEDIS Operations Watch Guard: OK')
 console.log('✓ Scheduled health evaluation and commit status are protected')
 console.log('✓ CI/E2E history, live staging, lead ingress and telemetry auth wall are covered')
+console.log('✓ Private 24h operational metrics are fetched through exact GitHub OIDC workflow trust')
+console.log('✓ SEV-2 operational thresholds fail the health gate; SEV-3 remains visible degradation')
 console.log('✓ History threshold is enforced on schedule but not allowed to poison PR validation')
 console.log('✓ 90-day machine-readable health artifacts are retained')
 console.log('✓ Operations evaluator stays secretless and privacy-safe')
