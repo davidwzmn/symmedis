@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { recordRenderFailure } from '../../lib/operationalTelemetry.js'
 
 function incidentId() {
   const stamp = Date.now().toString(36).toUpperCase()
@@ -17,7 +18,8 @@ export class AppErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Keine Fehlermeldung oder Kundendaten in die sichtbare UI spiegeln.
+    recordRenderFailure()
+    // Keine Fehlermeldung oder Kundendaten in die Telemetrie oder sichtbare UI spiegeln.
     // Browser-Konsole bleibt für technische Diagnose im kontrollierten E2E nutzbar.
     console.error('SYMMEDIS render failure', {
       incident: this.state.incident,
