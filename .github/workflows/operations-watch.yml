@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
   statuses: write
 
 concurrency:
@@ -56,6 +57,35 @@ jobs:
           SYMMEDIS_HEALTH_MAX_AGE_HOURS: '48'
           SYMMEDIS_HEALTH_ENFORCE_HISTORY: ${{ github.event_name == 'schedule' }}
         run: node scripts/operations-health.mjs
+      - name: Evaluate private operational metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=symmedis-operations-watch"
+          oidc_json="$(curl --silent --show-error --fail-with-body --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$token_url")"
+          oidc="$(printf '%s' "$oidc_json" | jq -r '.value')"
+          test -n "$oidc" && test "$oidc" != "null" || { echo "GitHub OIDC Token fehlt." >&2; exit 1; }
+          echo "::add-mask::${oidc}"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${oidc}" \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            'https://jmxxinrvszwggcxvlwfs.supabase.co/functions/v1/operations-health-snapshot' > operations-metrics.json
+          node - <<'NODE'
+          const fs = require('fs')
+          const data = JSON.parse(fs.readFileSync('operations-metrics.json', 'utf8'))
+          if (data.ok !== true || !Array.isArray(data.summary) || !Array.isArray(data.alerts)) {
+            console.error('Operational metric snapshot contract invalid.')
+            process.exit(1)
+          }
+          const lines = ['', '## Private operational metrics (24h)', '', `Status: **${String(data.status || 'unknown').toUpperCase()}**`, `Signals: ${data.summary.length}`, `Alerts: ${data.alerts.length}`]
+          for (const alert of data.alerts) lines.push(`- ${alert.severity}: ${alert.signal} — ${alert.detail}`)
+          lines.push('', `Measurement gap: ${data.measurementGap}`)
+          fs.appendFileSync('operations-health.md', `${lines.join('\n')}\n`)
+          if (data.status === 'failure') process.exit(2)
+          if (data.status === 'warning') console.log('::warning::Operational metrics contain SEV-3 degradation signals.')
+          NODE
       - name: Publish health summary
         if: always()
         shell: bash
@@ -71,6 +101,7 @@ jobs:
           path: |
             operations-health.json
             operations-health.md
+            operations-metrics.json
           if-no-files-found: warn
           retention-days: 90
       - name: Record operations status
@@ -85,7 +116,7 @@ jobs:
           description="Operations health threshold breached"
           if [[ "$JOB_STATUS" == "success" ]]; then
             state="success"
-            description="Live synthetics and operations health passed"
+            description="Live synthetics and operational metrics passed"
           fi
           target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           payload="$(node -e 'process.stdout.write(JSON.stringify({state:process.argv[1],context:"symmedis/operations-health",description:process.argv[2],target_url:process.argv[3]}))' "$state" "$description" "$target_url")"
