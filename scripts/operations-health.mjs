@@ -93,15 +93,20 @@ async function telemetryAuthWallHealth() {
   return { ok: response.status === 401, status: response.status }
 }
 
+function recordHistorySignal(message, failures, warnings) {
+  if (ENFORCE_HISTORY) failures.push(message)
+  else warnings.push(message)
+}
+
 function assessWorkflow(name, health, failures, warnings) {
-  if (health.latestConclusion !== 'success') failures.push(`${name}: latest signal-bearing run is ${health.latestConclusion}`)
+  if (health.latestConclusion !== 'success') {
+    recordHistorySignal(`${name}: latest signal-bearing run is ${health.latestConclusion}`, failures, warnings)
+  }
   if (!health.latestCreatedAt || hoursSince(health.latestCreatedAt) > MAX_AGE_HOURS) {
-    failures.push(`${name}: no successful freshness proof within ${MAX_AGE_HOURS}h`)
+    recordHistorySignal(`${name}: no signal-bearing freshness proof within ${MAX_AGE_HOURS}h`, failures, warnings)
   }
   if (health.completedRuns >= MIN_HISTORY_RUNS && health.successRate < MIN_SUCCESS_RATE) {
-    const message = `${name}: ${WINDOW_DAYS}d success rate ${pct(health.successRate)} below ${pct(MIN_SUCCESS_RATE)}`
-    if (ENFORCE_HISTORY) failures.push(message)
-    else warnings.push(message)
+    recordHistorySignal(`${name}: ${WINDOW_DAYS}d success rate ${pct(health.successRate)} below ${pct(MIN_SUCCESS_RATE)}`, failures, warnings)
   }
 }
 
