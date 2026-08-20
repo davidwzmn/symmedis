@@ -4,6 +4,10 @@ export async function fetchPilotValidationScorecard(accessToken, projectId) {
   return restRpc('get_pilot_validation_scorecard', accessToken, { p_project_id: projectId })
 }
 
+export async function fetchPilotStartReadiness(accessToken, projectId) {
+  return restRpc('get_pilot_start_readiness', accessToken, { p_project_id: projectId })
+}
+
 export async function fetchPilotValidationReviews(accessToken, projectId) {
   return restSelect(
     'pilot_validation_reviews',
