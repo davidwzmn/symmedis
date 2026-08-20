@@ -3,6 +3,7 @@ import { EXTENSIONS, PLATFORM_EXTENSIONS } from '../../data/extensions.js'
 import { useTheme } from '../../hooks/useTheme.js'
 import { useSession } from '../../hooks/useSession.js'
 import { fetchTeamDirectory } from '../../lib/workspaceApi.js'
+import { LaunchReadinessCard } from '../../components/modules/LaunchReadinessCard.jsx'
 import { Button, Chip } from '../../components/ui/primitives.jsx'
 import { Card, CardBody, CardHeader, PageHeader, Banner, MetricCard } from '../../components/ui/layout.jsx'
 import { Toggle } from '../../components/ui/forms.jsx'
@@ -108,6 +109,8 @@ export function SettingsPage() {
           <Banner toneName="warn" icon={IconClock} title="Merge-Gate bleibt bewusst geschlossen">Staff- und Customer-Browser-E2E sowie die kontrollierte KI-Aktivierung sind keine Checkboxen, die aus Code abgeleitet werden können. Bis diese Nachweise real erfolgt sind, bleibt der Release-Status absichtlich unvollständig.</Banner>
         </CardBody>
       </Card>
+
+      <LaunchReadinessCard />
 
       <Card>
         <CardHeader title="Extension Hub" subtitle="Priorisierte Datenquellen und Automationen – Status zeigt technische Vorbereitung, nicht eine vorgetäuschte Live-Verbindung." icon={IconLink} />
