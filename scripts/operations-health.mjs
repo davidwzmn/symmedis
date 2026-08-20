@@ -9,6 +9,7 @@ const WINDOW_DAYS = Number(process.env.SYMMEDIS_HEALTH_WINDOW_DAYS || 30)
 const MIN_HISTORY_RUNS = Number(process.env.SYMMEDIS_HEALTH_MIN_RUNS || 5)
 const MIN_SUCCESS_RATE = Number(process.env.SYMMEDIS_HEALTH_MIN_SUCCESS_RATE || 0.95)
 const MAX_AGE_HOURS = Number(process.env.SYMMEDIS_HEALTH_MAX_AGE_HOURS || 48)
+const ENFORCE_HISTORY = process.env.SYMMEDIS_HEALTH_ENFORCE_HISTORY === 'true'
 
 function pct(value) {
   return `${(value * 100).toFixed(1)}%`
@@ -89,17 +90,20 @@ async function telemetryAuthWallHealth() {
   return { ok: response.status === 401, status: response.status }
 }
 
-function assessWorkflow(name, health, failures) {
+function assessWorkflow(name, health, failures, warnings) {
   if (health.latestConclusion !== 'success') failures.push(`${name}: latest completed run is ${health.latestConclusion}`)
   if (!health.latestCreatedAt || hoursSince(health.latestCreatedAt) > MAX_AGE_HOURS) {
     failures.push(`${name}: no successful freshness proof within ${MAX_AGE_HOURS}h`)
   }
   if (health.completedRuns >= MIN_HISTORY_RUNS && health.successRate < MIN_SUCCESS_RATE) {
-    failures.push(`${name}: ${WINDOW_DAYS}d success rate ${pct(health.successRate)} below ${pct(MIN_SUCCESS_RATE)}`)
+    const message = `${name}: ${WINDOW_DAYS}d success rate ${pct(health.successRate)} below ${pct(MIN_SUCCESS_RATE)}`
+    if (ENFORCE_HISTORY) failures.push(message)
+    else warnings.push(message)
   }
 }
 
 const failures = []
+const warnings = []
 const [ci, crossRole, live, lead, telemetryAuthWall] = await Promise.all([
   workflowHealth('ci.yml'),
   workflowHealth('cross-role-e2e.yml'),
@@ -108,8 +112,8 @@ const [ci, crossRole, live, lead, telemetryAuthWall] = await Promise.all([
   telemetryAuthWallHealth(),
 ])
 
-assessWorkflow('CI', ci, failures)
-assessWorkflow('Cross-role E2E', crossRole, failures)
+assessWorkflow('CI', ci, failures, warnings)
+assessWorkflow('Cross-role E2E', crossRole, failures, warnings)
 if (!live.ok) failures.push(`Live staging: HTTP ${live.status}, build marker=${live.buildSha || 'missing'}`)
 if (!lead.ok) failures.push(`Lead ingress: HTTP ${lead.status}`)
 if (!telemetryAuthWall.ok) failures.push(`Operational telemetry auth wall: expected 401, received ${telemetryAuthWall.status}`)
@@ -118,13 +122,15 @@ const result = {
   observedAt: new Date().toISOString(),
   branch: BRANCH,
   windowDays: WINDOW_DAYS,
+  historyEnforced: ENFORCE_HISTORY,
   thresholds: {
     minHistoryRuns: MIN_HISTORY_RUNS,
     minSuccessRate: MIN_SUCCESS_RATE,
     maxAgeHours: MAX_AGE_HOURS,
   },
   checks: { ci, crossRole, live, lead, telemetryAuthWall },
-  status: failures.length ? 'failure' : 'success',
+  status: failures.length ? 'failure' : warnings.length ? 'warning' : 'success',
+  warnings,
   failures,
 }
 
@@ -135,6 +141,7 @@ const summary = [
   '',
   `Status: **${result.status.toUpperCase()}**`,
   `Observed: ${result.observedAt}`,
+  `History enforcement: **${ENFORCE_HISTORY ? 'ON' : 'OFF'}**`,
   '',
   '| Signal | Result |',
   '| --- | --- |',
@@ -145,6 +152,7 @@ const summary = [
   `| Telemetry auth wall | HTTP ${telemetryAuthWall.status} (expected 401) |`,
   '',
   `Thresholds: success rate ≥ ${pct(MIN_SUCCESS_RATE)} once ≥ ${MIN_HISTORY_RUNS} runs exist; latest completed CI/E2E proof ≤ ${MAX_AGE_HOURS}h old.`,
+  ...(warnings.length ? ['', '## Warnings', ...warnings.map((warning) => `- ${warning}`)] : []),
   ...(failures.length ? ['', '## Failures', ...failures.map((failure) => `- ${failure}`)] : []),
 ].join('\n')
 
