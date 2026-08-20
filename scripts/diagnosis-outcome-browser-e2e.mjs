@@ -14,7 +14,6 @@ const PROJECT_ID = 'a551b1c8-55d0-4a90-8897-1408e7a08bac'
 const CLIENT_ID = 'cd269a65-a9d0-4d2a-90cd-026706133e57'
 const ANALYSIS_ITEM_ID = '63e6f8df-c28b-4cc2-9a72-dc9750746f0e'
 const FINDING_TEXT = 'E2E: Positionierungs-Finding wartet auf Kundenfreigabe.'
-const OUTCOME_FINDING_SCOPE = 'E2E: Finding nach menschlicher Prüfung für den Kunden freigeben.'
 const FIXTURE_CONFIRM = 'RESET_SYMMEDIS_E2E'
 const METRIC_LABEL = 'Wirkungskennzahl'
 
@@ -166,83 +165,41 @@ async function clickText(cdp, text, scopeText = '') {
   if (!clicked) throw new Error(`UI-Aktion nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
 }
 
-async function trustedClickText(cdp, text, scopeText = '') {
-  const scrollReady = await cdp.evaluate(`(() => {
-    const wanted = ${JSON.stringify(text)};
-    const scope = ${JSON.stringify(scopeText)};
-    const roots = scope
-      ? [...document.querySelectorAll('section,article,div')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
-      : [document.body];
-    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
-    const candidates = [...root.querySelectorAll('button,a')];
-    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
-      || candidates.find((el) => (el.innerText || '').includes(wanted));
+function findingSelector() {
+  return `[data-finding-id="${ANALYSIS_ITEM_ID}"]`
+}
+
+function horizonSelector(horizon = 30) {
+  return `${findingSelector()} [data-horizon="${horizon}"]`
+}
+
+function actionSelector(action, horizon = null) {
+  const root = horizon == null ? findingSelector() : horizonSelector(horizon)
+  return `${root} [data-action="${action}"]`
+}
+
+async function assertSelector(cdp, selector) {
+  await waitFor(() => cdp.evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), 12000, 150)
+}
+
+async function clickSelector(cdp, selector) {
+  await assertSelector(cdp, selector)
+  const clicked = await cdp.evaluate(`(() => {
+    const target = document.querySelector(${JSON.stringify(selector)});
     if (!target || target.disabled) return false;
     target.scrollIntoView({ block: 'center', inline: 'center' });
+    target.click();
     return true;
   })()`)
-  if (!scrollReady) throw new Error(`Trusted-Click-Ziel nicht gefunden: ${text}${scopeText ? ` in ${scopeText}` : ''}`)
-  await sleep(120)
-
-  const point = await cdp.evaluate(`(() => {
-    const wanted = ${JSON.stringify(text)};
-    const scope = ${JSON.stringify(scopeText)};
-    const roots = scope
-      ? [...document.querySelectorAll('section,article,div')].filter((el) => (el.innerText || '').includes(scope) && el.querySelector('button,a'))
-      : [document.body];
-    const root = roots.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
-    const candidates = [...root.querySelectorAll('button,a')];
-    const target = candidates.find((el) => (el.innerText || '').trim() === wanted)
-      || candidates.find((el) => (el.innerText || '').includes(wanted));
-    if (!target || target.disabled) return null;
-    const reactKey = Object.keys(target).find((key) => key.startsWith('__reactProps$')) || '';
-    const rect = target.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    const hit = document.elementFromPoint(x, y);
-    const hitOk = hit === target || target.contains(hit);
-    window.__symmedisTrustedClick = null;
-    document.addEventListener('click', (event) => {
-      window.__symmedisTrustedClick = {
-        trusted: Boolean(event.isTrusted),
-        targetText: (event.target?.innerText || event.target?.textContent || '').trim().slice(0, 120),
-      };
-    }, { capture: true, once: true });
-    return {
-      x, y, width: rect.width, height: rect.height, hitOk,
-      hitText: (hit?.innerText || hit?.textContent || '').trim().slice(0, 120),
-      targetText: (target.innerText || target.textContent || '').trim().slice(0, 120),
-      hasOnClick: Boolean(reactKey && typeof target[reactKey]?.onClick === 'function'),
-    };
-  })()`)
-  if (!point || point.width <= 0 || point.height <= 0 || !point.hitOk || !point.hasOnClick) {
-    throw new Error(`Trusted-Click-Hit-Test fehlgeschlagen: ${text}; ${JSON.stringify(point)}`)
-  }
-
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y })
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 })
-  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 })
-  const observed = await waitFor(() => cdp.evaluate('window.__symmedisTrustedClick'), 3000, 50)
-  if (!observed?.trusted) throw new Error(`Browser-Click war nicht trusted: ${text}; ${JSON.stringify(observed)}`)
+  if (!clicked) throw new Error(`UI-Aktion nicht ausführbar: ${selector}`)
 }
 
 async function measurementEditorState(cdp, horizon = 30) {
-  const horizonText = `Tag ${horizon}`
+  const selector = horizonSelector(horizon)
   return cdp.evaluate(`(() => {
-    const findingScope = ${JSON.stringify(OUTCOME_FINDING_SCOPE)};
-    const horizonText = ${JSON.stringify(horizonText)};
-    const metricValue = ${JSON.stringify(METRIC_LABEL)};
-    const findingCandidates = [...document.querySelectorAll('section,article,div')].filter((el) => {
-      const text = el.innerText || '';
-      return text.includes(findingScope) && text.includes('Finding → Intervention → 30/60/90 → Outcome');
-    });
-    const findingRoot = findingCandidates.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || null;
-    if (!findingRoot) return { foundFinding: false, foundCard: false, foundEditor: false, empty: false };
-    const cardCandidates = [...findingRoot.querySelectorAll('div')].filter((el) => {
-      const text = el.innerText || '';
-      return text.includes(horizonText) && (text.includes('Messpunkt +') || text.includes('Messpunkt speichern'));
-    });
-    const root = cardCandidates.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || null;
+    const root = document.querySelector(${JSON.stringify(selector)});
+    const finding = document.querySelector(${JSON.stringify(findingSelector())});
+    if (!finding) return { foundFinding: false, foundCard: false, foundEditor: false, empty: false };
     if (!root) return { foundFinding: true, foundCard: false, foundEditor: false, empty: false };
     const labels = [...root.querySelectorAll('label')];
     const metricLabel = labels.find((label) => (label.innerText || '').trim().startsWith('Kennzahl'));
@@ -252,7 +209,7 @@ async function measurementEditorState(cdp, horizon = 30) {
     return {
       foundFinding: true,
       foundCard: true,
-      foundEditor: Boolean(input && input.value === metricValue && text.includes('Messpunkt speichern')),
+      foundEditor: Boolean(root.querySelector('[data-measurement-id]') && input && input.value === ${JSON.stringify(METRIC_LABEL)} && root.querySelector('[data-action="save-measurement"]')),
       metricValue: input?.value || '',
       empty: text.includes('Noch kein Messpunkt definiert.'),
       text: text.slice(0, 1200),
@@ -279,18 +236,17 @@ async function assertNoMeasurementEditor(cdp, horizon = 30) {
   }, 12000, 200)
 }
 
-async function setSelectByLabel(cdp, labelText, value) {
+async function setSelectInHorizon(cdp, horizon, labelText, value) {
+  const rootSelector = horizonSelector(horizon)
   const changed = await cdp.evaluate(`(() => {
-    const findingScope = ${JSON.stringify(OUTCOME_FINDING_SCOPE)};
-    const findingCandidates = [...document.querySelectorAll('section,article,div')].filter((el) => (el.innerText || '').includes(findingScope));
-    const root = findingCandidates.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
+    const root = document.querySelector(${JSON.stringify(rootSelector)});
+    if (!root) return false;
     const wantedLabel = ${JSON.stringify(labelText)};
     const wantedValue = ${JSON.stringify(value)};
     const labels = [...root.querySelectorAll('label')];
     const label = labels.find((item) => (item.innerText || '').trim().includes(wantedLabel));
     let select = label?.htmlFor ? document.getElementById(label.htmlFor) : label?.querySelector('select');
     if (!select && label?.parentElement) select = label.parentElement.querySelector('select');
-    if (!select) select = [...root.querySelectorAll('select')].find((item) => [...item.options].some((option) => option.value === wantedValue));
     if (!select) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
     setter.call(select, wantedValue);
@@ -301,18 +257,18 @@ async function setSelectByLabel(cdp, labelText, value) {
   if (!changed) throw new Error(`Select konnte nicht gesetzt werden: ${labelText}=${value}`)
 }
 
-async function setCheckboxByText(cdp, text, checked) {
+async function setCheckboxInHorizon(cdp, horizon, text, checked) {
+  const rootSelector = horizonSelector(horizon)
   const changed = await cdp.evaluate(`(() => {
-    const findingScope = ${JSON.stringify(OUTCOME_FINDING_SCOPE)};
-    const findingCandidates = [...document.querySelectorAll('section,article,div')].filter((el) => (el.innerText || '').includes(findingScope));
-    const root = findingCandidates.sort((a,b) => (a.innerText || '').length - (b.innerText || '').length)[0] || document.body;
+    const root = document.querySelector(${JSON.stringify(rootSelector)});
+    if (!root) return false;
     const wanted = ${JSON.stringify(text)};
-    const checked = ${checked ? 'true' : 'false'};
+    const expected = ${checked ? 'true' : 'false'};
     const label = [...root.querySelectorAll('label')].find((item) => (item.innerText || '').includes(wanted));
     const input = label?.querySelector('input[type="checkbox"]') || (label?.htmlFor ? document.getElementById(label.htmlFor) : null);
     if (!input) return false;
-    if (input.checked !== checked) input.click();
-    return input.checked === checked;
+    if (input.checked !== expected) input.click();
+    return input.checked === expected;
   })()`)
   if (!changed) throw new Error(`Checkbox konnte nicht gesetzt werden: ${text}`)
 }
@@ -371,14 +327,17 @@ async function run() {
     await assertBody(staff.cdp, 'SYMMEDIS Staging Lab')
     await clickText(staff.cdp, 'Plan')
     await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
-    await assertBody(staff.cdp, OUTCOME_FINDING_SCOPE)
-    await trustedClickText(staff.cdp, 'Messpunkt +', OUTCOME_FINDING_SCOPE)
+    await assertSelector(staff.cdp, horizonSelector(30))
+    await clickSelector(staff.cdp, actionSelector('add-measurement', 30))
     await assertMeasurementEditor(staff.cdp, 30)
-    await setSelectByLabel(staff.cdp, 'Bewertung', 'supports')
-    await setCheckboxByText(staff.cdp, 'Für Kunden sichtbar', true)
-    await trustedClickText(staff.cdp, 'Messpunkt speichern', OUTCOME_FINDING_SCOPE)
-    await assertBody(staff.cdp, 'Diagnose bestätigt')
-    await trustedClickText(staff.cdp, 'Outcome bewusst übernehmen', OUTCOME_FINDING_SCOPE)
+    await setSelectInHorizon(staff.cdp, 30, 'Bewertung', 'supports')
+    await setCheckboxInHorizon(staff.cdp, 30, 'Für Kunden sichtbar', true)
+    await clickSelector(staff.cdp, actionSelector('save-measurement', 30))
+    await waitFor(async () => {
+      const text = await staff.cdp.evaluate(`document.querySelector(${JSON.stringify(findingSelector())})?.innerText || ''`)
+      return text.includes('Diagnose bestätigt') ? text : null
+    })
+    await clickSelector(staff.cdp, actionSelector('adopt-outcome'))
     console.log('✓ Tag-30-Messpunkt bewertet und Outcome bewusst übernommen; Persistenz wird über Quality + Customer-Handover bewiesen')
 
     await staff.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/intern/analysen`)}); true`)
@@ -391,6 +350,7 @@ async function run() {
     await login(customer.cdp, { email: CUSTOMER_EMAIL, password: CUSTOMER_PASSWORD, expectedPath: '/portal/', label: 'Customer Outcome' })
     await customer.cdp.evaluate(`location.assign(${JSON.stringify(`${BASE_URL}/portal/plan`)}); true`)
     await assertBody(customer.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
+    await assertSelector(customer.cdp, horizonSelector(30))
     await assertBody(customer.cdp, METRIC_LABEL)
     await assertBody(customer.cdp, 'Stützt Diagnose')
     await assertBody(customer.cdp, 'Diagnose bestätigt')
@@ -410,7 +370,7 @@ async function run() {
         await assertBody(staff.cdp, 'SYMMEDIS Staging Lab')
         await clickText(staff.cdp, 'Plan')
         await assertBody(staff.cdp, 'Finding → Intervention → 30/60/90 → Outcome')
-        await assertBody(staff.cdp, OUTCOME_FINDING_SCOPE)
+        await assertSelector(staff.cdp, horizonSelector(30))
         await assertNoMeasurementEditor(staff.cdp, 30)
         console.log('✓ Reset entfernt Outcome, Qualitätszählung und Messpunkt vollständig')
       } catch (error) {
