@@ -24,6 +24,7 @@ Supabase Auth sendet Produktions-E-Mails ueber einen kontrollierten SMTP-Provide
 - SPF/DKIM und, falls verwendet, DMARC sind beim Provider bzw. DNS korrekt eingerichtet.
 - Keine SMTP-Credentials werden im GitHub-Repository, Browser-Code oder in Screenshots abgelegt.
 - Supabase Auth Site URL und erlaubte Redirect-URLs zeigen auf die produktive SYMMEDIS-URL.
+- Link-Tracking beim SMTP-/Mailprovider ist fuer Auth-Mails deaktiviert, damit Supabase-Einmal-Links nicht umgeschrieben werden.
 
 ### Durchfuehrung
 
@@ -56,6 +57,17 @@ Diese beiden Gates werden bewusst **nicht manuell** gesetzt. SYMMEDIS verifizier
 4. Den Link in einem frischen Browser-/Privatfenster oeffnen.
 5. Erfolgreich in den Kundenbereich wechseln und pruefen, dass ausschliesslich der zugeordnete Tenant sichtbar ist.
 6. Nach erfolgreicher Customer-Session ruft SYMMEDIS automatisch die JWT-geschuetzte Edge Function `auth-email-evidence` auf.
+
+### Enterprise-Mail-Security-Test
+
+Unternehmens-Mailgateways koennen Links automatisiert per `GET` pruefen. Da Supabase Auth-Links einmalig sind, kann ein solcher Scanner einen Invite-/Magic-Link bereits vor dem Nutzer verbrauchen.
+
+Darum vor dem produktiven Rollout mindestens einmal mit einer realistischen Unternehmens-Mailbox pruefen:
+
+1. Invite an eine Mailbox mit aktiviertem Unternehmens-Spam-/Safe-Link-Schutz senden, sofern fuer den Pilotkunden relevant.
+2. Erst nach Zustellung manuell oeffnen und pruefen, ob der Link weiterhin erfolgreich eine Session erzeugt.
+3. Falls der Link vor dem Nutzer verbraucht wird, den Launch fuer diese Mailumgebung blockieren und den Auth-Mailpfad auf eine scanner-resistente Variante umstellen, z. B. OTP oder einen eigenen Zwischen-Link mit menschlichem Bestaetigungsbutton.
+4. Keine solche Umstellung nur vorsorglich bauen, solange der reale Test das Problem nicht zeigt.
 
 ### Automatischer Beweis
 
