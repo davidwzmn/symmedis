@@ -55,7 +55,7 @@ requireText(card, 'session?.istAdmin', 'Admin-only UI')
 
 for (const [needle, label] of [
   ['Technische Release Readiness', 'separate technische Readiness'],
-  ['6/6', 'vollständige technische Readiness'],
+  ['{RELEASE_GATES.length}/{RELEASE_GATES.length} technisch abgesichert', 'dynamische vollständige technische Readiness'],
   ['Externe Produktionsnachweise separat', 'separate externe Produktionsnachweise'],
   ['Bezahlte KI ist kein Pflichtgate', 'KI nicht als Pflichtgate'],
   ['Customer-Login → freigegebenes Finding', 'technisch abgesicherter Customer-E2E'],
