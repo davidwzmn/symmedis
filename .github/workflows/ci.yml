@@ -54,6 +54,8 @@ jobs:
         run: npm run security:audit
       - name: Build application
         run: npm run build
+      - name: Enforce performance budget
+        run: npm run performance:budget
       - name: Route smoke checks
         shell: bash
         run: |
@@ -195,8 +197,6 @@ jobs:
       id-token: write
       statuses: write
     environment:
-      # The default production-oriented Pages environment is commonly protected as: name: github-pages
-      # This branch is our explicit staging release line, so it uses its own deployment environment.
       name: symmedis-staging-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
