@@ -9,6 +9,8 @@ const AUTH_REDIRECT_URL = APP_URL
 const SIGN_OUT_TIMEOUT_MS = 2500
 
 const STORAGE_KEY = 'symmedis.supabase.session'
+const TELEMETRY_FUNCTION = '/functions/v1/operational-telemetry'
+const BUILD_SHA_RE = /^[0-9a-f]{7,40}$/i
 
 export const supabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_KEY)
 
@@ -31,6 +33,94 @@ function headers(accessToken, json = true, traceparent = null) {
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(traceparent ? { traceparent } : {}),
+  }
+}
+
+function currentBuildSha() {
+  if (typeof document === 'undefined') return null
+  const value = document.querySelector('meta[name="symmedis-build"]')?.getAttribute('content') || ''
+  return BUILD_SHA_RE.test(value) ? value.toLowerCase() : null
+}
+
+function normalizedRouteFamily() {
+  if (typeof window === 'undefined') return '/'
+  const hashRoute = window.location.hash.match(/^#(\/[^?]*)/)?.[1] || ''
+  let route = hashRoute || window.location.pathname || '/'
+  route = route.replace(/^\/symmedis(?=\/|$)/, '') || '/'
+  route = route
+    .split('/')
+    .filter(Boolean)
+    .map((part) => {
+      if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(part)) return 'id'
+      if (/^[0-9a-f]{20,}$/i.test(part)) return 'id'
+      if (/^\d{4,}$/.test(part)) return 'id'
+      return part.replace(/[^a-z0-9_-]/gi, '-').slice(0, 24) || 'route'
+    })
+    .join('/')
+  return `/${route}`.replace(/\/{2,}/g, '/').slice(0, 96) || '/'
+}
+
+function currentSurface() {
+  const route = normalizedRouteFamily()
+  if (route === '/intern' || route.startsWith('/intern/')) return 'staff'
+  if (route === '/portal' || route.startsWith('/portal/')) return 'customer'
+  return 'unknown'
+}
+
+function storedAccessToken() {
+  try {
+    if (typeof window === 'undefined') return ''
+    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}')?.access_token || ''
+  } catch {
+    return ''
+  }
+}
+
+export function sendOperationalTelemetry(event, accessToken = null) {
+  if (!supabaseEnabled || typeof fetch !== 'function') return Promise.resolve(false)
+  const token = accessToken || storedAccessToken()
+  if (!token) return Promise.resolve(false)
+
+  const payload = {
+    eventType: event.eventType,
+    surface: event.surface || currentSurface(),
+    outcome: event.outcome || 'observed',
+    routeFamily: event.routeFamily || normalizedRouteFamily(),
+    durationMs: Number.isFinite(event.durationMs) ? Math.max(0, Math.round(event.durationMs)) : undefined,
+    httpStatus: Number.isInteger(event.httpStatus) ? event.httpStatus : undefined,
+    traceId: typeof event.traceId === 'string' ? event.traceId : undefined,
+    buildSha: event.buildSha || currentBuildSha() || undefined,
+    operation: typeof event.operation === 'string' ? event.operation : undefined,
+    metricName: typeof event.metricName === 'string' ? event.metricName : undefined,
+    metricValue: Number.isFinite(event.metricValue) ? event.metricValue : undefined,
+  }
+
+  return fetch(`${SUPABASE_URL}${TELEMETRY_FUNCTION}`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+    keepalive: true,
+  }).then((response) => response.ok).catch(() => false)
+}
+
+async function trackedOperation(eventType, operation, accessToken, action) {
+  const started = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  try {
+    const result = await action()
+    const ended = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    void sendOperationalTelemetry({ eventType, operation, outcome: 'success', durationMs: ended - started }, accessToken)
+    return result
+  } catch (error) {
+    const ended = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    void sendOperationalTelemetry({
+      eventType,
+      operation,
+      outcome: 'failure',
+      durationMs: ended - started,
+      httpStatus: Number.isInteger(error?.status) ? error.status : undefined,
+      traceId: typeof error?.traceId === 'string' ? error.traceId : undefined,
+    }, accessToken)
+    throw error
   }
 }
 
@@ -163,10 +253,10 @@ export async function restSelect(table, accessToken, query = '') {
   return supabaseRequest(`/rest/v1/${table}?${query}`, { method: 'GET', accessToken })
 }
 export async function restInsert(table, accessToken, row) {
-  return supabaseRequest(`/rest/v1/${table}`, { method: 'POST', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) })
+  return trackedOperation('save_action', 'insert', accessToken, () => supabaseRequest(`/rest/v1/${table}`, { method: 'POST', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) }))
 }
 export async function restUpdate(table, accessToken, filter, patch) {
-  return supabaseRequest(`/rest/v1/${table}?${filter}`, { method: 'PATCH', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) })
+  return trackedOperation('save_action', 'update', accessToken, () => supabaseRequest(`/rest/v1/${table}?${filter}`, { method: 'PATCH', accessToken, headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) }))
 }
 export async function restRpc(functionName, accessToken, args) {
   return supabaseRequest(`/rest/v1/rpc/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(args) })
@@ -175,13 +265,13 @@ export async function invokeEdgeFunction(functionName, accessToken, body) {
   return supabaseRequest(`/functions/v1/${functionName}`, { method: 'POST', accessToken, body: JSON.stringify(body), trace: false })
 }
 export async function uploadProjectFile(accessToken, path, file) {
-  return supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'POST', accessToken, json: false, headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+  return trackedOperation('file_transfer', 'upload', accessToken, () => supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'POST', accessToken, json: false, headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file }))
 }
 export async function deleteProjectFile(accessToken, path) {
-  return supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'DELETE', accessToken, json: false })
+  return trackedOperation('file_transfer', 'delete', accessToken, () => supabaseRequest(`/storage/v1/object/project-files/${path}`, { method: 'DELETE', accessToken, json: false }))
 }
 export async function downloadProjectFile(accessToken, path) {
-  return supabaseRequest(`/storage/v1/object/authenticated/project-files/${path}`, { method: 'GET', accessToken, json: false })
+  return trackedOperation('file_transfer', 'download', accessToken, () => supabaseRequest(`/storage/v1/object/authenticated/project-files/${path}`, { method: 'GET', accessToken, json: false }))
 }
 export function clearStoredAuthSession() {
   storeAuthSession(null)
