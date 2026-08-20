@@ -11,7 +11,7 @@
     "start": "node server/index.mjs",
     "lint": "eslint . --max-warnings=0",
     "performance:budget": "node scripts/performance-budget.mjs dist",
-    "release:guard": "node scripts/release-guard.mjs && node scripts/auth-redirect-guard.mjs && node scripts/e2e-fixture-guard.mjs && node scripts/task-security-guard.mjs && node scripts/pages-routing-guard.mjs && node scripts/pages-deployment-guard.mjs && node scripts/outcome-measurement-guard.mjs && node scripts/operational-telemetry-guard.mjs",
+    "release:guard": "node scripts/release-guard.mjs && node scripts/auth-redirect-guard.mjs && node scripts/e2e-fixture-guard.mjs && node scripts/task-security-guard.mjs && node scripts/pages-routing-guard.mjs && node scripts/pages-deployment-guard.mjs && node scripts/outcome-measurement-guard.mjs && node scripts/operational-telemetry-guard.mjs && node scripts/operations-watch-guard.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
